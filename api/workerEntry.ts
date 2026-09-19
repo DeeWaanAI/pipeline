@@ -16,6 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { startSwarmWorker, stopSwarmWorker } from "./workers/swarmWorker";
+import { startDesignWorker, startDesignOutboxReconciler, stopDesignWorker } from "./workers/designWorker";
 import { closeAllQueues } from "./infra/queue";
 import { logger } from "./lib/logger";
 import { initObservability } from "./lib/observability";
@@ -23,6 +24,8 @@ import { initObservability } from "./lib/observability";
 void initObservability();
 
 startSwarmWorker();
+startDesignWorker();
+startDesignOutboxReconciler();
 logger.info("Worker process started", { pid: process.pid });
 
 // ─── Global Error Handlers ─────────────────────────────────────────
@@ -50,6 +53,7 @@ async function gracefulShutdown(signal: string) {
     // Stop consuming, then close queues/Redis. In-flight "running" runs are
     // left as-is: the DB-heal at next web boot resets + re-enqueues them.
     await stopSwarmWorker();
+    await stopDesignWorker();
     await closeAllQueues();
     logger.info("Worker: shutdown complete");
   } catch (err) {

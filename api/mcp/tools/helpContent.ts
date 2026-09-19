@@ -159,6 +159,19 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Design a pipeline that turns a product idea into a launch plan.\"",
   },
   {
+    name: "start_design_job", group: "Author", scopes: ["mcp:write"], capability: "pipeline:autodesign", flag: "v2DesignJobs",
+    summary: "Durable auto-design: queues the designer as a background job on your configured provider (no live session needed) and returns a job id. The candidate is retained as an immutable version — review and apply it deliberately; your project is never overwritten silently.",
+    example: "\"Start a durable design job for: translate legal contracts from English to Arabic.\"",
+  },
+  {
+    name: "design_job_status", group: "Author", scopes: ["mcp:read"], flag: "v2DesignJobs",
+    summary: "Poll a design job: queued → running → succeeded/failed/cancelled, with the retained candidate and per-attempt records.",
+  },
+  {
+    name: "cancel_design_job", group: "Author", scopes: ["mcp:write"], flag: "v2DesignJobs",
+    summary: "Cancel a queued or running design job. Calls already incurred are not refunded.",
+  },
+  {
     name: "memory_append", group: "Author", scopes: ["mcp:write"],
     summary: "Add a note to your persistent project memory (survives across chats).",
   },

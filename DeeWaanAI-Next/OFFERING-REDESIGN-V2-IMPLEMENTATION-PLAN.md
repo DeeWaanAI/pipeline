@@ -60,12 +60,16 @@ Implemented as one migration (25 new tables); the spec's 022…02N split was jud
 
 **Goal:** Auto-design as durable jobs; Test journey (grade-only + optional comparisons) end-to-end, private, flag-gated. No marketplace, no payments.
 
-### P2a — Auto-design refactor (spec §5.1–5.2)
-- [ ] Split `api/services/autoDesignService.ts` into generate / validate / persist-with-revision-check; keep one designer implementation and the ≤7-step guidance as baseline.
-- [ ] New `api/services/designJobService.ts` + `api/routers/designJobs.ts` (`start/get/cancel/apply`) registered in `api/router.ts`; BullMQ-backed via `api/infra/queue.ts` with outbox transaction (§5.3); DB-authoritative lease/generation token.
-- [ ] MCP: `api/mcp/tools/designPipeline.ts` → job-start semantics returning poll instructions; add `designJobStatus`/`designJobCancel` tools in `api/mcp/tools/index.ts`; sampling path feature-flagged as non-durable.
-- [ ] Compatibility: keep `swarm.autoDesign` returning its current shape behind a version param until all clients migrate.
-- [ ] Tests: A03 (graph survives/invalid fails/concurrent edit retains candidate), A04 (durable IDs, HTTP/MCP parity), A05 (queue loss/crash/outbox replay).
+### P2a — Auto-design refactor (spec §5.1–5.2) — **implemented 2026-09-19**
+- [x] Split into three modules, one designer implementation: `designJobMeta.ts` (v1 prompt verbatim + types + pure parse), `designGenerationService.ts` (the only provider call, `uncertain` attempt outcomes), `designJobService.ts` (validate + revision-safe apply + lifecycle). `autoDesignService.ts` is now the legacy sync wrapper over the same helpers.
+- [x] `designJobService` + `api/routers/designJobs.ts` (`start/get/cancel/applyCandidate` — `apply` is a reserved tRPC key) registered in `api/router.ts`; queue via `api/infra/queue.ts` (`design-jobs`), job+outbox in ONE transaction, ER_DUP_ENTRY race → existing job returned; DB lease/generation token; 60s reconciler + boot heal in `boot.ts`/`workerEntry.ts`.
+- [x] MCP: added `start_design_job` (durable, owned-provider only — sampling never enqueued), `design_job_status`, `cancel_design_job` — all `featureFlag: "v2DesignJobs"` (server hides when off); help + helpContent updated. Legacy `design_pipeline` UNCHANGED (sampling stays sync/non-durable until applied through v2).
+- [x] Compatibility: `swarm.autoDesign` return shape unchanged; graph validation now also guards the legacy write path (invalid design never deletes existing steps — behavior improvement, flag-free).
+- [x] Migration 023 (additive design_jobs columns) + schema.ts mirror; local stack isolated (`docker-compose.v2.yml`, ports 3307/6380).
+- [x] Tests: 12 unit (A03 validation incl. dangling routes, self-loops, oversized, approval-steps-kept) + 8 DB-backed integration (A03 retain-on-conflict, A04 idempotency + shared-authz provider ownership, A05 lease/crash-heal/cancel-race). Full suite 252/256 = baseline + 20 new.
+- [ ] Deferred to P2b by design: `callAttempts` ledger for design calls (job carries `provider_call_attempts` JSON bridge), spend-approval binding (flag + owned provider enforce the interim).
+
+**Gate: PASSED locally.** Live end-to-end with a real BYOK key + queue drill (Redis kill) belongs to the P6 staging rehearsal.
 
 ### P2b — Benchmark engine (spec §4.1–4.2, §7, §9)
 - [ ] `api/services/benchmarkService.ts`: draft → freeze plan+hash → quote → atomic spend approval → fan-out via coordinator reusing `swarmService` execution loop against **immutable snapshots** (never rewrite mutable user projects per candidate).

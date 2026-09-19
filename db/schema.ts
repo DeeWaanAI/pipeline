@@ -1383,9 +1383,7 @@ export const designJobs = mysqlTable("design_jobs", {
   projectId: int("project_id")
     .references(() => projects.id, { onDelete: "cascade" })
     .notNull(),
-  // Optimistic concurrency: apply only if the project steps still match
-  // this revision. Changed revision → retained candidate, never overwrite.
-  expectedRevision: int("expected_revision").notNull(),
+  // (Revision + step-content snapshot fields are grouped below `state`.)
   designerProviderId: int("designer_provider_id")
     .references(() => llmProviders.id, { onDelete: "set null" }),
   designerModel: varchar("designer_model", { length: 120 }),
@@ -1394,9 +1392,34 @@ export const designJobs = mysqlTable("design_jobs", {
   spendApprovalId: int("spend_approval_id"),
   state: mysqlEnum("state", ["queued", "running", "succeeded", "failed", "cancelled", "paused"])
     .default("queued").notNull(),
+  // Cancel intent while running: the worker finalizes as cancelled instead of
+  // succeeded and stops dispatching further work (spec §5.3).
+  cancelRequestedAt: timestamp("cancel_requested_at"),
   candidateVersionId: int("candidate_version_id"),
+  // Candidate graph JSON snapshot produced by generation. Held on the job
+  // until apply so a changed project revision can retain it for the owner
+  // instead of dropping work already paid for.
+  candidateDefinition: mediumtext("candidate_definition"),
+  candidateDefinitionHash: varchar("candidate_definition_hash", { length: 64 }),
   applyState: mysqlEnum("apply_state", ["not_applied", "applied", "revision_conflict"])
     .default("not_applied").notNull(),
+  // Revision counter AND canonical step-content snapshot at start: v2 apply
+  // checks both, because legacy step writers do not bump the counter.
+  expectedRevision: int("expected_revision").notNull(),
+  baseStepHash: varchar("base_step_hash", { length: 64 }),
+  // Durable provider-call attempt summaries (spec §5.3): this is the P2a
+  // bridge until the full callAttempts ledger is wired in P2b.
+  providerCallAttempts: json("provider_call_attempts").$type<Array<{
+    attemptIndex: number;
+    outcome: "success" | "failed" | "uncertain";
+    model: string;
+    promptTokens?: number;
+    completionTokens?: number;
+    providerRequestId?: string;
+    errorSummary?: string;
+    startedAt: string;
+    finishedAt?: string;
+  }>>(),
   // DB lease/generation token: duplicate workers cannot finalize the same
   // logical job (spec §5.3).
   leaseToken: varchar("lease_token", { length: 64 }),

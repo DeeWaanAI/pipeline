@@ -9,6 +9,8 @@ import { getPipeline } from "./getPipeline";
 import { createPipeline } from "./createPipeline";
 import { updatePipeline } from "./updatePipeline";
 import { designPipeline } from "./designPipeline";
+import { startDesignJobTool } from "./startDesignJob";
+import { designJobStatus, cancelDesignJobTool } from "./designJobStatus";
 import { deewaanaiHelp } from "./help";
 import { suggestLlmProviders } from "./suggestProviders";
 import { addProvider } from "./addProvider";
@@ -49,6 +51,10 @@ export const TOOLS: McpTool[] = [
   createPipeline,
   updatePipeline,
   designPipeline,
+  // Offering redesign v2 — durable design jobs (hidden unless v2DesignJobs flag)
+  startDesignJobTool,
+  designJobStatus,
+  cancelDesignJobTool,
   deewaanaiHelp,
   suggestLlmProviders,
   addProvider,

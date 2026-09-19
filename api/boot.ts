@@ -20,6 +20,7 @@ import { registerMcpRoutes } from "./mcp/register";
 import { registerSsoRoutes } from "./sso-route";
 import { registerRelayRoutes } from "./relay-route";
 import { startSwarmWorker, stopSwarmWorker, enqueueSwarmRun, isSwarmWorkerRunning } from "./workers/swarmWorker";
+import { startDesignWorker, startDesignOutboxReconciler, stopDesignWorker } from "./workers/designWorker";
 import { closeAllQueues, getQueueBackend } from "./infra/queue";
 import { getRedis, isRedisEnabled } from "./infra/redis";
 import { logger } from "./lib/logger";
@@ -68,7 +69,13 @@ void initObservability();
 // (node dist/workerEntry.js) so the web dyno serves HTTP only — see DEPLOY.md.
 if (process.env.START_WORKER !== "false") {
   startSwarmWorker();
+  // v2 durable design jobs (offering redesign spec §5.3). The worker
+  // consumes only when its feature flag gates producers; the reconciler is
+  // harmless (no-op with an empty outbox) and MUST run in every process so
+  // accepted intent is always dispatched.
+  startDesignWorker();
 }
+startDesignOutboxReconciler();
 
 // ─── Health Check (liveness) ───────────────────────────────────────
 // 200 as long as the process is up and MySQL answers; degraded when the DB
@@ -397,8 +404,10 @@ async function gracefulShutdown(signal: string) {
   try {
     // Stop the worker gracefully, then close all queues/Redis. In-flight
     // "running" runs are intentionally left as-is: the DB-heal on next boot
-    // resets them to "pending" and re-enqueues them.
+    // resets them to "pending" and re-enqueues them. Same for design jobs
+    // (lease expiry + reconciler heal).
     await stopSwarmWorker();
+    await stopDesignWorker();
     await closeAllQueues();
     logger.info("Shutdown: worker stopped and queues closed");
   } catch (err) {

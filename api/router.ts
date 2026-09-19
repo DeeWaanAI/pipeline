@@ -26,6 +26,7 @@ import { testFixtureRouter } from "./routers/testFixture";
 import { githubRouter } from "./routers/github";
 import { billingRouter } from "./routers/billing";
 import { certificationRouter } from "./routers/certification";
+import { designJobsRouter } from "./routers/designJobs";
 import { PLUGINS } from "./plugins/registry";
 
 // Build plugin sub-routers
@@ -65,6 +66,7 @@ export const appRouter = createRouter({
   github: githubRouter,
   billing: billingRouter,
   certification: certificationRouter,
+  designJobs: designJobsRouter,
   // Plugin routes are namespaced under their plugin ID
   ...pluginRouters,
 });

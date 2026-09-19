@@ -26,10 +26,11 @@ export const deewaanaiHelp: McpTool = {
     const db = getDb();
     const { capabilities, tier } = await resolveCapabilities(ctx.userId);
 
-    const [teamsyncEnabled, samplingEnabled, batchModeEnabled, provider] = await Promise.all([
+    const [teamsyncEnabled, samplingEnabled, batchModeEnabled, v2DesignEnabled, provider] = await Promise.all([
       isFeatureEnabled("teamsync", ctx.userId),
       isFeatureEnabled("mcp_sampling", ctx.userId),
       isFeatureEnabled("batch_mode", ctx.userId),
+      isFeatureEnabled("v2DesignJobs", ctx.userId),
       db.select({ id: llmProviders.id }).from(llmProviders)
         .where(eq(llmProviders.userId, ctx.userId)).limit(1),
     ]);
@@ -38,7 +39,7 @@ export const deewaanaiHelp: McpTool = {
       tier,
       capabilities,
       scopes: [...ctx.scopes],
-      flags: { teamsync: teamsyncEnabled, mcp_sampling: samplingEnabled, batch_mode: batchModeEnabled },
+      flags: { teamsync: teamsyncEnabled, mcp_sampling: samplingEnabled, batch_mode: batchModeEnabled, v2DesignJobs: v2DesignEnabled },
       hasProvider: provider.length > 0,
       samplingSupported: ctx.runtime?.samplingSupported?.() ?? null,
     });
