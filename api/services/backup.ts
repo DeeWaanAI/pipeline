@@ -151,7 +151,7 @@ async function* dumpSql(creds: DbCredentials): AsyncGenerator<string> {
   const esc = (v: unknown): string =>
     v !== null && typeof v === "object" && !Buffer.isBuffer(v)
       ? escape(JSON.stringify(v))
-      : escape(v);
+      : escape(v as Parameters<typeof escape>[0]);
 
   try {
     yield "-- DeeWaanAI database dump (streamed in-process via mysql2)\n";
