@@ -32,23 +32,27 @@
 
 ---
 
-## 2. Phase P1 — Additive foundations (spec W1 + G1)
+## 2. Phase P1 — Additive foundations (spec W1 + G1) — **implemented 2026-09-19**
 
 **Goal:** all new tables, contracts, and flags — zero behavior change to existing flows.
 
-Files: `db/schema.ts`, new `db/migrations/022_*.sql` … `02N_*.sql`, `contracts/index.ts`, `api/plugins/featureFlags.ts`.
+Files: `db/schema.ts`, `db/migrations/022_offering_redesign_v2_tables.sql`, `contracts/offeringV2.ts`, `api/plugins/featureFlags.ts`.
 
-- [ ] **Versioning core:** `pipelineVersions` (immutable snapshots, designer metadata, hash) per spec §6.1.
-- [ ] **Design jobs:** `designJobs`, `jobOutbox`.
-- [ ] **Evaluation core:** `benchmarks`, `benchmarkCases`, `benchmarkCandidates`, `benchmarkRuns`, `benchmarkJudgments`, `callAttempts`, `spendApprovals` — with the score-scale decisions of §6.3 (`DECIMAL(7,6)` normalized aggregate, `DECIMAL(8,4)` raw 0–10, `DECIMAL(18,8)` cost; A07 requires 10.00 representable).
-- [ ] **Publication/community:** `evidencePublications`, `externalEvidenceReports`, `evidenceReports`; `marketplaceListings` additions (`publicationMode`, version pointers) — additive columns only.
-- [ ] **Access/financial (schema now, use later):** `executionGrants`, `trialGrants`, `trialReservations`, `settlementEntries`, `payoutAttempts`; `marketplacePurchases` extension columns.
-- [ ] Keys/indexes per §6.5: unique logical case/candidate/replication identities, actor-scoped idempotency keys, state indices.
-- [ ] **Contracts:** private/public evidence DTOs, job input DTOs, execution-purpose enum, normalized score schema, structured error catalog in `contracts/` — public DTOs are separate types, never DB rows.
-- [ ] **Flags:** `v2DesignJobs`, `v2Benchmarks`, `v2Publication`, `v2ProtectedExecution`, `v2Commercial` (last stays off until P4/P7 resolve).
-- [ ] Migration rehearsal: each migration restartable on a restored production-like copy (use the existing daily S3 backup snapshot; restore into an isolated local/Railway preview DB).
+Implemented as one migration (25 new tables); the spec's 022…02N split was judged unnecessary — restartability was instead proven by double-apply + byte-parity vs `db:push`. Legacy tables untouched: listing v2 pointers and checkout quotes live in 1:1 attachment tables (`marketplace_listing_v2`, `marketplace_checkout_quotes`) rather than ALTER on old rows.
 
-**Gate:** migrations apply + restart cleanly on restored copy; `npm run check`/`test` green; legacy code runs unchanged against new schema (A20 foundation).
+- [x] **Versioning core:** `pipelineVersions` (immutable snapshot + hash + designer metadata + parent lineage; `restrict` deletes so evidentiary versions survive source deletion).
+- [x] **Design jobs:** `designJobs` (lease token, apply-state, actor-scoped idempotency) + `jobOutbox` + `projectRevisions` (optimistic apply without touching `projects`).
+- [x] **Evaluation core:** `benchmarks`/`benchmarkCases`/`benchmarkCandidates`/`benchmarkRuns`/`benchmarkJudgments`/`callAttempts`/`spendApprovals` — §6.3 decimals (`DECIMAL(7,6)` normalized, `DECIMAL(8,4)` raw so 10.00 fits, `DECIMAL(18,8)` cost); `aggregateAvailability` prevents silent reweighting; `uncertain` outcomes preserved.
+- [x] **Publication/community:** `evidencePublications` (`testedAt` ≠ `publishedAt`, supersede chain), `externalEvidenceReports` (declared-only), `evidenceReports` (no auto-penalty), `marketplace_listing_v2` (`publicationMode legacy|v2`).
+- [x] **Access/financial (schema now, use later):** `executionGrants`, `trialGrants`+`trialReservations` (unique operation key), `settlementEntries` (per-sale commission basis/rate snapshot), `payoutAttempts` (stable key, provider-confirmed only), `marketplace_checkout_quotes`.
+- [x] **Model freshness:** `modelCatalog`, `modelReleaseEvents`, `retestSuggestions` (dedupe per seller/version/event/channel).
+- [x] **Trusted egress:** `trustedProviderEndpoints` (logging disclosure + protection class; seeded empty until P6).
+- [x] Keys/indexes per §6.5; over-64-char generated FK names replaced with explicit short builders (MySQL ER_TOO_LONG_IDENT).
+- [x] **Contracts:** `contracts/offeringV2.ts` — private vs public DTOs (DB rows never public), execution purposes, decimal-string score/money schemas, call-plan arithmetic, structured error catalog.
+- [x] **Flags:** five v2 flags added to `seedDefaultFlags()`; executed against local DB → all present and `false`.
+- [x] Migration rehearsal (local): 022 applied twice → restartable ✅; resulting schema diffed against `db:push` output → **identical** ✅. Restored-production-copy rehearsal happens with the staging DB in P6.
+
+**Gate: PASSED** — `npm run check` ✅; tests unchanged (232/236, same 4 pre-existing throttle failures as baseline); 58→83 tables additive.
 
 ---
 

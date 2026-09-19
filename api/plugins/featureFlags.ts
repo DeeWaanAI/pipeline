@@ -96,6 +96,15 @@ export async function seedDefaultFlags() {
     // Research Mode (Phase 0): batch runs + pipeline chaining. Default OFF.
     { key: "batch_mode", name: "Research Mode — Batch Runs", description: "Run up to 100 pipeline inputs in parallel", enabled: false, rolloutPercent: 0 },
     { key: "pipeline_chaining", name: "Research Mode — Pipeline Chaining", description: "Chain pipeline outputs into evaluation pipelines", enabled: false, rolloutPercent: 0 },
+    // Offering redesign v2 (OFFERING-REDESIGN-TECH-SPECS.md §13 G1). All
+    // default OFF: additive schema exists but no v2 entry point activates
+    // until its phase gate passes. v2Commercial stays OFF until the spec's
+    // open policy register (P1–P7) is resolved by the owner.
+    { key: "v2DesignJobs", name: "V2 — Durable Design Jobs", description: "Auto-design as durable queued jobs with revision-safe apply", enabled: false, rolloutPercent: 0 },
+    { key: "v2Benchmarks", name: "V2 — Private Evaluation", description: "Benchmark workspace: grade-only and optional comparisons", enabled: false, rolloutPercent: 0 },
+    { key: "v2Publication", name: "V2 — Evidence Publication", description: "Transparency-manifest publishing for sellers and community", enabled: false, rolloutPercent: 0 },
+    { key: "v2ProtectedExecution", name: "V2 — Protected Marketplace Execution", description: "Server-side buyer runs of protected workflow versions", enabled: false, rolloutPercent: 0 },
+    { key: "v2Commercial", name: "V2 — Commercial Features", description: "Subscription/payouts/trials — blocked pending P1–P7 policy approval", enabled: false, rolloutPercent: 0 },
   ];
 
   for (const def of defaults) {

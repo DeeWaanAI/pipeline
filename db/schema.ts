@@ -12,6 +12,7 @@ import {
   decimal,
   index,
   uniqueIndex,
+  foreignKey,
 } from "drizzle-orm/mysql-core";
 
 // ─── USERS (supports both Kimi OAuth and local username/password) ────
@@ -1329,3 +1330,730 @@ export const waitlistEntries = mysqlTable("waitlist_entries", {
   emailUniq: uniqueIndex("uq_waitlist_email").on(table.email),
   referralCodeUniq: uniqueIndex("uq_waitlist_referral_code").on(table.referralCode),
 }));
+
+// ═══════════════════════════════════════════════════════════════════════
+// OFFERING REDESIGN V2 (P1 — additive foundations)
+// ═══════════════════════════════════════════════════════════════════════
+// Governed by DeeWaanAI-Next/OFFERING-REDESIGN-TECH-SPECS.md (v2.0).
+// Everything below is ADDITIVE: no existing table, column, enum value, or
+// cascade is modified. Legacy rows are unaffected; v2 readers/writers are
+// feature-flagged. Score/cost decimals follow spec §6.3 (DECIMAL(7,6)
+// normalized aggregate, DECIMAL(8,4) raw 0–10 so 10.00 is representable,
+// DECIMAL(18,8) API cost). Money columns keep the repo's existing
+// DECIMAL(10,2) minor-unit style. Large text uses mediumtext with
+// app-enforced size limits (spec §6). Private definition refs never embed
+// live credentials.
+
+// ─── PIPELINE VERSIONS (immutable workflow snapshots, spec §6.1) ─────
+export const pipelineVersions = mysqlTable("pipeline_versions", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  ownerId: int("owner_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  // Source references are NOT cascade-deleted: a purchased/evidentiary
+  // version must survive source project or template deletion (spec §6.1).
+  sourceProjectId: int("source_project_id"),
+  sourceTemplateId: int("source_template_id"),
+  versionNumber: int("version_number").notNull(),
+  definitionSchemaVersion: int("definition_schema_version").default(1).notNull(),
+  // Canonical JSON snapshot: all prompts, graph/loop config, decoding and
+  // tool/runtime configuration required for execution. No credentials.
+  definition: mediumtext("definition").notNull(),
+  definitionHash: varchar("definition_hash", { length: 64 }).notNull(),
+  designerMethod: mysqlEnum("designer_method", ["manual", "auto"]).default("manual").notNull(),
+  designerProviderId: int("designer_provider_id"),
+  designerModel: varchar("designer_model", { length: 120 }),
+  designerPromptVersion: varchar("designer_prompt_version", { length: 60 }),
+  parentVersionId: int("parent_version_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  ownerVersionUniq: uniqueIndex("uq_pipeline_versions_owner_version").on(table.ownerId, table.sourceProjectId, table.versionNumber),
+  definitionHashIdx: index("idx_pipeline_versions_hash").on(table.definitionHash),
+}));
+
+export type PipelineVersion = typeof pipelineVersions.$inferSelect;
+export type InsertPipelineVersion = typeof pipelineVersions.$inferInsert;
+
+// ─── DESIGN JOBS (durable auto-design, spec §5/§6.1) ─────────────────
+export const designJobs = mysqlTable("design_jobs", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  actorId: int("actor_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  projectId: int("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull(),
+  // Optimistic concurrency: apply only if the project steps still match
+  // this revision. Changed revision → retained candidate, never overwrite.
+  expectedRevision: int("expected_revision").notNull(),
+  designerProviderId: int("designer_provider_id")
+    .references(() => llmProviders.id, { onDelete: "set null" }),
+  designerModel: varchar("designer_model", { length: 120 }),
+  designerPromptVersion: varchar("designer_prompt_version", { length: 60 }),
+  objective: text("objective").notNull(),
+  spendApprovalId: int("spend_approval_id"),
+  state: mysqlEnum("state", ["queued", "running", "succeeded", "failed", "cancelled", "paused"])
+    .default("queued").notNull(),
+  candidateVersionId: int("candidate_version_id"),
+  applyState: mysqlEnum("apply_state", ["not_applied", "applied", "revision_conflict"])
+    .default("not_applied").notNull(),
+  // DB lease/generation token: duplicate workers cannot finalize the same
+  // logical job (spec §5.3).
+  leaseToken: varchar("lease_token", { length: 64 }),
+  leaseExpiresAt: timestamp("lease_expires_at"),
+  attemptCount: int("attempt_count").default(0).notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 120 }),
+  errorCode: varchar("error_code", { length: 60 }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  finishedAt: timestamp("finished_at"),
+}, (table) => ({
+  actorIdempotencyUniq: uniqueIndex("uq_design_jobs_actor_idempotency").on(table.actorId, table.idempotencyKey),
+  stateIdx: index("idx_design_jobs_state").on(table.state),
+  projectIdx: index("idx_design_jobs_project").on(table.projectId),
+}));
+
+export type DesignJob = typeof designJobs.$inferSelect;
+export type InsertDesignJob = typeof designJobs.$inferInsert;
+
+// ─── JOB OUTBOX (transactional enqueue intent, spec §5.3) ────────────
+// Persisted in the same transaction as the job row; a dispatcher drains it
+// with a stable idempotency key. Unenqueued records are reconciled after
+// crashes so accepted intent is never lost.
+export const jobOutbox = mysqlTable("job_outbox", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  eventKey: varchar("event_key", { length: 160 }).notNull().unique(),
+  resourceType: varchar("resource_type", { length: 60 }).notNull(),
+  resourceId: int("resource_id").notNull(),
+  operation: varchar("operation", { length: 60 }).notNull(),
+  payload: json("payload").$type<Record<string, unknown>>(), // IDs only — never keys/prompts
+  deliveryState: mysqlEnum("delivery_state", ["pending", "delivered", "failed", "dead"])
+    .default("pending").notNull(),
+  attemptCount: int("attempt_count").default(0).notNull(),
+  nextRetryAt: timestamp("next_retry_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  deliveredAt: timestamp("delivered_at"),
+}, (table) => ({
+  pendingIdx: index("idx_job_outbox_pending").on(table.deliveryState, table.nextRetryAt),
+}));
+
+export type JobOutbox = typeof jobOutbox.$inferSelect;
+export type InsertJobOutbox = typeof jobOutbox.$inferInsert;
+
+// ─── PROJECT REVISION COUNTER (optimistic concurrency for design apply) ─
+// Separate table so `projects` rows are untouched by v2 writers. Incremented
+// transactionally whenever pipeline steps change.
+export const projectRevisions = mysqlTable("project_revisions", {
+  projectId: int("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .primaryKey().notNull(),
+  revision: int("revision").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().onUpdateNow(),
+});
+
+export type ProjectRevision = typeof projectRevisions.$inferSelect;
+export type InsertProjectRevision = typeof projectRevisions.$inferInsert;
+
+// ─── SPEND APPROVALS (frozen call-plan consent, spec §6.1/§9) ────────
+export const spendApprovals = mysqlTable("spend_approvals", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  actorId: int("actor_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  payerId: int("payer_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  purpose: mysqlEnum("purpose", [
+    "private_design", "private_evaluation", "seller_evidence", "buyer_execution", "trial", "community_evaluation",
+  ]).notNull(),
+  planHash: varchar("plan_hash", { length: 64 }).notNull(),
+  planSnapshot: mediumtext("plan_snapshot").notNull(), // exact frozen call plan
+  bindings: json("bindings").$type<Array<{ providerId: number; model: string }>>().notNull(),
+  limits: json("limits").$type<{
+    maxCalls?: number;
+    maxTokens?: number;
+    maxRuntimeSeconds?: number;
+  }>(),
+  spendCeilingUsd: decimal("spend_ceiling_usd", { precision: 10, scale: 2 }), // optional user-approved ceiling
+  status: mysqlEnum("status", ["active", "consumed", "expired", "revoked"])
+    .default("active").notNull(),
+  policyVersion: varchar("policy_version", { length: 40 }).notNull(),
+  approvedAt: timestamp("approved_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  revokedAt: timestamp("revoked_at"),
+}, (table) => ({
+  actorStatusIdx: index("idx_spend_approvals_actor_status").on(table.actorId, table.status),
+}));
+
+export type SpendApproval = typeof spendApprovals.$inferSelect;
+export type InsertSpendApproval = typeof spendApprovals.$inferInsert;
+
+// ─── BENCHMARKS (evaluation runs, spec §6.1) ─────────────────────────
+// listingId is NULLABLE: private grade-only evaluation needs no listing (D1).
+// plan/planHash are frozen at start; later edits create a new benchmark.
+export const benchmarks = mysqlTable("benchmarks", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  ownerId: int("owner_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "set null" }),
+  pipelineVersionId: int("pipeline_version_id")
+    .references(() => pipelineVersions.id, { onDelete: "restrict" })
+    .notNull(),
+  executionMode: mysqlEnum("execution_mode", ["grade_only", "compare_models", "compare_frontier_solo"])
+    .notNull(),
+  schemaVersion: int("schema_version").default(1).notNull(),
+  plan: mediumtext("plan"), // immutable frozen plan JSON after start
+  planHash: varchar("plan_hash", { length: 64 }),
+  rubricRef: varchar("rubric_ref", { length: 120 }),
+  judgeConfigRef: varchar("judge_config_ref", { length: 120 }),
+  spendApprovalId: int("spend_approval_id").references(() => spendApprovals.id, { onDelete: "restrict" }),
+  state: mysqlEnum("state", ["draft", "queued", "running", "paused", "completed", "partial", "failed", "cancelled"])
+    .default("draft").notNull(),
+  aggregateAvailability: mysqlEnum("aggregate_availability", ["none", "complete", "incomplete"])
+    .default("none").notNull(), // missing coverage → incomplete, never silently reweighted (§6.3)
+  leaseToken: varchar("lease_token", { length: 64 }),
+  idempotencyKey: varchar("idempotency_key", { length: 120 }),
+  costCurrency: varchar("cost_currency", { length: 4 }).default("USD"),
+  totalEstimatedCost: decimal("total_estimated_cost", { precision: 18, scale: 8 }),
+  totalObservedCost: decimal("total_observed_cost", { precision: 18, scale: 8 }),
+  costCompleteness: mysqlEnum("cost_completeness", ["complete", "partial", "unknown"]).default("unknown"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  finishedAt: timestamp("finished_at"),
+}, (table) => ({
+  ownerStateIdx: index("idx_benchmarks_owner_state").on(table.ownerId, table.state),
+  versionIdx: index("idx_benchmarks_pipeline_version").on(table.pipelineVersionId),
+  actorIdempotencyUniq: uniqueIndex("uq_benchmarks_owner_idempotency").on(table.ownerId, table.idempotencyKey),
+}));
+
+export type Benchmark = typeof benchmarks.$inferSelect;
+export type InsertBenchmark = typeof benchmarks.$inferInsert;
+
+// ─── BENCHMARK CASES (task inputs, spec §6.1) ────────────────────────
+export const benchmarkCases = mysqlTable("benchmark_cases", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  benchmarkId: int("benchmark_id")
+    .references(() => benchmarks.id, { onDelete: "cascade" })
+    .notNull(),
+  stableCaseId: varchar("stable_case_id", { length: 60 }).notNull(),
+  caseOrder: int("case_order").notNull(),
+  inputText: mediumtext("input_text"),
+  inputArtifactRef: varchar("input_artifact_ref", { length: 255 }), // large inputs: private object storage
+  origin: mysqlEnum("origin", ["user", "generated", "paraphrase"]).default("user").notNull(),
+  baseCaseId: varchar("base_case_id", { length: 60 }), // paraphrase grouping
+  expectedOutput: mediumtext("expected_output"), // reference when provided
+  contentHash: varchar("content_hash", { length: 64 }).notNull(),
+  provenanceNotes: text("provenance_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  benchmarkCaseUniq: uniqueIndex("uq_benchmark_cases_benchmark_case").on(table.benchmarkId, table.stableCaseId),
+}));
+
+export type BenchmarkCase = typeof benchmarkCases.$inferSelect;
+export type InsertBenchmarkCase = typeof benchmarkCases.$inferInsert;
+
+// ─── BENCHMARK CANDIDATES (execution strategies under test, §6.1) ────
+export const benchmarkCandidates = mysqlTable("benchmark_candidates", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  benchmarkId: int("benchmark_id")
+    .references(() => benchmarks.id, { onDelete: "cascade" })
+    .notNull(),
+  stableCandidateId: varchar("stable_candidate_id", { length: 60 }).notNull(),
+  strategy: mysqlEnum("strategy", ["pipeline", "solo_baseline"]).notNull(),
+  workflowVersionId: int("workflow_version_id").references(() => pipelineVersions.id, { onDelete: "restrict" }),
+  baselinePrompt: mediumtext("baseline_prompt"), // solo_baseline only
+  baselinePromptVersion: varchar("baseline_prompt_version", { length: 60 }),
+  requestedProviderId: int("requested_provider_id"), // payer-owned, resolved server-side
+  requestedModel: varchar("requested_model", { length: 120 }),
+  stepResolutionPolicy: json("step_resolution_policy").$type<{
+    mode: "as_configured" | "override_all";
+    overrideModel?: string;
+    overrideProviderId?: number;
+  }>(),
+  decodingSnapshot: json("decoding_snapshot").$type<{
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  benchmarkCandidateUniq: uniqueIndex("uq_benchmark_candidates_benchmark_candidate").on(table.benchmarkId, table.stableCandidateId),
+}));
+
+export type BenchmarkCandidate = typeof benchmarkCandidates.$inferSelect;
+export type InsertBenchmarkCandidate = typeof benchmarkCandidates.$inferInsert;
+
+// ─── BENCHMARK RUNS (one execution per case×candidate×replication) ───
+export const benchmarkRuns = mysqlTable("benchmark_runs", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  benchmarkId: int("benchmark_id")
+    .references(() => benchmarks.id, { onDelete: "cascade" })
+    .notNull(),
+  caseId: int("case_id")
+    .references(() => benchmarkCases.id, { onDelete: "cascade" })
+    .notNull(),
+  candidateId: int("candidate_id")
+    .references(() => benchmarkCandidates.id, { onDelete: "cascade" })
+    .notNull(),
+  replicationIndex: int("replication_index").default(1).notNull(),
+  logicalExecutionId: varchar("logical_execution_id", { length: 60 }).notNull(),
+  linkedSwarmRunId: int("linked_swarm_run_id").references(() => swarmRuns.id, { onDelete: "set null" }),
+  // For grading existing outputs: user-reported origin is NOT attested
+  // platform execution evidence (spec §4.1).
+  importedProvenance: json("imported_provenance").$type<{
+    kind: "user_reported";
+    reportedModel?: string;
+    reportedAt?: string;
+  }>(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "cancelled", "uncertain"])
+    .default("pending").notNull(),
+  outputText: mediumtext("output_text"),
+  outputHash: varchar("output_hash", { length: 64 }),
+  executorMetadata: json("executor_metadata").$type<{
+    stepModels?: Array<{ stepOrder: number; requestedModel: string; returnedModel?: string | null }>;
+    providerRoute?: string;
+    revisionExposed?: string | null; // null → "not exposed by provider"
+  }>(),
+  startedAt: timestamp("started_at"),
+  finishedAt: timestamp("finished_at"),
+  usageSummary: json("usage_summary").$type<{ promptTokens?: number; completionTokens?: number }>(),
+  errorSummary: text("error_summary"), // sanitized
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  logicalRunUniq: uniqueIndex("uq_benchmark_runs_logical_execution").on(table.logicalExecutionId),
+  runMembershipIdx: index("idx_benchmark_runs_benchmark").on(table.benchmarkId, table.status),
+  caseCandidateUniq: uniqueIndex("uq_benchmark_runs_case_candidate_replication").on(
+    table.caseId, table.candidateId, table.replicationIndex,
+  ),
+}));
+
+export type BenchmarkRun = typeof benchmarkRuns.$inferSelect;
+export type InsertBenchmarkRun = typeof benchmarkRuns.$inferInsert;
+
+// ─── BENCHMARK JUDGMENTS (rubric scores or pair preferences, §6.1) ───
+// Score scale is EXPLICIT per §6.3: rawScore DECIMAL(8,4) with declared
+// lower/upper bounds → 10.00 representable; normalized DECIMAL(7,6) ∈ [0,1].
+export const benchmarkJudgments = mysqlTable("benchmark_judgments", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  benchmarkId: int("benchmark_id")
+    .references(() => benchmarks.id, { onDelete: "cascade" })
+    .notNull(),
+  runId: int("run_id").references(() => benchmarkRuns.id, { onDelete: "cascade" }),
+  runAId: int("run_a_id"),
+  runBId: int("run_b_id"),
+  judgeSlot: int("judge_slot").notNull(), // discloses panel size (spec §7.1)
+  rubricVersionRef: varchar("rubric_version_ref", { length: 120 }).notNull(),
+  judgePromptVersion: varchar("judge_prompt_version", { length: 60 }).notNull(),
+  judgeModel: varchar("judge_model", { length: 120 }).notNull(),
+  judgeProviderRoute: varchar("judge_provider_route", { length: 120 }),
+  judgeRevision: varchar("judge_revision", { length: 120 }), // nullable → not exposed
+  orientation: mysqlEnum("orientation", ["none", "ab", "ba"]), // paired only, recorded/randomized
+  kind: mysqlEnum("kind", ["rubric", "pairwise"]).default("rubric").notNull(),
+  dimensionScores: json("dimension_scores").$type<Array<{
+    dimension: string;
+    rawScore: string;      // decimal string, range-validated at write
+    lowerBound: string;
+    upperBound: string;
+    weight: string;        // finite, nonnegative; sums to 1 after normalization
+  }>>(),
+  rawAggregate: decimal("raw_aggregate", { precision: 8, scale: 4 }), // e.g. 0–10 scale
+  normalizedAggregate: decimal("normalized_aggregate", { precision: 7, scale: 6 }), // [0,1]
+  pairPreference: mysqlEnum("pair_preference", ["a", "b", "tie"]),
+  rationale: mediumtext("rationale"),
+  rawResponseRef: varchar("raw_response_ref", { length: 255 }),
+  status: mysqlEnum("status", ["pending", "completed", "parse_failed", "validation_failed", "failed"])
+    .default("pending").notNull(),
+  validationNotes: json("validation_notes").$type<{ outOfRange?: string[]; missingDimensions?: string[] }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  judgmentUniq: uniqueIndex("uq_benchmark_judgments_run_judge_orientation").on(
+    table.runId, table.judgeSlot, table.orientation, table.judgePromptVersion,
+  ),
+  benchmarkIdx: index("idx_benchmark_judgments_benchmark").on(table.benchmarkId, table.status),
+  fkRunA: foreignKey({ name: "fk_benchmark_judgments_run_a", columns: [table.runAId], foreignColumns: [benchmarkRuns.id] }).onDelete("cascade"),
+  fkRunB: foreignKey({ name: "fk_benchmark_judgments_run_b", columns: [table.runBId], foreignColumns: [benchmarkRuns.id] }).onDelete("cascade"),
+}));
+
+export type BenchmarkJudgment = typeof benchmarkJudgments.$inferSelect;
+export type InsertBenchmarkJudgment = typeof benchmarkJudgments.$inferInsert;
+
+// ─── CALL ATTEMPTS (append-only provider ledger, spec §6.1/§9) ───────
+// Retries NEVER overwrite prior attempts; uncertain outcomes stay visible.
+export const callAttempts = mysqlTable("call_attempts", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey().notNull(),
+  operationKind: mysqlEnum("operation_kind", ["generation", "judgment", "design", "narrative", "preparation"]).notNull(),
+  operationId: int("operation_id").notNull(), // row ID within kind (run/judgment/job)
+  benchmarkId: int("benchmark_id").references(() => benchmarks.id, { onDelete: "cascade" }),
+  purpose: mysqlEnum("purpose", [
+    "private_design", "private_evaluation", "seller_evidence", "buyer_execution", "trial", "community_evaluation",
+  ]).notNull(),
+  actorId: int("actor_id").references(() => users.id, { onDelete: "restrict" }).notNull(),
+  payerId: int("payer_id").references(() => users.id, { onDelete: "restrict" }).notNull(),
+  providerRefId: int("provider_ref_id"), // private; never exposed cross-tenant
+  requestedModel: varchar("requested_model", { length: 120 }).notNull(),
+  returnedModel: varchar("returned_model", { length: 120 }),
+  providerRequestId: varchar("provider_request_id", { length: 120 }),
+  attemptIndex: int("attempt_index").notNull(),
+  outcome: mysqlEnum("outcome", ["success", "failed", "uncertain"]).notNull(),
+  promptTokens: int("prompt_tokens"),
+  completionTokens: int("completion_tokens"),
+  cachedTokens: int("cached_tokens"),
+  priceVectorVersion: varchar("price_vector_version", { length: 40 }),
+  estimatedCostUsd: decimal("estimated_cost_usd", { precision: 18, scale: 8 }),
+  costCompleteness: mysqlEnum("cost_completeness", ["complete", "partial", "unknown"]).default("unknown").notNull(),
+  startedAt: timestamp("started_at"),
+  finishedAt: timestamp("finished_at"),
+  latencyMs: int("latency_ms"),
+  errorMessage: text("error_message"), // redacted
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  attemptUniq: uniqueIndex("uq_call_attempts_operation_attempt").on(table.operationKind, table.operationId, table.attemptIndex),
+  benchmarkIdx: index("idx_call_attempts_benchmark").on(table.benchmarkId),
+  payerIdx: index("idx_call_attempts_payer_created").on(table.payerId, table.createdAt),
+}));
+
+export type CallAttempt = typeof callAttempts.$inferSelect;
+export type InsertCallAttempt = typeof callAttempts.$inferInsert;
+
+// ─── EVIDENCE PUBLICATIONS (immutable public manifests, spec §6.2) ───
+// Job completion NEVER publishes (§10.2). A replacement is a new row that
+// supersedes the old; withdrawal never rewrites history.
+export const evidencePublications = mysqlTable("evidence_publications", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  authorId: int("author_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  benchmarkId: int("benchmark_id").references(() => benchmarks.id, { onDelete: "restrict" }),
+  externalReportId: int("external_report_id"), // set for user-reported evidence
+  listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "restrict" }),
+  listingWorkflowVersionId: int("listing_workflow_version_id"),
+  publicationKind: mysqlEnum("publication_kind", ["seller", "community"]).notNull(),
+  provenance: mysqlEnum("provenance", ["platform_recorded", "user_reported", "legacy_import"]).notNull(),
+  publicManifest: mediumtext("public_manifest").notNull(),
+  manifestHash: varchar("manifest_hash", { length: 64 }).notNull(),
+  schemaVersion: int("schema_version").default(1).notNull(),
+  consentVersion: varchar("consent_version", { length: 40 }).notNull(),
+  state: mysqlEnum("state", ["draft_preview", "published", "withdrawn"]).default("draft_preview").notNull(),
+  supersedesPublicationId: int("supersedes_publication_id"),
+  // Original test completion time is SEPARATE from publication time —
+  // re-publishing must not reset "tested on" (§6.2).
+  testedAt: timestamp("tested_at").notNull(),
+  publishedAt: timestamp("published_at"),
+  withdrawnAt: timestamp("withdrawn_at"),
+  withdrawalReason: text("withdrawal_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  listingPublicIdx: index("idx_evidence_publications_listing_state").on(table.listingId, table.state),
+  authorIdx: index("idx_evidence_publications_author").on(table.authorId),
+  fkWorkflowVersion: foreignKey({ name: "fk_evidence_pub_workflow_version", columns: [table.listingWorkflowVersionId], foreignColumns: [pipelineVersions.id] }).onDelete("restrict"),
+}));
+
+export type EvidencePublication = typeof evidencePublications.$inferSelect;
+export type InsertEvidencePublication = typeof evidencePublications.$inferInsert;
+
+// ─── EXTERNAL EVIDENCE REPORTS (user-declared, never attested, §6.2) ──
+export const externalEvidenceReports = mysqlTable("external_evidence_reports", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  authorId: int("author_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "restrict" }).notNull(),
+  workflowVersionId: int("workflow_version_id"),
+  declaredInputs: mediumtext("declared_inputs").notNull(),
+  declaredOutputs: mediumtext("declared_outputs").notNull(),
+  declaredModel: varchar("declared_model", { length: 200 }),
+  declaredDate: varchar("declared_date", { length: 40 }), // user-reported, not trusted as timestamp
+  declaredRubric: text("declared_rubric"),
+  attachments: json("attachments").$type<Array<{ ref: string; name: string; mime: string; sizeBytes: number; safetyScan: string }>>(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  listingIdx: index("idx_external_evidence_reports_listing").on(table.listingId),
+  fkWorkflowVersion: foreignKey({ name: "fk_external_reports_workflow_version", columns: [table.workflowVersionId], foreignColumns: [pipelineVersions.id] }).onDelete("set null"),
+}));
+
+export type ExternalEvidenceReport = typeof externalEvidenceReports.$inferSelect;
+export type InsertExternalEvidenceReport = typeof externalEvidenceReports.$inferInsert;
+
+// ─── EVIDENCE REPORTS (community contradiction flags, spec §4.4) ──────
+// A score DIFFERENCE never auto-verifies, auto-refunds, or auto-delists.
+export const evidenceReports = mysqlTable("evidence_reports", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  reporterId: int("reporter_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  targetPublicationId: int("target_publication_id"),
+  targetListingId: int("target_listing_id").references(() => marketplaceListings.id, { onDelete: "restrict" }),
+  reason: text("reason").notNull(),
+  supportingRef: varchar("supporting_ref", { length: 255 }),
+  assessmentStatus: mysqlEnum("assessment_status", ["open", "reviewing", "upheld", "dismissed"])
+    .default("open").notNull(),
+  sellerReply: text("seller_reply"),
+  sellerRepliedAt: timestamp("seller_replied_at"),
+  assessedBy: int("assessed_by").references(() => users.id, { onDelete: "set null" }),
+  assessedAt: timestamp("assessed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  targetIdx: index("idx_evidence_reports_target").on(table.targetPublicationId, table.assessmentStatus),
+  fkTargetPub: foreignKey({ name: "fk_evidence_reports_target_pub", columns: [table.targetPublicationId], foreignColumns: [evidencePublications.id] }).onDelete("restrict"),
+}));
+
+export type EvidenceReport = typeof evidenceReports.$inferSelect;
+export type InsertEvidenceReport = typeof evidenceReports.$inferInsert;
+
+// ─── EXECUTION GRANTS (execute ≠ read, spec §6.4) ─────────────────────
+// pipeline:run:<listingId> entitlements stay as-is for compatibility, but
+// only these grants authorize loading a protected version server-side.
+export const executionGrants = mysqlTable("execution_grants", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  subjectType: mysqlEnum("subject_type", ["user", "team"]).notNull(),
+  subjectId: int("subject_id").notNull(),
+  listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "restrict" }).notNull(),
+  workflowVersionId: int("workflow_version_id").references(() => pipelineVersions.id, { onDelete: "restrict" }),
+  source: mysqlEnum("source", ["purchase", "trial", "manual"]),
+  sourceRef: varchar("source_ref", { length: 120 }),
+  state: mysqlEnum("state", ["active", "revoked", "expired"]).default("active").notNull(),
+  policyVersion: varchar("policy_version", { length: 40 }),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  revokedAt: timestamp("revoked_at"),
+}, (table) => ({
+  subjectListingIdx: index("idx_execution_grants_subject_listing").on(table.subjectId, table.listingId, table.state),
+}));
+
+export type ExecutionGrant = typeof executionGrants.$inferSelect;
+export type InsertExecutionGrant = typeof executionGrants.$inferInsert;
+
+// ─── TRIAL GRANTS / RESERVATIONS (atomic quota, spec §6.4/§8.3) ───────
+// Feature-flagged off until policy P4 resolves. No fabricated purchase rows.
+export const trialGrants = mysqlTable("trial_grants", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  subjectId: int("subject_id").notNull(),
+  listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "restrict" }).notNull(),
+  policyWindow: varchar("policy_window", { length: 40 }).notNull(), // e.g. "all-time" or "2026-09"
+  policyVersion: varchar("policy_version", { length: 40 }).notNull(),
+  allowedQuota: int("allowed_quota").notNull(),
+  reservedCount: int("reserved_count").default(0).notNull(),
+  consumedCount: int("consumed_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  grantUniq: uniqueIndex("uq_trial_grants_subject_listing_window_policy").on(
+    table.subjectId, table.listingId, table.policyWindow, table.policyVersion,
+  ),
+}));
+
+export type TrialGrant = typeof trialGrants.$inferSelect;
+export type InsertTrialGrant = typeof trialGrants.$inferInsert;
+
+export const trialReservations = mysqlTable("trial_reservations", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  trialGrantId: int("trial_grant_id")
+    .references(() => trialGrants.id, { onDelete: "restrict" })
+    .notNull(),
+  operationKey: varchar("operation_key", { length: 160 }).notNull(), // idempotent execution ID
+  state: mysqlEnum("state", ["reserved", "consumed", "released", "uncertain"]).default("reserved").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+}, (table) => ({
+  operationKeyUniq: uniqueIndex("uq_trial_reservations_operation_key").on(table.operationKey),
+  grantStateIdx: index("idx_trial_reservations_grant_state").on(table.trialGrantId, table.state),
+}));
+
+export type TrialReservation = typeof trialReservations.$inferSelect;
+export type InsertTrialReservation = typeof trialReservations.$inferInsert;
+
+// ─── SETTLEMENT ENTRIES (seller earnings ledger, spec §6.4/§11) ───────
+// A recorded earning is NOT a bank payout. Minor-unit decimal(10,2); the
+// commission basis/rate is snapshotted per sale so history is immutable.
+export const settlementEntries = mysqlTable("settlement_entries", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  purchaseId: int("purchase_id").references(() => marketplacePurchases.id, { onDelete: "restrict" }),
+  adjustmentSource: mysqlEnum("adjustment_source", ["purchase", "refund", "chargeback", "manual_adjustment"]).notNull(),
+  sellerId: int("seller_id")
+    .references(() => users.id, { onDelete: "restrict" })
+    .notNull(),
+  currency: varchar("currency", { length: 4 }).default("USD").notNull(),
+  grossAmount: decimal("gross_amount", { precision: 10, scale: 2 }).notNull(),
+  commissionBasis: decimal("commission_basis", { precision: 10, scale: 2 }).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 4, scale: 2 }).notNull(), // e.g. 0.30
+  feesTaxRef: varchar("fees_tax_ref", { length: 120 }),
+  netPayable: decimal("net_payable", { precision: 10, scale: 2 }).notNull(),
+  state: mysqlEnum("state", ["held", "eligible", "processing", "paid", "failed", "unknown", "reversed", "adjusted"])
+    .default("held").notNull(),
+  holdPolicyVersion: varchar("hold_policy_version", { length: 40 }),
+  holdUntil: timestamp("hold_until"),
+  disputeState: mysqlEnum("dispute_state", ["none", "open", "resolved"]).default("none").notNull(),
+  policySnapshot: json("policy_snapshot").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+}, (table) => ({
+  sellerStateIdx: index("idx_settlement_entries_seller_state").on(table.sellerId, table.state),
+  holdIdx: index("idx_settlement_entries_hold").on(table.state, table.holdUntil),
+}));
+
+export type SettlementEntry = typeof settlementEntries.$inferSelect;
+export type InsertSettlementEntry = typeof settlementEntries.$inferInsert;
+
+// ─── PAYOUT ATTEMPTS (external-confirmed transfers, spec §6.4/§11.3) ──
+// Only provider-confirmed success marks a payout paid. Timeouts record
+// `unknown` and reconcile by reference — never a new-key resend.
+export const payoutAttempts = mysqlTable("payout_attempts", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  settlementEntryId: int("settlement_entry_id")
+    .references(() => settlementEntries.id, { onDelete: "restrict" })
+    .notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull().unique(),
+  provider: varchar("provider", { length: 60 }).notNull(), // e.g. "stripe_connect" once approved (P3)
+  providerTransferRef: varchar("provider_transfer_ref", { length: 160 }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 4 }).notNull(),
+  state: mysqlEnum("state", ["pending", "processing", "succeeded", "failed", "unknown"]).default("pending").notNull(),
+  providerConfirmedAt: timestamp("provider_confirmed_at"),
+  failureReason: text("failure_reason"), // redacted
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+}, (table) => ({
+  settlementIdx: index("idx_payout_attempts_settlement").on(table.settlementEntryId, table.state),
+  pendingIdx: index("idx_payout_attempts_unreconciled").on(table.state, table.createdAt),
+}));
+
+export type PayoutAttempt = typeof payoutAttempts.$inferSelect;
+export type InsertPayoutAttempt = typeof payoutAttempts.$inferInsert;
+
+// ─── MODEL CATALOG (versioned, admin-reviewed release events, §12.1) ──
+// NOT inferred from user llmProviders.models caches or name substrings.
+export const modelCatalog = mysqlTable("model_catalog", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  provider: varchar("provider", { length: 80 }).notNull(),
+  modelId: varchar("model_id", { length: 120 }).notNull(),
+  family: varchar("family", { length: 80 }),
+  successorOfModelId: varchar("successor_of_model_id", { length: 120 }), // explicit lineage
+  availabilitySource: mysqlEnum("availability_source", ["admin_reviewed", "feed_import"]).default("admin_reviewed").notNull(),
+  sourceUrl: varchar("source_url", { length: 512 }),
+  verifiedAt: timestamp("verified_at"),
+  availableAt: timestamp("available_at"),
+  deprecatedAt: timestamp("deprecated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  providerModelUniq: uniqueIndex("uq_model_catalog_provider_model").on(table.provider, table.modelId),
+}));
+
+export type ModelCatalogEntry = typeof modelCatalog.$inferSelect;
+export type InsertModelCatalogEntry = typeof modelCatalog.$inferInsert;
+
+export const modelReleaseEvents = mysqlTable("model_release_events", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  modelCatalogId: int("model_catalog_id")
+    .references(() => modelCatalog.id, { onDelete: "cascade" })
+    .notNull(),
+  eventKey: varchar("event_key", { length: 160 }).notNull().unique(), // dedupe source event
+  recordedBy: int("recorded_by").references(() => users.id, { onDelete: "set null" }),
+  relevanceRule: varchar("relevance_rule", { length: 60 }), // e.g. same_family
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ModelReleaseEvent = typeof modelReleaseEvents.$inferSelect;
+export type InsertModelReleaseEvent = typeof modelReleaseEvents.$inferInsert;
+
+// Deduplicated retest SUGGESTIONS — a suggestion never starts paid work (D5).
+export const retestSuggestions = mysqlTable("retest_suggestions", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  sellerId: int("seller_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "cascade" }).notNull(),
+  workflowVersionId: int("workflow_version_id").references(() => pipelineVersions.id, { onDelete: "cascade" }),
+  releaseEventId: int("release_event_id")
+    .references(() => modelReleaseEvents.id, { onDelete: "cascade" })
+    .notNull(),
+  channel: mysqlEnum("channel", ["in_app", "email"]).default("in_app").notNull(),
+  state: mysqlEnum("state", ["pending", "dismissed", "snoozed", "retest_started"]).default("pending").notNull(),
+  snoozedUntil: timestamp("snoozed_until"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  noticeUniq: uniqueIndex("uq_retest_suggestions_seller_version_event_channel").on(
+    table.sellerId, table.workflowVersionId, table.releaseEventId, table.channel,
+  ),
+  sellerStateIdx: index("idx_retest_suggestions_seller").on(table.sellerId, table.state),
+}));
+
+export type RetestSuggestion = typeof retestSuggestions.$inferSelect;
+export type InsertRetestSuggestion = typeof retestSuggestions.$inferInsert;
+
+// ─── V2 COLUMNS ON EXISTING TABLES (additive, nullable) ──────────────
+// marketplaceListings: v2 publication-mode pointers (spec §6.2). Existing
+// status enum values are RETAINED; publicationMode separates legacy from v2.
+// (Added to the table definition above would touch existing rows' DDL, so
+// these are delivered as ALTER TABLE ADD COLUMN in migration 022 and
+// mirrored here as a separate attachment table to keep schema.ts purely
+// additive for the P1 push path.)
+export const marketplaceListingV2 = mysqlTable("marketplace_listing_v2", {
+  listingId: int("listing_id")
+    .references(() => marketplaceListings.id, { onDelete: "cascade" })
+    .primaryKey().notNull(),
+  publicationMode: mysqlEnum("publication_mode", ["legacy", "v2"]).default("legacy").notNull(),
+  currentWorkflowVersionId: int("current_workflow_version_id"),
+  currentEvidencePublicationId: int("current_evidence_publication_id"),
+  evidenceSummaryRevision: int("evidence_summary_revision").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+}, (table) => ({
+  fkWorkflowVersion: foreignKey({ name: "fk_listing_v2_workflow_version", columns: [table.currentWorkflowVersionId], foreignColumns: [pipelineVersions.id] }).onDelete("set null"),
+  fkEvidencePublication: foreignKey({ name: "fk_listing_v2_evidence_publication", columns: [table.currentEvidencePublicationId], foreignColumns: [evidencePublications.id] }).onDelete("set null"),
+}));
+
+export type MarketplaceListingV2 = typeof marketplaceListingV2.$inferSelect;
+export type InsertMarketplaceListingV2 = typeof marketplaceListingV2.$inferInsert;
+
+// marketplacePurchases + quotes: immutable checkout quote per sale (spec
+// §6.4/§11.2). Separate table keeps the purchase row untouched; linked by
+// unique purchaseId once fulfillment occurs.
+export const marketplaceCheckoutQuotes = mysqlTable("marketplace_checkout_quotes", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  buyerId: int("buyer_id").references(() => users.id, { onDelete: "restrict" }).notNull(),
+  listingId: int("listing_id").notNull(),
+  workflowVersionId: int("workflow_version_id"),
+  currency: varchar("currency", { length: 4 }).default("USD").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  commissionBasis: decimal("commission_basis", { precision: 10, scale: 2 }).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 4, scale: 2 }).notNull(),
+  refundPolicyVersion: varchar("refund_policy_version", { length: 40 }),
+  holdPolicyVersion: varchar("hold_policy_version", { length: 40 }),
+  stripeSessionId: varchar("stripe_session_id", { length: 100 }).unique(),
+  status: mysqlEnum("status", ["created", "confirmed", "paid", "fulfilled", "expired", "unfulfillable"])
+    .default("created").notNull(),
+  purchaseId: int("purchase_id"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  purchaseUniq: uniqueIndex("uq_checkout_quotes_purchase").on(table.purchaseId),
+  buyerIdx: index("idx_checkout_quotes_buyer_status").on(table.buyerId, table.status),
+  fkListing: foreignKey({ name: "fk_checkout_quotes_listing", columns: [table.listingId], foreignColumns: [marketplaceListings.id] }).onDelete("restrict"),
+  fkWorkflowVersion: foreignKey({ name: "fk_checkout_quotes_workflow_version", columns: [table.workflowVersionId], foreignColumns: [pipelineVersions.id] }).onDelete("restrict"),
+  fkPurchase: foreignKey({ name: "fk_checkout_quotes_purchase", columns: [table.purchaseId], foreignColumns: [marketplacePurchases.id] }).onDelete("restrict"),
+}));
+
+export type MarketplaceCheckoutQuote = typeof marketplaceCheckoutQuotes.$inferSelect;
+export type InsertMarketplaceCheckoutQuote = typeof marketplaceCheckoutQuotes.$inferInsert;
+
+// Trusted provider endpoints for PROTECTED execution (spec §8.2). Buyer
+// BYOK custom endpoints are never in this set implicitly.
+export const trustedProviderEndpoints = mysqlTable("trusted_provider_endpoints", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  provider: varchar("provider", { length: 80 }).notNull(),
+  baseUrl: varchar("base_url", { length: 512 }).notNull(),
+  adapterKind: varchar("adapter_kind", { length: 60 }).notNull(),
+  endpointClass: mysqlEnum("endpoint_class", ["first_party", "approved_proxy"]).default("first_party").notNull(),
+  loggingDisclosure: text("logging_disclosure").notNull(), // provider-side logging exposure, reviewed
+  protectionClass: mysqlEnum("protection_class", ["standard", "reduced"]).default("standard").notNull(),
+  approvedBy: int("approved_by").references(() => users.id, { onDelete: "set null" }),
+  policyVersion: varchar("policy_version", { length: 40 }).notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  endpointUniq: uniqueIndex("uq_trusted_endpoints_provider_base").on(table.provider, table.baseUrl),
+}));
+
+export type TrustedProviderEndpoint = typeof trustedProviderEndpoints.$inferSelect;
+export type InsertTrustedProviderEndpoint = typeof trustedProviderEndpoints.$inferInsert;
