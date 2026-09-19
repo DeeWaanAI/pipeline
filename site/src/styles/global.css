@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-ink-950 text-neutral-200 antialiased;
+    color-scheme: dark;
+  }
+  ::selection {
+    @apply bg-accent/30 text-white;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-ink-950 rounded-sm;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-5xl px-5 sm:px-8;
+  }
+  .btn-accent {
+    @apply inline-flex items-center gap-1.5 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-ink-950 transition hover:bg-accent-soft;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-5 py-2.5 text-sm font-medium text-neutral-300 transition hover:border-accent/50 hover:text-accent;
+  }
+  .card {
+    @apply rounded-xl border border-ink-700 bg-ink-900 p-6;
+  }
+  .mono-chip {
+    @apply rounded bg-ink-800 px-1.5 py-0.5 font-mono text-[0.85em] text-accent-soft;
+  }
+  .prose-docs h2 {
+    @apply mt-10 mb-3 text-xl font-semibold text-neutral-100;
+  }
+  .prose-docs h3 {
+    @apply mt-6 mb-2 text-base font-semibold text-neutral-100;
+  }
+  .prose-docs p {
+    @apply my-3 leading-7 text-neutral-300;
+  }
+  .prose-docs ul {
+    @apply my-3 list-disc space-y-1.5 ps-6 text-neutral-300;
+  }
+  .prose-docs ol {
+    @apply my-3 list-decimal space-y-1.5 ps-6 text-neutral-300;
+  }
+  .prose-docs code {
+    @apply mono-chip;
+  }
+  .prose-docs pre {
+    @apply my-4 overflow-x-auto rounded-lg border border-ink-700 bg-ink-900 p-4 text-sm;
+  }
+  .prose-docs pre code {
+    @apply bg-transparent p-0 text-neutral-200;
+  }
+  .prose-docs a {
+    @apply text-accent underline-offset-2 hover:underline;
+  }
+  .prose-docs strong {
+    @apply text-neutral-100;
+  }
+}

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["site/**"]
+  pull_request:
+    paths-ignore: ["site/**"]
+
+jobs:
+  # ─── Release gates — the exact sequence run manually before, now enforced
+  # on every push/PR. Railway auto-deploys main, so this is the safety net.
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: i18n key parity
+        run: npm run i18n:check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      # Mirror of the local pre-push hook — the hook is local-only, CI is not.
+      - name: Block license placeholder contact
+        run: |
+          if grep -rq "your-email@example.com" LICENSE COMMERCIAL.md README.md package.json; then
+            echo "::error::Placeholder contact 'your-email@example.com' still present in licensing files — replace it before merging."
+            exit 1
+          fi
+
+  # ─── Integration tests against real MySQL + Redis service containers.
+  # Covers the entitlement grant/revoke round-trip and the Redis fixed-window
+  # rate limiter (api/services/entitlements.integration.test.ts — skipped
+  # automatically when the env vars are absent).
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-pass
+          MYSQL_DATABASE: swarm_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci-root-pass"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://root:ci-root-pass@127.0.0.1:3306/swarm_ci
+      REDIS_URL: redis://127.0.0.1:6379
+      APP_ID: ci-app
+      APP_SECRET: ci-secret-not-a-dev-default
+      AI_SWARM_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000001
+      MARKETPLACE_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000002
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Create schema in fresh MySQL
+        run: npm run db:push
+
+      - name: Unit + integration tests
+        run: npm test

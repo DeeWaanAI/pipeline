@@ -1,0 +1,108 @@
+{
+  "title": "设置",
+  "subtitle": "管理 LLM 服务商、API 密钥和偏好设置",
+  "providers": {
+    "title": "LLM 服务商",
+    "description": "添加您自己的 API 密钥。所有密钥均使用 PBKDF2 + AES-256 加密。",
+    "addButton": "添加服务商",
+    "addFirstButton": "添加您的第一个服务商",
+    "dialog": {
+      "title": "添加 LLM 服务商",
+      "description": "配置一个新的 LLM 服务商。您的 API 密钥将在存储前加密。",
+      "providerLabel": "服务商",
+      "baseUrlLabel": "基础 URL",
+      "baseUrlPlaceholder": "https://api.example.com/v1",
+      "apiKeyLabel": "API 密钥",
+      "apiKeyPlaceholder": "sk-...",
+      "keySecurityNote": "使用 PBKDF2 + AES-256 加密存储。不会发送到客户端。",
+      "modelLabel": "默认模型",
+      "modelPlaceholder": "gpt-4o、deepseek-chat 等"
+    }
+  },
+  "projectSettings": {
+    "title": "项目配置",
+    "gitee": {
+      "title": "Gitee 仓库",
+      "ownerLabel": "仓库所有者",
+      "ownerPlaceholder": "你的用户名",
+      "repoLabel": "仓库名称",
+      "repoPlaceholder": "你的仓库",
+      "connected": "已连接到 {{owner}}/{{repo}}"
+    },
+    "github": {
+      "title": "GitHub 连接",
+      "ownerLabel": "所有者 / 组织",
+      "ownerPlaceholder": "例如：your-github-username",
+      "repoLabel": "仓库",
+      "repoPlaceholder": "例如：my-project",
+      "tokenNote": "在设置中存储您的 GitHub Token 以启用文件同步。Token 保存在 localStorage 中以保护隐私。",
+      "connected": "已连接到 {{owner}}/{{repo}}"
+    },
+    "localFolder": {
+      "title": "本地文件夹",
+      "checking": "正在检查已保存的文件夹…",
+      "linked": "本地文件夹已链接 — 文件可用于流水线上下文。",
+      "connectedTo": "已连接到",
+      "unlink": "取消链接",
+      "unlinkSuccess": "文件夹已取消链接",
+      "description": "链接一个本地文件夹，将其文件直接用于流水线上下文 — 无需 Git。文件夹保留在您的电脑上。",
+      "linkButton": "链接本地文件夹",
+      "createButton": "创建新文件夹",
+      "createSuccess": "文件夹已创建并链接: {{path}}",
+      "createFailed": "创建文件夹失败",
+      "newFolderPlaceholder": "新文件夹名称...",
+      "browserNotSupported": "交互式文件夹选择需要 Chrome 或 Edge 浏览器。当前浏览器不支持文件系统访问 API。",
+      "apiNote": "使用文件系统访问 API。文件夹句柄存储在浏览器的 IndexedDB 中。",
+      "linkFailed": "链接文件夹失败",
+      "linkSuccess": "文件夹链接成功",
+      "filesLinked": "已从 {{name}} 链接 {{count}} 个文件",
+      "fallbackNote": "文件在当前会话中可用。刷新页面后请重新链接。"
+    },
+    "dataManagement": {
+      "title": "数据管理",
+      "description": "下载完整数据备份或从之前的备份中恢复。所有数据保留在您的设备上。",
+      "chatData": "聊天数据",
+      "chatDataDesc": "将当前聊天记录保存到服务器，以便跨会话保留。",
+      "saveToServer": "保存到服务器",
+      "savingServer": "正在保存到服务器…",
+      "projects": "个项目",
+      "messages": "条消息",
+      "noMessages": "没有可保存的消息。请先打开一个项目并进行对话。",
+      "fullBackup": "完整备份",
+      "fullBackupDesc": "下载所有数据 — 项目、智能体、流水线、偏好设置和测试数据 — 保存为 JSON 文件。",
+      "downloadBackup": "下载备份",
+      "downloading": "准备中…",
+      "restore": "从备份恢复",
+      "restoreDesc": "上传之前下载的备份文件，以恢复智能体、流水线和偏好设置。",
+      "restoreButton": "上传备份",
+      "restoring": "正在恢复…",
+      "restoreConfirm": "从 {{date}} 的备份中恢复？\n\n这将合并智能体、模板和偏好设置到当前数据中。现有项目不会被覆盖。",
+      "restoreSuccess": "数据已恢复：{{agents}} 个智能体、{{templates}} 个模板{{preferences}}",
+      "restoreFailed": "恢复失败：{{error}}",
+      "backupDownloaded": "备份已下载（{{size}} KB）",
+      "downloadFailed": "下载失败：{{error}}",
+      "invalidBackup": "无效的备份文件。需要 Swarm Studio 完整备份文件。"
+    },
+    "agents": {
+      "title": "智能体配置",
+      "description": "为此项目自定义 4 智能体级联流水线。",
+      "systemPromptLabel": "系统提示词",
+      "temperatureLabel": "Temperature",
+      "modelLabel": "模型覆盖",
+      "modelPlaceholder": "使用项目默认",
+      "saveChanges": "保存更改"
+    },
+    "pipeline": {
+      "title": "流水线",
+      "current": "当前：",
+      "standard": "标准",
+      "custom": "自定义",
+      "steps": "{{count}} 个步骤",
+      "standardOption": "标准流水线（4 个智能体）",
+      "saveToMyPipelines": "保存到我的流水线",
+      "managePipelines": "管理流水线",
+      "applied": "流水线已应用",
+      "savedToMyPipelines": "已保存到我的流水线"
+    }
+  }
+}

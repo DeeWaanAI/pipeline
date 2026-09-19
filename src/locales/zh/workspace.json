@@ -1,0 +1,29 @@
+{
+  "pipelineLabel": "流水线：",
+  "pipelineVersion": "级联流水线 v1",
+  "placeholder": "描述您的任务...（例如：'为这个代码库生成 API 文档'）",
+  "emptyState": {
+    "title": "开始 Swarm 执行",
+    "description": "在下方输入任务。构建者将起草，评审者将审阅，优化者将改进，润色者将定稿。"
+  },
+  "status": {
+    "working": "Swarm 正在工作...",
+    "tokensUsed": "tokens",
+    "elapsed": "秒"
+  },
+  "responseChain": {
+    "title": "响应链",
+    "stepCount": "{{count}} 步"
+  },
+  "fileBrowser": {
+    "repository": "仓库",
+    "files": "文件",
+    "tokenLabel": "Gitee Token",
+    "tokenPlaceholder": "粘贴 Gitee 个人令牌",
+    "saveToken": "保存令牌",
+    "storedLocally": "仅存储在浏览器中",
+    "loadFiles": "加载文件",
+    "noRepo": "未连接 Gitee 仓库",
+    "configureInSettings": "在项目设置中配置"
+  }
+}

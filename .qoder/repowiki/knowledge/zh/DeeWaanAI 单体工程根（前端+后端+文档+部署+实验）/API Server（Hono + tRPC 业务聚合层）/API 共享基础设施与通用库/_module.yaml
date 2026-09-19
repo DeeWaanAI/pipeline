@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: api_server/shared_lib_infra
+title: API 共享基础设施与通用库
+scope:
+    - api/lib/
+    - api/infra/
+    - api/plugins/
+    - api/queries/
+    - api/config/
+    - api/locales/
+    - api/types/
+    - api/testUtils/
+source_files: []
+depends_on: []
+related_to: []

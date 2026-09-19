@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: api_server/mcp_tools
+title: MCP 工具与 LLM 提供商适配层
+scope:
+    - api/mcp/
+    - api/lib/providers/
+source_files: []
+depends_on: []
+related_to: []

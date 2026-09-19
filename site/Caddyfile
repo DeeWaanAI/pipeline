@@ -1,0 +1,32 @@
+# DeeWaanAI marketing site — static file serving (SPEC §8).
+# Railway injects $PORT; default 80 for local docker runs.
+
+{
+	admin off
+}
+
+:{$PORT:80} {
+	root * /srv
+
+	encode gzip zstd
+
+	# Hashed build assets are immutable — cache them forever.
+	@hashed path /_astro/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# Everything else: revalidate on each visit (pages are cheap to fetch,
+	# and OG/robots/sitemap should never go stale). A later generic header
+	# directive would override the hashed one, so exclude /_astro/* here.
+	@pages not path /_astro/*
+	header @pages Cache-Control "public, max-age=0, must-revalidate"
+
+	# Clean URLs: /trust → /trust/index.html; missing → 404 handler below.
+	try_files {path} {path}/index.html
+
+	file_server
+
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+}

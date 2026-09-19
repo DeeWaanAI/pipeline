@@ -1,0 +1,108 @@
+{
+  "title": "Settings",
+  "subtitle": "Manage LLM providers, API keys, and preferences",
+  "providers": {
+    "title": "LLM Providers",
+    "description": "Add your own API keys. All keys are encrypted with PBKDF2 + AES-256.",
+    "addButton": "Add Provider",
+    "addFirstButton": "Add Your First Provider",
+    "dialog": {
+      "title": "Add LLM Provider",
+      "description": "Configure a new LLM provider. Your API key will be encrypted before storage.",
+      "providerLabel": "Provider",
+      "baseUrlLabel": "Base URL",
+      "baseUrlPlaceholder": "https://api.example.com/v1",
+      "apiKeyLabel": "API Key",
+      "apiKeyPlaceholder": "sk-...",
+      "keySecurityNote": "Encrypted with PBKDF2 + AES-256 before storage. Never sent to client.",
+      "modelLabel": "Default Model",
+      "modelPlaceholder": "gpt-4o, deepseek-chat, etc."
+    }
+  },
+  "projectSettings": {
+    "title": "Project configuration",
+    "gitee": {
+      "title": "Gitee Repository",
+      "ownerLabel": "Repository Owner",
+      "ownerPlaceholder": "your-username",
+      "repoLabel": "Repository Name",
+      "repoPlaceholder": "your-repo",
+      "connected": "Connected to {{owner}}/{{repo}}"
+    },
+    "github": {
+      "title": "GitHub Connection",
+      "ownerLabel": "Owner / Organization",
+      "ownerPlaceholder": "e.g., your-github-username",
+      "repoLabel": "Repository",
+      "repoPlaceholder": "e.g., my-project",
+      "tokenNote": "Store your GitHub token in Settings to enable file sync. Token is kept in localStorage for privacy.",
+      "connected": "Connected to {{owner}}/{{repo}}"
+    },
+    "localFolder": {
+      "title": "Local Folder",
+      "checking": "Checking saved folder…",
+      "linked": "Local folder linked — files available for pipeline context.",
+      "connectedTo": "Connected to",
+      "unlink": "Unlink",
+      "unlinkSuccess": "Folder unlinked",
+      "description": "Link a local folder to use its files directly in pipeline context — no Git required. The folder stays on your machine.",
+      "linkButton": "Link Local Folder",
+      "createButton": "Create New Folder",
+      "createSuccess": "Folder created and linked: {{path}}",
+      "createFailed": "Failed to create folder",
+      "newFolderPlaceholder": "New folder name...",
+      "browserNotSupported": "Interactive folder selection requires Chrome or Edge. The File System Access API is not available in this browser.",
+      "apiNote": "Uses the File System Access API. The folder handle is stored locally in your browser's IndexedDB.",
+      "linkFailed": "Failed to link folder",
+      "linkSuccess": "Folder linked successfully",
+      "filesLinked": "{{count}} files linked from {{name}}",
+      "fallbackNote": "Files are available during this session. Re-link after page refresh."
+    },
+    "dataManagement": {
+      "title": "Data Management",
+      "description": "Download a full backup of your data or restore from a previous backup. All data stays on your machine.",
+      "chatData": "Chat Data",
+      "chatDataDesc": "Save your current chat history to the server so it persists across sessions.",
+      "saveToServer": "Save to Server",
+      "savingServer": "Saving to server…",
+      "projects": "projects",
+      "messages": "messages in memory",
+      "noMessages": "No messages in memory to save. Open a project and chat first.",
+      "fullBackup": "Full Backup",
+      "fullBackupDesc": "Download all your data — projects, agents, pipelines, preferences, and test fixtures — as a JSON file.",
+      "downloadBackup": "Download Backup",
+      "downloading": "Preparing…",
+      "restore": "Restore from Backup",
+      "restoreDesc": "Upload a previously downloaded backup file to restore agents, pipelines, and preferences.",
+      "restoreButton": "Upload Backup",
+      "restoring": "Restoring…",
+      "restoreConfirm": "Restore backup from {{date}}?\n\nThis will merge agents, templates, and preferences with your current data. Existing items won't be overwritten.",
+      "restoreSuccess": "Data restored: {{agents}} agents, {{templates}} templates{{preferences}}",
+      "restoreFailed": "Restore failed: {{error}}",
+      "backupDownloaded": "Backup downloaded ({{size}} KB)",
+      "downloadFailed": "Download failed: {{error}}",
+      "invalidBackup": "Invalid backup file. Expected a Swarm Studio full backup."
+    },
+    "agents": {
+      "title": "Agent Configuration",
+      "description": "Customize the 4-agent cascade pipeline for this project.",
+      "systemPromptLabel": "System Prompt",
+      "temperatureLabel": "Temperature",
+      "modelLabel": "Model Override",
+      "modelPlaceholder": "Use project default",
+      "saveChanges": "Save Changes"
+    },
+    "pipeline": {
+      "title": "Pipeline",
+      "current": "Current:",
+      "standard": "Standard",
+      "custom": "Custom",
+      "steps": "{{count}} steps",
+      "standardOption": "Standard Pipeline (4 agents)",
+      "saveToMyPipelines": "Save to My Pipelines",
+      "managePipelines": "Manage Pipelines",
+      "applied": "Pipeline applied",
+      "savedToMyPipelines": "Saved to My Pipelines"
+    }
+  }
+}

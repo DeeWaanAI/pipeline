@@ -1,0 +1,22 @@
+{
+  "consent": {
+    "title": "授权 {{app}}？",
+    "subtitle": "该应用希望连接到你的 AI Swarm Studio 账号。",
+    "scopesTitle": "授权后，该应用可以：",
+    "scopes": {
+      "mcp:read": "查看你的流水线、运行记录和项目上下文",
+      "mcp:run": "代你发起流水线运行",
+      "mcp:write": "审批步骤并写入项目记忆"
+    },
+    "allow": "允许",
+    "deny": "拒绝",
+    "submitting": "正在授权…",
+    "invalidTitle": "无效的授权请求",
+    "invalidDesc": "来自 AI 应用的链接缺少必要参数，请从应用中重新发起连接。",
+    "loginTitle": "请先登录",
+    "loginDesc": "授权此应用前需要先登录。",
+    "loginButton": "登录",
+    "error": "授权失败，请重试。",
+    "footer": "你可以随时在设置中撤销该应用的访问权限。"
+  }
+}

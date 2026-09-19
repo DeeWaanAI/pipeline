@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: database_schema
+title: 数据库 Schema 与迁移管理
+scope:
+    - db/
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/search_export
+    - path: deployment_scripts

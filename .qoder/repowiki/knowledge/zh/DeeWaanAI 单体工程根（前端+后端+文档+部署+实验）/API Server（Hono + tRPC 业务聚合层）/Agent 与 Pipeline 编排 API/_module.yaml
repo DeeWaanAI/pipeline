@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: api_server/agents_pipelines
+title: Agent 与 Pipeline 编排 API
+scope:
+    - api/routers/pipeline.ts
+    - api/routers/agent.ts
+    - api/services/batchService.ts
+    - api/services/pipelineCreationService.ts
+    - api/services/stateSummarizer.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/swarm
+    - path: research_orchestration

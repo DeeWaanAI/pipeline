@@ -1,0 +1,29 @@
+{
+  "pipelineLabel": "Pipeline:",
+  "pipelineVersion": "Cascade Pipeline v1",
+  "placeholder": "Describe your task... (e.g., 'Generate API documentation for this codebase')",
+  "emptyState": {
+    "title": "Start a swarm execution",
+    "description": "Enter a task below. The Builder will draft, the Critic will review, the Refiner will improve, and the Polisher will finalize."
+  },
+  "status": {
+    "working": "Swarm is working...",
+    "tokensUsed": "tokens",
+    "elapsed": "s"
+  },
+  "responseChain": {
+    "title": "Response Chain",
+    "stepCount": "{{count}} steps"
+  },
+  "fileBrowser": {
+    "repository": "Repository",
+    "files": "Files",
+    "tokenLabel": "Gitee Token",
+    "tokenPlaceholder": "Paste Gitee personal token",
+    "saveToken": "Save Token",
+    "storedLocally": "Stored in browser only",
+    "loadFiles": "Load files",
+    "noRepo": "No Gitee repo connected",
+    "configureInSettings": "Configure in project settings"
+  }
+}

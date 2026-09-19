@@ -1,0 +1,27 @@
+# DeeWaanAI — crawler policy (SPEC §7.4): full allow, including AI
+# crawlers. We WANT search engines and AI assistants to read this site.
+# {{SITE_DOMAIN}} is substituted at container start (see Dockerfile CMD).
+
+User-agent: *
+Allow: /
+
+# AI crawlers — explicitly welcome
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://{{SITE_DOMAIN}}/sitemap-index.xml

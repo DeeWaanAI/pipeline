@@ -1,0 +1,107 @@
+{
+  "appName": "AI Swarm Studio",
+  "nav": {
+    "dashboard": "项目面板",
+    "settings": "设置",
+    "audit": "审计日志",
+    "projects": "项目",
+    "myAgents": "我的智能体",
+    "myTeams": "我的团队",
+    "myPipelines": "我的流水线",
+    "myData": "我的数据",
+    "testFixtures": "测试固件",
+    "marketplace": "市场",
+    "review": "审核",
+    "admin": "管理",
+    "teamDashboard": "团队面板",
+    "teamConnect": "团队连接",
+    "groups": {
+      "studio": "工作室",
+      "market": "市场",
+      "teams": "团队",
+      "account": "账户"
+    },
+    "newProject": "新建项目",
+    "logout": "退出登录",
+    "collapse": "收起",
+    "expand": "展开",
+    "userFallback": "用户"
+  },
+  "actions": {
+    "create": "创建",
+    "save": "保存",
+    "delete": "删除",
+    "cancel": "取消",
+    "close": "关闭",
+    "edit": "编辑",
+    "test": "测试",
+    "add": "添加",
+    "submit": "提交",
+    "open": "打开",
+    "configure": "配置",
+    "copy": "复制",
+    "export": "导出",
+    "loading": "加载中...",
+    "saving": "保存中...",
+    "back": "返回",
+    "reset": "重置",
+    "upgrade": "升级"
+  },
+  "status": {
+    "saved": "已保存",
+    "completed": "已完成",
+    "running": "运行中",
+    "idle": "空闲",
+    "error": "错误",
+    "pending": "等待中",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "emptyStates": {
+    "noProjects": "暂无项目",
+    "noProjectsDesc": "创建您的第一个 AI Swarm 项目，开始编排多个智能体完成复杂任务。",
+    "noProviders": "未配置任何服务商",
+    "noProvidersDesc": "请至少添加一个 LLM 服务商以开始使用智能体集群。",
+    "selectRun": "从侧边栏选择一个运行记录以查看详情",
+    "noData": "暂无数据",
+    "noExecutions": "暂无执行记录"
+  },
+  "agentRoles": {
+    "builder": "构建者",
+    "critic": "评审者",
+    "refiner": "优化者",
+    "polisher": "润色者",
+    "reviewer": "审阅者",
+    "expert": "专家",
+    "translator": "翻译者",
+    "summarizer": "总结者",
+    "custom": "自定义",
+    "system": "系统"
+  },
+  "errors": {
+    "notFound": "未找到",
+    "generic": "出错了",
+    "networkError": "网络错误，请重试。",
+    "projectNotFound": "项目不存在",
+    "backToHome": "返回首页"
+  },
+  "language": {
+    "en": "English",
+    "zh": "中文",
+    "switchLanguage": "切换语言"
+  },
+  "security": {
+    "title": "安全",
+    "encrypted": "API 密钥使用 PBKDF2 + AES-256-CBC 加密",
+    "keyDetail": "PBKDF2-HMAC-SHA256 480,000 次迭代",
+    "keysNeverLeave": "密钥不会离开服务器",
+    "keysDesc": "仅在调用 LLM API 时解密",
+    "ownStorage": "项目文件存储在您的 Gitee 仓库中",
+    "ownData": "您拥有所有数据"
+  },
+  "backendNotice": {
+    "title": "后端服务不可用",
+    "message": "静态预览仅显示 UI。请在本地运行 npm run dev 以使用完整的后端 API（tRPC + Drizzle + Hono）。",
+    "dismiss": "关闭"
+  }
+}

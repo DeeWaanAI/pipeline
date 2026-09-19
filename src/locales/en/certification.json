@@ -1,0 +1,31 @@
+{
+  "title": "Certification Report",
+  "certified": "Certified",
+  "grade": "Grade",
+  "outOf": "out of 5",
+  "kappa": "Reviewer agreement (Fleiss' κ)",
+  "reviews": "reviews",
+  "reviewers": "independent reviewers",
+  "dimensions": {
+    "title": "Quality dimensions",
+    "accuracy": "Accuracy",
+    "completeness": "Completeness",
+    "clarity": "Clarity",
+    "tokenEfficiency": "Token efficiency",
+    "speed": "Speed",
+    "consistency": "Consistency"
+  },
+  "methodology": {
+    "title": "How certification works",
+    "body": "Every certified pipeline is tested against auto-generated prompts and scored by at least 5 independent reviewers across six quality dimensions. Designers can never review their own pipelines. The grade is the average weighted score; Fleiss' Kappa measures agreement between reviewers."
+  },
+  "badge": {
+    "title": "Embed the badge",
+    "hint": "Add this to your README or docs:",
+    "copy": "Copy",
+    "copied": "Copied!"
+  },
+  "notFound": "Certification report not found",
+  "backToMarketplace": "Back to Marketplace",
+  "loading": "Loading report…"
+}

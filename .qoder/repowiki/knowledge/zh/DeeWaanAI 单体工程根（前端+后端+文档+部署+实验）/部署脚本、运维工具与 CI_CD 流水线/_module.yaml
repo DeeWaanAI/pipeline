@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: deployment_scripts
+title: 部署脚本、运维工具与 CI/CD 流水线
+scope:
+    - deploy/
+    - scripts/
+    - relay/
+    - .github/workflows/
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/admin_audit
+    - path: database_schema

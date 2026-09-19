@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: project_docs
+title: DeeWaanAI 业务转型与协议文档集
+scope:
+    - DeeWaanAI-Next/
+    - .paper-research/
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,50 @@
+{
+  "title": "Pipeline Configuration",
+  "subtitle": "Configure the agent execution sequence for this project",
+  "addStep": "Add Step",
+  "addDialog": {
+    "title": "Add Step to Pipeline"
+  },
+  "remove": {
+    "confirm": "Remove this step from the pipeline?"
+  },
+  "reset": {
+    "confirm": "Reset pipeline to default 4-agent cascade?",
+    "label": "Reset"
+  },
+  "enabled": "On",
+  "disabled": "Off",
+  "added": "Added",
+  "template": "Template",
+  "llmLabel": "LLM",
+  "temperature": "Temp",
+  "maxTokens": "Tokens",
+  "useProjectDefault": "Project Default",
+  "save": {
+    "success": "Pipeline saved"
+  },
+  "tier": {
+    "pro": "Pro Designer",
+    "standard": "Standard"
+  },
+  "upgradeHint": "Upgrade to Pro Designer to customize your pipeline: reorder agents, add steps, assign different LLMs per step.",
+  "memory": {
+    "title": "Memory Mode",
+    "description": "Controls how much context is preserved between conversations",
+    "saved": "Memory mode set to {{mode}}",
+    "modes": {
+      "conservative": "Conservative",
+      "balanced": "Balanced",
+      "aggressive": "Aggressive"
+    },
+    "hint": {
+      "conservative": "Preserves maximum context (up to 50K tokens). Best for complex projects requiring full history.",
+      "balanced": "Moderate context (up to 20K tokens). Good balance between quality and cost.",
+      "aggressive": "Minimal context (up to 10K tokens). Fastest and cheapest. Best for simple, independent tasks."
+    }
+  },
+  "errors": {
+    "noSteps": "Pipeline must have at least one step",
+    "maxLLMs": "Pro Designer allows up to 3 different LLMs per pipeline"
+  }
+}

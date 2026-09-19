@@ -1,0 +1,107 @@
+{
+  "appName": "AI Swarm Studio",
+  "nav": {
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "audit": "Audit",
+    "projects": "Projects",
+    "myAgents": "My Agents",
+    "myTeams": "My Teams",
+    "myPipelines": "My Pipelines",
+    "myData": "My Data",
+    "testFixtures": "Test Fixtures",
+    "marketplace": "Marketplace",
+    "review": "Review",
+    "admin": "Admin",
+    "teamDashboard": "Team Dashboard",
+    "teamConnect": "Team Connect",
+    "groups": {
+      "studio": "Studio",
+      "market": "Market",
+      "teams": "Teams",
+      "account": "Account"
+    },
+    "newProject": "New Project",
+    "logout": "Logout",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "userFallback": "User"
+  },
+  "actions": {
+    "create": "Create",
+    "save": "Save",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "close": "Close",
+    "edit": "Edit",
+    "test": "Test",
+    "add": "Add",
+    "submit": "Submit",
+    "open": "Open",
+    "configure": "Configure",
+    "copy": "Copy",
+    "export": "Export",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "back": "Back",
+    "reset": "Reset",
+    "upgrade": "Upgrade"
+  },
+  "status": {
+    "saved": "Saved",
+    "completed": "Completed",
+    "running": "Running",
+    "idle": "Idle",
+    "error": "Error",
+    "pending": "Pending",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "emptyStates": {
+    "noProjects": "No projects yet",
+    "noProjectsDesc": "Create your first AI swarm project to start orchestrating multiple agents for complex tasks.",
+    "noProviders": "No providers configured",
+    "noProvidersDesc": "Add at least one LLM provider to start using the swarm.",
+    "selectRun": "Select a run to view details",
+    "noData": "No data available",
+    "noExecutions": "No executions yet"
+  },
+  "agentRoles": {
+    "builder": "Builder",
+    "critic": "Critic",
+    "refiner": "Refiner",
+    "polisher": "Polisher",
+    "reviewer": "Reviewer",
+    "expert": "Expert",
+    "translator": "Translator",
+    "summarizer": "Summarizer",
+    "custom": "Custom",
+    "system": "System"
+  },
+  "errors": {
+    "notFound": "Not found",
+    "generic": "Something went wrong",
+    "networkError": "Network error. Please try again.",
+    "projectNotFound": "Project not found",
+    "backToHome": "Back to Home"
+  },
+  "language": {
+    "en": "English",
+    "zh": "Chinese",
+    "switchLanguage": "Switch language"
+  },
+  "security": {
+    "title": "Security",
+    "encrypted": "API keys encrypted with PBKDF2 + AES-256-CBC",
+    "keyDetail": "480,000 iterations of PBKDF2-HMAC-SHA256",
+    "keysNeverLeave": "Keys never leave the server",
+    "keysDesc": "Decrypted only when making LLM API calls",
+    "ownStorage": "Project files stored in your Gitee repository",
+    "ownData": "You own all your data"
+  },
+  "backendNotice": {
+    "title": "Backend not available",
+    "message": "The static preview shows the UI only. Run npm run dev locally to use the full app with the backend API (tRPC + Drizzle + Hono).",
+    "dismiss": "Dismiss"
+  }
+}

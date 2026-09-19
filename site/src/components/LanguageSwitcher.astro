@@ -1,0 +1,16 @@
+---
+// Language switcher — rendered only when LOCALES.length > 1 (see Footer).
+import { LOCALES, localePrefix, type Locale } from "../i18n/locales";
+import type { UiStrings } from "../i18n/ui";
+
+interface Props { locale: Locale; path: string; s: UiStrings }
+const { locale, path, s } = Astro.props;
+---
+<nav aria-label={s.footer.language} class="flex items-center gap-2 text-xs">
+  <span class="text-neutral-400">{s.footer.language}:</span>
+  {LOCALES.map((l) => (
+    l === locale
+      ? <span class="font-semibold text-accent" aria-current="true">{l.toUpperCase()}</span>
+      : <a class="text-neutral-400 hover:text-white" href={`${localePrefix(l)}${path}`}>{l.toUpperCase()}</a>
+  ))}
+</nav>

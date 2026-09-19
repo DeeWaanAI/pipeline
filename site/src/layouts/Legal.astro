@@ -1,0 +1,31 @@
+---
+// Legal layout: Base + prose body + draft-review banner.
+// <!-- LEGAL REVIEW REQUIRED BEFORE LAUNCH -->
+import Base from "./Base.astro";
+import { getUiStrings } from "../i18n/ui";
+import type { Locale } from "../i18n/locales";
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  locale: Locale;
+  translated?: boolean;
+}
+const { title, description, path, locale, translated = true } = Astro.props;
+const { strings: s } = getUiStrings(locale);
+---
+<Base title={title} description={description} path={path} translated={translated} locale={locale}>
+  <article class="py-16 sm:py-20">
+    <div class="container-page">
+      <div class="mx-auto max-w-2xl">
+        <div class="mb-8 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-300">
+          {s.legal.reviewNote}
+        </div>
+        <div class="prose-docs">
+          <slot />
+        </div>
+      </div>
+    </div>
+  </article>
+</Base>

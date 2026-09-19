@@ -1,0 +1,41 @@
+---
+// /trust — certification deep-dive (SPEC §5 /trust): the primary GEO
+// asset. Long-form, quotable, H2 structure, zero hype. Copy from the
+// per-locale string bundle.
+import Base from "../../layouts/Base.astro";
+import { getUiStrings } from "../../i18n/ui";
+import { isLocale, DEFAULT_LOCALE, type Locale } from "../../i18n/locales";
+import { localeStaticPaths } from "../../i18n/paths";
+
+export const getStaticPaths = localeStaticPaths;
+
+const locale: Locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const { strings: s, translated } = getUiStrings(locale);
+const t = s.trust;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: t.title,
+  description: t.metaDescription,
+  author: { "@type": "Organization", name: "DeeWaanAI" },
+};
+---
+<Base title={t.metaTitle} description={t.metaDescription} path="/trust" ogType="article" jsonLd={jsonLd} translated={translated} locale={locale}>
+  <article class="py-16 sm:py-20">
+    <div class="container-page">
+      <div class="mx-auto max-w-2xl">
+        <h1 class="text-3xl font-bold leading-tight text-white sm:text-4xl">{t.title}</h1>
+        <p class="mt-5 text-lg leading-8 text-neutral-400">{t.intro}</p>
+        {t.sections.map((sec) => (
+          <section class="mt-12">
+            <h2 class="text-2xl font-semibold text-white">{sec.h}</h2>
+            {sec.paragraphs.map((para) => (
+              <p class="mt-4 leading-8 text-neutral-300">{para}</p>
+            ))}
+          </section>
+        ))}
+      </div>
+    </div>
+  </article>
+</Base>

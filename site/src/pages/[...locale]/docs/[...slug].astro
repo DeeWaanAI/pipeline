@@ -1,0 +1,61 @@
+---
+// /docs/<slug> — one static path per (locale × manual page). The quickstart
+// (index.md) renders at /docs. Missing translations render the EN page with
+// the fallback note (never a 404). TechArticle JSON-LD per SPEC §7.5b.
+import { render } from "astro:content";
+import Docs from "../../../layouts/Docs.astro";
+import { LOCALES, DEFAULT_LOCALE, localePrefix, type Locale } from "../../../i18n/locales";
+import { docsForLocale } from "../../../i18n/content";
+
+export async function getStaticPaths() {
+  const out = [];
+  for (const locale of LOCALES) {
+    const docs = (await docsForLocale(locale)).sort((a, b) => a.entry.data.order - b.entry.data.order);
+    for (let i = 0; i < docs.length; i++) {
+      const { slug, entry, translated } = docs[i];
+      out.push({
+        params: {
+          locale: locale === DEFAULT_LOCALE ? undefined : locale,
+          slug: slug === "index" ? undefined : slug,
+        },
+        props: {
+          entry,
+          locale,
+          translated,
+          currentSlug: slug,
+          nav: docs.map((d) => ({ slug: d.slug, title: d.entry.data.title })),
+          next: docs[i + 1] ? { slug: docs[i + 1].slug, title: docs[i + 1].entry.data.title } : undefined,
+        },
+      });
+    }
+  }
+  return out;
+}
+
+const { entry, locale, translated, currentSlug, nav, next } = Astro.props;
+const { Content, headings } = await render(entry);
+const pagePath = currentSlug === "index" ? "/docs" : `/docs/${currentSlug}`;
+const origin = Astro.site?.origin ?? "";
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: entry.data.title,
+  description: entry.data.description,
+  author: { "@type": "Organization", name: "DeeWaanAI" },
+  mainEntityOfPage: `${origin}${localePrefix(locale)}${pagePath}`,
+};
+---
+<Docs
+  title={entry.data.title}
+  description={entry.data.description}
+  path={pagePath}
+  locale={locale}
+  translated={translated}
+  nav={nav}
+  currentSlug={currentSlug}
+  headings={headings.filter((h) => h.depth === 2)}
+  next={next}
+  jsonLd={jsonLd}
+>
+  <Content />
+</Docs>

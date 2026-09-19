@@ -1,0 +1,33 @@
+{
+  "title": "Pricing",
+  "subtitle": "One platform for your pipelines — in the studio and inside the AI apps you already use.",
+  "month": "/ month",
+  "perSeat": "per seat",
+  "subscribe": "Subscribe",
+  "loginToSubscribe": "Log in to subscribe",
+  "comingSoon": "Coming soon",
+  "currentPlan": "Current plan",
+  "billingNote": "Secure checkout by Stripe. Cancel anytime.",
+  "plans": {
+    "solo": {
+      "name": "Solo",
+      "tagline": "For individual builders",
+      "feature1": "Custom pipeline designer",
+      "feature2": "Up to 3 LLM providers per pipeline",
+      "feature3": "Auto-design pipeline generation",
+      "feature4": "Companion MCP: run pipelines from Claude, ChatGPT, Qwen Code & Kimi"
+    },
+    "team_seat": {
+      "name": "Team Seat",
+      "tagline": "For mixed-app teams",
+      "feature1": "Everything in Solo",
+      "feature2": "Shared team memory & project context",
+      "feature3": "Cross-app run handoffs & approvals",
+      "feature4": "Team skills pool & feedback loop"
+    }
+  },
+  "marketplace": {
+    "title": "Certified pipelines, sold once",
+    "body": "Buy a certified pipeline on the Marketplace and run it from any connected AI app — every purchase is graded by at least 5 independent reviewers."
+  }
+}

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: api_server/billing_webhooks
+title: Stripe 计费与 Webhook 处理
+scope:
+    - api/routers/billing.ts
+    - api/billing-webhook-route.ts
+    - api/services/billingService.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/marketplace_trust
+    - path: api_server/teams

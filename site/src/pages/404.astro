@@ -1,0 +1,24 @@
+---
+// 404 — static not-found page (EN only for v1; served by the host for
+// unmatched routes — see Caddyfile try_files fallback).
+import Base from "../layouts/Base.astro";
+import { getUiStrings } from "../i18n/ui";
+import { DEFAULT_LOCALE, localePrefix } from "../i18n/locales";
+
+const locale = DEFAULT_LOCALE;
+const { strings: s } = getUiStrings(locale);
+const n = s.notFound;
+const p = localePrefix(locale);
+---
+<Base title={n.metaTitle} description={n.metaDescription} path="/404" locale={locale}>
+  <section class="py-24 text-center">
+    <div class="container-page">
+      <p class="font-mono text-5xl font-bold text-accent">404</p>
+      <h1 class="mt-4 text-2xl font-bold text-white">{n.title}</h1>
+      <p class="mt-3 text-neutral-400">{n.body}</p>
+      <p class="mt-8">
+        <a href={`${p}/`} class="btn-accent">{n.back}</a>
+      </p>
+    </div>
+  </section>
+</Base>

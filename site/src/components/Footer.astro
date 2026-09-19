@@ -1,0 +1,66 @@
+---
+// Footer (SPEC §4.9): Product / Company / Community columns + legal line +
+// language switcher (hidden while only one locale exists).
+import type { UiStrings } from "../i18n/ui";
+import type { Locale } from "../i18n/locales";
+import { localePrefix, MULTI_LOCALE } from "../i18n/locales";
+import { SITE, TRADEMARK_LINE } from "../config";
+import LanguageSwitcher from "./LanguageSwitcher.astro";
+
+interface Props { s: UiStrings; locale: Locale; path: string }
+const { s, locale, path } = Astro.props;
+const p = localePrefix(locale);
+
+const socialLinks = [
+  { href: SITE.discordUrl, label: "Discord" },
+  { href: SITE.xUrl, label: "X" },
+  { href: SITE.githubUrl, label: "GitHub" },
+].filter((l) => !l.href.startsWith("{{"));
+
+const cols = [
+  {
+    title: s.footer.product,
+    links: [
+      { href: `${p}/#how-it-works`, label: s.nav.howItWorks },
+      { href: `${p}/trust`, label: s.nav.trust },
+      { href: `${p}/connect`, label: s.footer.connectGuide },
+    ],
+  },
+  {
+    title: s.footer.company,
+    links: [
+      { href: `${p}/blog`, label: s.nav.blog },
+      { href: `${p}/terms`, label: s.footer.terms },
+      { href: `${p}/privacy`, label: s.footer.privacy },
+    ],
+  },
+  ...(socialLinks.length > 0
+    ? [
+        {
+          title: s.footer.community,
+          links: socialLinks,
+        },
+      ]
+    : []),
+];
+---
+<footer class="border-t border-ink-800 py-10">
+  <div class="container-page">
+    <div class="grid gap-8 sm:grid-cols-3">
+      {cols.map((c) => (
+        <nav aria-label={c.title}>
+          <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">{c.title}</h2>
+          <ul class="space-y-2">
+            {c.links.map((l) => (
+              <li><a href={l.href} class="text-sm text-neutral-400 transition hover:text-white">{l.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+      ))}
+    </div>
+    <div class="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-ink-800 pt-6">
+      <p class="text-xs text-neutral-400">{TRADEMARK_LINE}</p>
+      {MULTI_LOCALE && <LanguageSwitcher locale={locale} path={path} s={s} />}
+    </div>
+  </div>
+</footer>

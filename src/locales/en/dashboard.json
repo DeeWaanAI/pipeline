@@ -1,0 +1,39 @@
+{
+  "title": "Projects",
+  "subtitle": "Manage your AI swarm workspaces",
+  "newProjectButton": "New Project",
+  "createDialog": {
+    "title": "Create New Project",
+    "description": "Set up a new AI swarm project with persistent workspace.",
+    "nameLabel": "Project Name",
+    "namePlaceholder": "e.g., API Documentation Generator",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What does this project do?",
+    "giteeSection": "Gitee Repository (Optional)",
+    "ownerLabel": "Repository Owner",
+    "ownerPlaceholder": "your-username",
+    "repoLabel": "Repository",
+    "repoPlaceholder": "your-repo",
+    "cancel": "Cancel",
+    "submit": "Create Project"
+  },
+  "deleteDialog": {
+    "title": "Delete Project",
+    "description": "Are you sure? This will delete \"{{name}}\" and all its data. This cannot be undone."
+  },
+  "projectCard": {
+    "agentsConfigured": "{{count}} agents configured",
+    "updated": "Updated",
+    "never": "Never",
+    "openWorkspace": "Open Workspace",
+    "configure": "Configure"
+  },
+  "emptyState": {
+    "title": "No projects yet",
+    "description": "Create your first AI swarm project to start orchestrating multiple agents for complex tasks.",
+    "button": "Create Project"
+  },
+  "errors": {
+    "loadFailed": "Failed to load projects"
+  }
+}

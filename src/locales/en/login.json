@@ -1,0 +1,45 @@
+{
+  "title": "Welcome back",
+  "subtitle": "Sign in to access your AI swarm workspaces",
+  "signInButton": "Sign in with Kimi",
+  "heroTitle": "Orchestrate AI Agents",
+  "heroHighlight": "Like a Human Team",
+  "heroDescription": "The first platform that combines persistent project memory, swarm-based parallel execution, and cross-model orchestration with full data ownership.",
+  "features": {
+    "pipeline": {
+      "title": "4-Agent Cascade Pipeline",
+      "desc": "Builder drafts, Critic reviews, Refiner fixes, Polisher finalizes"
+    },
+    "keys": {
+      "title": "Bring Your Own Keys",
+      "desc": "API keys encrypted with PBKDF2 + AES-256. You own your data."
+    },
+    "persistent": {
+      "title": "Persistent Projects",
+      "desc": "Every LLM response stored. Full audit trail. Human review workflow."
+    },
+    "privacy": {
+      "title": "Privacy First",
+      "desc": "No cloud dependency. Runs locally. Gitee integration for storage."
+    }
+  },
+  "footer": "Designed for knowledge workers, developers, and researchers who need more than single-response AI chat.",
+  "terms": "By signing in, you agree to our privacy-first approach.",
+  "noKeys": "We never store your API keys unencrypted.",
+  "sso": {
+    "divider": "or",
+    "emailLabel": "Work email",
+    "emailPlaceholder": "you@company.com",
+    "continueButton": "Continue with SSO",
+    "invalidEmail": "Enter a valid work email to continue with SSO.",
+    "noSsoForDomain": "Your organization doesn't use SSO here — sign in with your username and password.",
+    "lookupFailed": "Could not check SSO availability. Please try again.",
+    "errors": {
+      "config": "SSO is not configured correctly for your organization. Contact your administrator.",
+      "exchange": "Sign-in with your identity provider failed. Please try again.",
+      "state": "Your sign-in session expired. Please try again.",
+      "denied": "Sign-in was cancelled or denied by your identity provider.",
+      "provision": "We couldn't finish setting up your account. Contact your administrator."
+    }
+  }
+}

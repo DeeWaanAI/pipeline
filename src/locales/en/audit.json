@@ -1,0 +1,46 @@
+{
+  "title": "Audit Log",
+  "tabs": {
+    "runs": "Execution History",
+    "responses": "Response Chain",
+    "metrics": "Quality Metrics"
+  },
+  "selectRun": "Select a run from the sidebar to view details",
+  "selectRunForChain": "Select a run to view its full response chain",
+  "selectRunDesc": "See every LLM response, compare Builder vs Refiner, flag issues",
+  "runCard": {
+    "tokens": "tokens",
+    "seconds": "s"
+  },
+  "responseChain": {
+    "flag": "Flag",
+    "flagged": "Flagged",
+    "flagReason": "Why flag this?",
+    "saveFlag": "Save",
+    "note": "Note",
+    "noResponses": "No responses recorded",
+    "viewDetails": "View details"
+  },
+  "metrics": {
+    "totalRuns": "Total Runs",
+    "totalResponses": "Responses",
+    "totalTokens": "Total Tokens",
+    "avgLatency": "Avg Latency",
+    "byRoleTitle": "Performance by Agent Role",
+    "roleColumn": "Role",
+    "countColumn": "Runs",
+    "avgTokensColumn": "Avg Tokens",
+    "avgLatencyColumn": "Avg Time",
+    "flaggedWarning": "flagged responses",
+    "flaggedWarningDesc": "Review flagged items in the Responses tab"
+  },
+  "complianceExport": {
+    "title": "Compliance Export",
+    "description": "Download the full signed audit ledger (runs, approvals, entitlements, subscriptions, MCP log, OAuth metadata) for enterprise compliance reviews.",
+    "downloadJson": "Download signed JSON",
+    "downloadCsv": "Download CSV bundle",
+    "successJson": "Signed audit ledger downloaded",
+    "successCsv": "Audit ledger CSV downloaded",
+    "error": "Export failed: {{error}}"
+  }
+}

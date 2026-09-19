@@ -1,0 +1,73 @@
+{
+  "title": "My Agents",
+  "subtitle": "Create and manage reusable agents for your pipelines",
+  "createAgent": "Create Agent",
+  "templates": "Templates",
+  "myAgents": "My Agents",
+  "empty": "No custom agents yet",
+  "emptyDesc": "Create an agent from scratch or use a template to get started.",
+  "create": {
+    "title": "Create Agent",
+    "desc": "Define a new reusable agent with its own system prompt and settings.",
+    "success": "Agent created successfully"
+  },
+  "edit": {
+    "title": "Edit Agent",
+    "desc": "Update the agent's system prompt and configuration.",
+    "success": "Agent updated successfully"
+  },
+  "update": {
+    "success": "Agent updated successfully"
+  },
+  "delete": {
+    "success": "Agent deleted",
+    "confirm": "Delete agent \"{{name}}\"? This cannot be undone."
+  },
+  "form": {
+    "name": "Name",
+    "namePlaceholder": "My Custom Agent",
+    "slug": "Slug (unique ID)",
+    "role": "Role",
+    "systemPrompt": "System Prompt",
+    "promptPlaceholder": "You are a specialized agent that...",
+    "description": "Description (optional)",
+    "descPlaceholder": "What this agent does",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "providerLabel": "LLM Provider",
+    "providerPlaceholder": "Provider",
+    "projectDefault": "Project default",
+    "modelLabel": "Model",
+    "selectModel": "Select model",
+    "pickProviderFirst": "Pick provider first",
+    "providerDefault": "Provider default",
+    "tempLabel": "temp",
+    "tokensLabel": "tokens"
+  },
+  "errors": {
+    "required": "Name, slug, and system prompt are required",
+    "duplicateSlug": "An agent with this slug already exists"
+  },
+  "tiers": {
+    "sage": "Sage",
+    "master": "Master",
+    "artist": "Artist"
+  },
+  "tierBadge": {
+    "reset": "Reset",
+    "upgrade": "Upgrade",
+    "cycleHint": "Click to cycle tier: Artist → Master → Sage (demo only)"
+  },
+  "upgradeRequired": "Creating custom agents requires {{tier}} tier. Upgrade?",
+  "upgradeRequiredAlert": "{{tier}} tier required. Click Upgrade in the tier badge.",
+  "conditional": {
+    "title": "Conditional Agents",
+    "description": "These special agents control pipeline flow — branching, looping, and human review. Add them via the Pipeline Configurator in your project.",
+    "ifGate": "IF Gate",
+    "ifGateDesc": "Routes pipeline to different agents based on output keywords. The agent writes a full analysis, then puts the routing keyword on the last line.",
+    "whileLoop": "WHILE Loop",
+    "whileLoopDesc": "Repeats a section until quality passes. The agent writes a full assessment, then puts \"retry\" or \"pass\" on the last line. Max iterations configurable.",
+    "humanReview": "Human Review",
+    "humanReviewDesc": "Pauses the pipeline for human approval. The user sees the output, then clicks Approve, Reject, or Modify with instructions."
+  }
+}

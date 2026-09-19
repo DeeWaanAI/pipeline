@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: docs_site
+title: DeeWaanAI 营销站点（Astro 静态文档站）
+scope:
+    - site/
+source_files: []
+depends_on: []
+related_to: []

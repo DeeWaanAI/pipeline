@@ -1,0 +1,46 @@
+{
+  "title": "审计日志",
+  "tabs": {
+    "runs": "执行历史",
+    "responses": "响应链",
+    "metrics": "质量指标"
+  },
+  "selectRun": "从侧边栏选择一个运行记录以查看详情",
+  "selectRunForChain": "选择一个运行记录以查看其完整响应链",
+  "selectRunDesc": "查看每个 LLM 响应，比较构建者与优化者，标记问题",
+  "runCard": {
+    "tokens": "tokens",
+    "seconds": "秒"
+  },
+  "responseChain": {
+    "flag": "标记",
+    "flagged": "已标记",
+    "flagReason": "为什么标记？",
+    "saveFlag": "保存",
+    "note": "备注",
+    "noResponses": "暂无响应记录",
+    "viewDetails": "查看详情"
+  },
+  "metrics": {
+    "totalRuns": "总运行次数",
+    "totalResponses": "响应数",
+    "totalTokens": "总 Token 数",
+    "avgLatency": "平均延迟",
+    "byRoleTitle": "按智能体角色分类的性能",
+    "roleColumn": "角色",
+    "countColumn": "运行次数",
+    "avgTokensColumn": "平均 Token",
+    "avgLatencyColumn": "平均时间",
+    "flaggedWarning": "个已标记响应",
+    "flaggedWarningDesc": "在响应链标签页中查看已标记项"
+  },
+  "complianceExport": {
+    "title": "合规导出",
+    "description": "下载完整签名的审计账本（运行记录、审批决策、授权、订阅、MCP 日志、OAuth 元数据），用于企业合规审查。",
+    "downloadJson": "下载签名 JSON",
+    "downloadCsv": "下载 CSV 文件包",
+    "successJson": "已下载签名审计账本",
+    "successCsv": "已下载审计账本 CSV",
+    "error": "导出失败：{{error}}"
+  }
+}

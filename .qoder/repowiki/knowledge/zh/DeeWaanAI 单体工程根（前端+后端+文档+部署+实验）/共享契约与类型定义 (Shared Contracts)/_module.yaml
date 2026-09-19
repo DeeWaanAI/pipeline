@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: shared_contracts
+title: 共享契约与类型定义 (Shared Contracts)
+scope:
+    - contracts/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend_app

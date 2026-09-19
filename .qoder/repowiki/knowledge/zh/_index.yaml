@@ -1,0 +1,373 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-08-23T17:39:59Z"
+modules:
+    "":
+        dir_name: DeeWaanAI 单体工程根（前端+后端+文档+部署+实验）
+        title: DeeWaanAI 单体工程根（前端+后端+文档+部署+实验）
+        scope:
+            - README.md
+            - DEPLOY.md
+            - ENGINEERING.md
+            - package.json
+            - tsconfig.json
+            - vite.config.ts
+            - docker-compose.yml
+            - Dockerfile
+            - .backend-features.json
+            - .dockerignore
+            - .env.example
+            - .gitignore
+            - .prettierignore
+            - .prettierrc
+            - COMMERCIAL.md
+            - CV_2026_Ahmed_ElZubair.html
+            - CV_Optimization_Report.html
+            - LICENSE
+            - components.json
+            - docker-compose.backup.yml
+            - docker-compose.relay.yml
+            - drizzle.config.ts
+            - ecosystem.config.cjs
+            - eslint.config.js
+            - fix_schema.py
+            - index.html
+            - migrate-tier.cjs
+            - package-lock.json
+            - postcss.config.js
+            - tailwind.config.js
+            - translation-manifest.json
+            - tsconfig.app.json
+            - tsconfig.node.json
+            - tsconfig.server.json
+            - vitest.config.ts
+        source_files: []
+        children:
+            - api_server
+            - database_schema
+            - deployment_scripts
+            - docs_site
+            - frontend_app
+            - project_docs
+            - research_orchestration
+            - shared_contracts
+        depends_on: []
+        related_to: []
+    api_server:
+        dir_name: API Server（Hono + tRPC 业务聚合层）
+        title: API Server（Hono + tRPC 业务聚合层）
+        scope:
+            - api/
+        source_files: []
+        children:
+            - api_server/admin_audit
+            - api_server/agents_pipelines
+            - api_server/auth_sso
+            - api_server/billing_webhooks
+            - api_server/integrations
+            - api_server/marketplace_trust
+            - api_server/mcp_tools
+            - api_server/misc_routes
+            - api_server/projects_files
+            - api_server/search_export
+            - api_server/server_bootstrap
+            - api_server/shared_lib_infra
+            - api_server/swarm
+            - api_server/teams
+        depends_on: []
+        related_to: []
+    api_server/admin_audit:
+        dir_name: 管理员审计与备份导出
+        title: 管理员审计与备份导出
+        scope:
+            - api/routers/admin.ts
+            - api/services/adminAudit.ts
+            - api/services/auditExport.ts
+            - api/backup-route.ts
+            - api/services/backup.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/search_export
+            - path: deployment_scripts
+    api_server/agents_pipelines:
+        dir_name: Agent 与 Pipeline 编排 API
+        title: Agent 与 Pipeline 编排 API
+        scope:
+            - api/routers/pipeline.ts
+            - api/routers/agent.ts
+            - api/services/batchService.ts
+            - api/services/pipelineCreationService.ts
+            - api/services/stateSummarizer.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/swarm
+            - path: research_orchestration
+    api_server/auth_sso:
+        dir_name: 认证与 SSO 路由及令牌服务
+        title: 认证与 SSO 路由及令牌服务
+        scope:
+            - api/auth-router.ts
+            - api/sso-route.ts
+            - api/services/tokenService.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/server_bootstrap
+            - path: api_server/teams
+    api_server/billing_webhooks:
+        dir_name: Stripe 计费与 Webhook 处理
+        title: Stripe 计费与 Webhook 处理
+        scope:
+            - api/routers/billing.ts
+            - api/billing-webhook-route.ts
+            - api/services/billingService.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/marketplace_trust
+            - path: api_server/teams
+    api_server/integrations:
+        dir_name: GitHub_Gitee 代码托管集成与 Issue 追踪 API
+        title: GitHub/Gitee 代码托管集成与 Issue 追踪 API
+        scope:
+            - api/routers/github.ts
+            - api/routers/gitee.ts
+            - api/routers/issues.ts
+            - api/services/githubService.ts
+            - api/services/giteeService.ts
+            - api/services/giteeSync.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/projects_files
+    api_server/marketplace_trust:
+        dir_name: Marketplace Trust、认证与权限服务
+        title: Marketplace Trust、认证与权限服务
+        scope:
+            - api/routers/marketplace.ts
+            - api/routers/certification.ts
+            - api/routers/voucher.ts
+            - api/services/cryptoService.ts
+            - api/services/entitlements.ts
+            - api/services/entitlementSync.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/billing_webhooks
+    api_server/mcp_tools:
+        dir_name: MCP 工具与 LLM 提供商适配层
+        title: MCP 工具与 LLM 提供商适配层
+        scope:
+            - api/mcp/
+            - api/lib/providers/
+        source_files: []
+        children:
+            - api_server/mcp_tools/llm_provider_adapters
+            - api_server/mcp_tools/mcp_server_core
+        depends_on: []
+        related_to: []
+    api_server/mcp_tools/llm_provider_adapters:
+        dir_name: LLM 提供商适配器层
+        title: LLM 提供商适配器层
+        scope:
+            - api/lib/providers/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/mcp_tools/mcp_server_core
+    api_server/mcp_tools/mcp_server_core:
+        dir_name: MCP 服务器与工具注册（Model Context Protocol）
+        title: MCP 服务器与工具注册（Model Context Protocol）
+        scope:
+            - api/mcp/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/mcp_tools/llm_provider_adapters
+    api_server/misc_routes:
+        dir_name: 辅助 API 路由集（流式事件、文件上传、中继代理、等待名单、截图与测试夹具）
+        title: 辅助 API 路由集（流式事件、文件上传、中继代理、等待名单、截图与测试夹具）
+        scope:
+            - api/stream-route.ts
+            - api/upload-route.ts
+            - api/relay-route.ts
+            - api/waitlist-route.ts
+            - api/feedback-screenshot-route.ts
+            - api/test-fixture-route.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/server_bootstrap
+    api_server/projects_files:
+        dir_name: 项目与文件管理 API（导入、CRUD、依赖分析、磁盘存储）
+        title: 项目与文件管理 API（导入、CRUD、依赖分析、磁盘存储）
+        scope:
+            - api/routers/project.ts
+            - api/routers/projectFiles.ts
+            - api/routers/projectImport.ts
+            - api/services/projectFilesDisk.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/integrations
+    api_server/search_export:
+        dir_name: 项目搜索、数据导出与智能情报卡服务
+        title: 项目搜索、数据导出与智能情报卡服务
+        scope:
+            - api/routers/search.ts
+            - api/routers/export.ts
+            - api/services/projectIntelligence.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/admin_audit
+            - path: database_schema
+    api_server/server_bootstrap:
+        dir_name: API 服务器引导与 tRPC 路由装配
+        title: API 服务器引导与 tRPC 路由装配
+        scope:
+            - api/boot.ts
+            - api/router.ts
+            - api/middleware.ts
+            - api/context.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/auth_sso
+            - path: api_server/misc_routes
+            - path: frontend_app
+    api_server/shared_lib_infra:
+        dir_name: API 共享基础设施与通用库
+        title: API 共享基础设施与通用库
+        scope:
+            - api/lib/
+            - api/infra/
+            - api/plugins/
+            - api/queries/
+            - api/config/
+            - api/locales/
+            - api/types/
+            - api/testUtils/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    api_server/swarm:
+        dir_name: Swarm 流水线执行 API（路由_服务_Worker）
+        title: Swarm 流水线执行 API（路由/服务/Worker）
+        scope:
+            - api/routers/swarm.ts
+            - api/services/swarmService.ts
+            - api/workers/swarmWorker.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/agents_pipelines
+            - path: research_orchestration
+    api_server/teams:
+        dir_name: 团队管理与企业 SSO 服务
+        title: 团队管理与企业 SSO 服务
+        scope:
+            - api/routers/team.ts
+            - api/services/sso.ts
+            - api/lib/adminGuards.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/auth_sso
+            - path: api_server/billing_webhooks
+    database_schema:
+        dir_name: 数据库 Schema 与迁移管理
+        title: 数据库 Schema 与迁移管理
+        scope:
+            - db/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/search_export
+            - path: deployment_scripts
+    deployment_scripts:
+        dir_name: 部署脚本、运维工具与 CI_CD 流水线
+        title: 部署脚本、运维工具与 CI/CD 流水线
+        scope:
+            - deploy/
+            - scripts/
+            - relay/
+            - .github/workflows/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/admin_audit
+            - path: database_schema
+    docs_site:
+        dir_name: DeeWaanAI 营销站点（Astro 静态文档站）
+        title: DeeWaanAI 营销站点（Astro 静态文档站）
+        scope:
+            - site/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend_app:
+        dir_name: 前端应用壳与页面路由
+        title: 前端应用壳与页面路由
+        scope:
+            - src/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/server_bootstrap
+            - path: shared_contracts
+    project_docs:
+        dir_name: DeeWaanAI 业务转型与协议文档集
+        title: DeeWaanAI 业务转型与协议文档集
+        scope:
+            - DeeWaanAI-Next/
+            - .paper-research/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    research_orchestration:
+        dir_name: 编排经济学实验仓库（Orchestration Economics）
+        title: 编排经济学实验仓库（Orchestration Economics）
+        scope:
+            - research/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: api_server/agents_pipelines
+            - path: api_server/swarm
+    shared_contracts:
+        dir_name: 共享契约与类型定义 (Shared Contracts)
+        title: 共享契约与类型定义 (Shared Contracts)
+        scope:
+            - contracts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend_app

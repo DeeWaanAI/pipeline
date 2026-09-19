@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: api_server/integrations
+title: GitHub/Gitee 代码托管集成与 Issue 追踪 API
+scope:
+    - api/routers/github.ts
+    - api/routers/gitee.ts
+    - api/routers/issues.ts
+    - api/services/githubService.ts
+    - api/services/giteeService.ts
+    - api/services/giteeSync.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/projects_files

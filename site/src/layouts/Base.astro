@@ -1,0 +1,47 @@
+---
+// Base layout: semantic landmarks, SEO head, header/footer, and the
+// "not yet translated" fallback note (SPEC §5.5).
+import "../styles/global.css";
+import Seo from "../components/Seo.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { getUiStrings } from "../i18n/ui";
+import { isLocale, DEFAULT_LOCALE, type Locale } from "../i18n/locales";
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;                 // unprefixed path, e.g. "/docs/selling"
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  ogType?: string;
+  translated?: boolean;         // false → show EN-fallback note
+  locale?: Locale;              // explicit override (pages under [...locale] pass theirs)
+}
+const { title, description, path, jsonLd, ogType, translated = true } = Astro.props;
+const locale: Locale =
+  Astro.props.locale ??
+  (isLocale(Astro.currentLocale) ? Astro.currentLocale : DEFAULT_LOCALE);
+const { strings: s, translated: bundleTranslated } = getUiStrings(locale);
+const showFallbackNote = !translated || !bundleTranslated;
+---
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <Seo title={title} description={description} path={path} locale={locale} jsonLd={jsonLd} ogType={ogType} />
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <Header s={s} locale={locale} />
+    {showFallbackNote && (
+      <div class="border-b border-amber-500/20 bg-amber-500/10 py-2 text-center text-xs text-amber-300">
+        {s.fallbackNote}
+      </div>
+    )}
+    <main class="flex-1">
+      <slot />
+    </main>
+    <Footer s={s} locale={locale} path={path} />
+  </body>
+</html>

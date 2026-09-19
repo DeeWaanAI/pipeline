@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: api_server/admin_audit
+title: 管理员审计与备份导出
+scope:
+    - api/routers/admin.ts
+    - api/services/adminAudit.ts
+    - api/services/auditExport.ts
+    - api/backup-route.ts
+    - api/services/backup.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/search_export
+    - path: deployment_scripts

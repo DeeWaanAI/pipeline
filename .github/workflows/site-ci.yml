@@ -1,0 +1,42 @@
+name: Site CI
+
+# The marketing site (site/) is a standalone Astro app deployed as its own
+# Railway service. It has its own workflow so site-only changes never run
+# the app suite and app changes never block on the site (paths-filtered).
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**"]
+  pull_request:
+    paths: ["site/**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - run: npm ci
+
+      - name: Static build (must be warning-free)
+        run: npm run build
+
+      - name: Placeholders must survive the build
+        run: |
+          # src/config.ts is the single replacement point for owner-supplied
+          # values; a build that silently substitutes real-looking values is
+          # a bug. The placeholder domain must still be present.
+          grep -qi "{{site_domain}}" dist/index.html || {
+            echo "::error::site-domain placeholder missing from build output"
+            exit 1
+          }

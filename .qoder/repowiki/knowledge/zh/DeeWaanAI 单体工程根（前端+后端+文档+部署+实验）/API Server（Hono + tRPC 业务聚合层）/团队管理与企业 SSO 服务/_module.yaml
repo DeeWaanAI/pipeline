@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: api_server/teams
+title: 团队管理与企业 SSO 服务
+scope:
+    - api/routers/team.ts
+    - api/services/sso.ts
+    - api/lib/adminGuards.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/auth_sso
+    - path: api_server/billing_webhooks

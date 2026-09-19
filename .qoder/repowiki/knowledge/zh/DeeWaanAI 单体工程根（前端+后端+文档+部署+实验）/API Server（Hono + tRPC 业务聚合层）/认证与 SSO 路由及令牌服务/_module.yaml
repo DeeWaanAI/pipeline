@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: api_server/auth_sso
+title: 认证与 SSO 路由及令牌服务
+scope:
+    - api/auth-router.ts
+    - api/sso-route.ts
+    - api/services/tokenService.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/server_bootstrap
+    - path: api_server/teams

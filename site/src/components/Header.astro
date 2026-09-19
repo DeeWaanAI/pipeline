@@ -1,0 +1,51 @@
+---
+// Sticky minimal header (SPEC §4.1). Mobile nav toggle is one of the three
+// allowed client-side scripts.
+import type { UiStrings } from "../i18n/ui";
+import type { Locale } from "../i18n/locales";
+import { localePrefix } from "../i18n/locales";
+
+interface Props { s: UiStrings; locale: Locale }
+const { s, locale } = Astro.props;
+const p = localePrefix(locale);
+const nav = [
+  { href: `${p}/#how-it-works`, label: s.nav.howItWorks },
+  { href: `${p}/trust`, label: s.nav.trust },
+  { href: `${p}/#for-creators`, label: s.nav.forCreators },
+  { href: `${p}/blog`, label: s.nav.blog },
+];
+---
+<header class="sticky top-0 z-40 border-b border-ink-800 bg-ink-950/85 backdrop-blur">
+  <div class="container-page flex h-14 items-center justify-between">
+    <a href={`${p}/`} class="text-base font-bold tracking-tight text-white">
+      DeeWaanAI
+    </a>
+    <nav class="hidden items-center gap-6 md:flex" aria-label={s.nav.mainNav}>
+      {nav.map((n) => (
+        <a href={n.href} class="text-sm text-neutral-400 transition hover:text-white">{n.label}</a>
+      ))}
+      <a href={`${p}/#waitlist`} class="btn-accent !px-4 !py-1.5">{s.nav.joinPioneer}</a>
+    </nav>
+    <button id="nav-toggle" class="md:hidden p-2 text-neutral-400 hover:text-white" aria-label={s.nav.menu} aria-expanded="false" aria-controls="nav-mobile">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+    </button>
+  </div>
+  <nav id="nav-mobile" class="hidden border-t border-ink-800 md:hidden" aria-label={s.nav.mainNav}>
+    <div class="container-page flex flex-col gap-1 py-3">
+      {nav.map((n) => (
+        <a href={n.href} class="rounded-lg px-2 py-2 text-sm text-neutral-300 hover:bg-ink-800">{n.label}</a>
+      ))}
+      <a href={`${p}/#waitlist`} class="btn-accent mt-1 justify-center">{s.nav.joinPioneer}</a>
+    </div>
+  </nav>
+</header>
+<script>
+  const btn = document.getElementById("nav-toggle");
+  const panel = document.getElementById("nav-mobile");
+  btn?.addEventListener("click", () => {
+    const open = panel?.classList.toggle("hidden") === false;
+    btn.setAttribute("aria-expanded", String(open));
+  });
+</script>

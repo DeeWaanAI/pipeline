@@ -1,0 +1,33 @@
+{
+  "title": "价格方案",
+  "subtitle": "一个平台管理你的流水线——既在工作室中，也在你日常使用的 AI 应用里。",
+  "month": "/ 月",
+  "perSeat": "每席位",
+  "subscribe": "订阅",
+  "loginToSubscribe": "登录后订阅",
+  "comingSoon": "即将推出",
+  "currentPlan": "当前方案",
+  "billingNote": "Stripe 安全支付，随时取消。",
+  "plans": {
+    "solo": {
+      "name": "个人版",
+      "tagline": "适合独立开发者",
+      "feature1": "自定义流水线设计器",
+      "feature2": "每条流水线最多接入 3 个 LLM 提供商",
+      "feature3": "自动生成流水线设计",
+      "feature4": "Companion MCP：在 Claude、ChatGPT、Qwen Code 和 Kimi 中运行流水线"
+    },
+    "team_seat": {
+      "name": "团队席位",
+      "tagline": "适合跨应用协作的团队",
+      "feature1": "包含个人版全部功能",
+      "feature2": "团队共享记忆与项目上下文",
+      "feature3": "跨应用运行交接与审批",
+      "feature4": "团队技能池与反馈闭环"
+    }
+  },
+  "marketplace": {
+    "title": "认证流水线，一次买断",
+    "body": "在市场上购买已认证的流水线，即可在任何已连接的 AI 应用中运行——每笔购买都经过至少 5 位独立评审员评分认证。"
+  }
+}

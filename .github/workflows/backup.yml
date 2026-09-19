@@ -1,0 +1,45 @@
+# Daily database backup (Batch A).
+#
+# Triggers the in-app backup endpoint on production, which runs mysqldump,
+# gzips the dump, uploads it to the configured S3 bucket under backups/,
+# and prunes dumps older than 7 days (see api/services/backup.ts).
+#
+# Required GitHub secret: BACKUP_TOKEN — must match the BACKUP_TOKEN env var
+# set on the Railway service. The endpoint returns 503 until both that token
+# and the S3_* env vars are configured in production.
+#
+# The job fails loudly (non-zero exit) when the endpoint does not return 2xx,
+# so a broken backup shows up as a red run in the Actions tab.
+
+name: db-backup
+
+on:
+  schedule:
+    # 03:00 UTC daily (off-peak for the app)
+    - cron: "0 3 * * *"
+  workflow_dispatch: # manual trigger from the Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Trigger in-app backup
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          # Not-yet-activated is NOT a failure: until the owner completes
+          # activation (GitHub secret + Railway BACKUP_TOKEN/S3_*), skip
+          # cleanly. A loud daily failure here would just be alarm fatigue
+          # (this was the 2026-07-29 daily-failure-email incident).
+          if [ -z "$BACKUP_TOKEN" ]; then
+            echo "::notice::Backup dormant — GitHub secret BACKUP_TOKEN not set. Skipping (see DEPLOY.md 'Good to know')."
+            exit 0
+          fi
+          response=$(curl -sS -w "\n%{http_code}" -X POST --max-time 900 \
+            -H "Authorization: Bearer ${BACKUP_TOKEN}" \
+            https://deewaanai-production.up.railway.app/api/admin/backup)
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "HTTP $status: $body"
+          [ "$status" -ge 200 ] && [ "$status" -lt 300 ]

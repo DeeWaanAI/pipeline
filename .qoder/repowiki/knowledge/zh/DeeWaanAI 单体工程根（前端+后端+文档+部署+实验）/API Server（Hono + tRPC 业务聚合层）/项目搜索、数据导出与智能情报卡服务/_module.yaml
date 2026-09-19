@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: api_server/search_export
+title: 项目搜索、数据导出与智能情报卡服务
+scope:
+    - api/routers/search.ts
+    - api/routers/export.ts
+    - api/services/projectIntelligence.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/admin_audit
+    - path: database_schema

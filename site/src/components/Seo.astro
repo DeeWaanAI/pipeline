@@ -1,0 +1,39 @@
+---
+// SEO/GEO head partial (SPEC §7): unique title+description per page, OG +
+// Twitter cards, canonical, hreflang alternates for every configured locale,
+// og:locale, and arbitrary JSON-LD blocks.
+import { LOCALES, DEFAULT_LOCALE, localePrefix, localeTag, type Locale } from "../i18n/locales";
+
+interface Props {
+  title: string;
+  description: string;
+  /** Path of the current page WITHOUT locale prefix, e.g. "/docs/selling". */
+  path: string;
+  locale: Locale;
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  ogType?: string;
+}
+const { title, description, path, locale, jsonLd, ogType = "website" } = Astro.props;
+const origin = Astro.site?.origin ?? "";
+const canonical = `${origin}${localePrefix(locale)}${path}`;
+const blocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
+---
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<link rel="alternate" hreflang="x-default" href={`${origin}${localePrefix(DEFAULT_LOCALE)}${path}`} />
+{LOCALES.map((l) => (
+  <link rel="alternate" hreflang={l} href={`${origin}${localePrefix(l)}${path}`} />
+))}
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:type" content={ogType} />
+<meta property="og:site_name" content="DeeWaanAI" />
+<meta property="og:locale" content={localeTag(locale)} />
+<meta property="og:image" content={`${origin}/og.png`} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={`${origin}/og.png`} />
+{blocks.map((b) => <script type="application/ld+json" set:html={JSON.stringify(b)} />)}

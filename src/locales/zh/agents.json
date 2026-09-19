@@ -1,0 +1,73 @@
+{
+  "title": "我的智能体",
+  "subtitle": "创建和管理可在流水线中复用的智能体",
+  "createAgent": "创建智能体",
+  "templates": "模板",
+  "myAgents": "我的智能体",
+  "empty": "暂无自定义智能体",
+  "emptyDesc": "从头创建一个智能体，或使用模板快速开始。",
+  "create": {
+    "title": "创建智能体",
+    "desc": "定义一个带有独立系统提示和设置的可复用智能体。",
+    "success": "智能体创建成功"
+  },
+  "edit": {
+    "title": "编辑智能体",
+    "desc": "更新智能体的系统提示和配置。",
+    "success": "智能体更新成功"
+  },
+  "update": {
+    "success": "智能体更新成功"
+  },
+  "delete": {
+    "success": "智能体已删除",
+    "confirm": "删除智能体 \"{{name}}\"？此操作无法撤销。"
+  },
+  "form": {
+    "name": "名称",
+    "namePlaceholder": "我的自定义智能体",
+    "slug": "标识符（唯一ID）",
+    "role": "角色",
+    "systemPrompt": "系统提示词",
+    "promptPlaceholder": "你是一个专业的智能体，负责...",
+    "description": "描述（可选）",
+    "descPlaceholder": "这个智能体的用途",
+    "temperature": "温度",
+    "maxTokens": "最大令牌数",
+    "providerLabel": "LLM 服务商",
+    "providerPlaceholder": "服务商",
+    "projectDefault": "项目默认",
+    "modelLabel": "模型",
+    "selectModel": "选择模型",
+    "pickProviderFirst": "先选择服务商",
+    "providerDefault": "服务商默认",
+    "tempLabel": "温度",
+    "tokensLabel": "令牌数"
+  },
+  "errors": {
+    "required": "名称、标识符和系统提示词为必填项",
+    "duplicateSlug": "该标识符已被使用"
+  },
+  "tiers": {
+    "sage": "圣人",
+    "master": "大师",
+    "artist": "匠人"
+  },
+  "tierBadge": {
+    "reset": "重置",
+    "upgrade": "升级",
+    "cycleHint": "点击切换层级：匠人 → 大师 → 圣人（仅限演示）"
+  },
+  "upgradeRequired": "创建自定义智能体需要{{tier}}层级。是否升级？",
+  "upgradeRequiredAlert": "需要{{tier}}层级。点击层级徽章中的升级按钮。",
+  "conditional": {
+    "title": "条件智能体",
+    "description": "这些特殊智能体控制流水线流程 — 分支、循环和人工审核。通过项目中的流水线配置器添加它们。",
+    "ifGate": "IF 门控",
+    "ifGateDesc": "根据输出关键词将流水线路由到不同的智能体。智能体写出完整分析，然后在最后一行放置路由关键词。",
+    "whileLoop": "WHILE 循环",
+    "whileLoopDesc": "重复某个步骤直到质量达标。智能体写出完整评估，然后在最后一行放置\"retry\"或\"pass\"。最大迭代次数可配置。",
+    "humanReview": "人工审核",
+    "humanReviewDesc": "暂停流水线等待人工审批。用户看到输出后，点击批准、拒绝或修改并附带说明。"
+  }
+}

@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: api_server/server_bootstrap
+title: API 服务器引导与 tRPC 路由装配
+scope:
+    - api/boot.ts
+    - api/router.ts
+    - api/middleware.ts
+    - api/context.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/auth_sso
+    - path: api_server/misc_routes
+    - path: frontend_app

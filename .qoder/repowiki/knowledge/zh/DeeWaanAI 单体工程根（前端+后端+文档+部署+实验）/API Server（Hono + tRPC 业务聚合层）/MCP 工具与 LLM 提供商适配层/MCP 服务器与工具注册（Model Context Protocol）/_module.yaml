@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: api_server/mcp_tools/mcp_server_core
+title: MCP 服务器与工具注册（Model Context Protocol）
+scope:
+    - api/mcp/
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/mcp_tools/llm_provider_adapters

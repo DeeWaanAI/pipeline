@@ -1,0 +1,495 @@
+{
+  "nav": {
+    "howItWorks": "How it works",
+    "trust": "Trust",
+    "forCreators": "For creators",
+    "blog": "Blog",
+    "joinPioneer": "Join the Pioneer 100",
+    "mainNav": "Main navigation",
+    "menu": "Menu"
+  },
+  "footer": {
+    "product": "Product",
+    "company": "Company",
+    "community": "Community",
+    "connectGuide": "Connect guide",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "language": "Language"
+  },
+  "fallbackNote": "This page is not yet translated — showing the English version.",
+  "landing": {
+    "metaTitle": "DeeWaanAI — The certified AI-pipeline marketplace",
+    "metaDescription": "Create, discover, buy and sell AI workflows — from inside Claude, ChatGPT, Kimi, or any MCP client. Every listing certified by blind human review.",
+    "hero": {
+      "title": "Certified AI pipelines. Inside your chat.",
+      "subline": "Create, buy, and sell multi-step AI workflows from Claude, ChatGPT, Kimi, or any MCP client. Every listing verified by blind human review.",
+      "primaryCta": "Join the Pioneer 100 →",
+      "secondaryCta": "See how it works",
+      "videoCaption": "Watch: using a certified pipeline inside a chat — 45 seconds.",
+      "videoPlaceholder": "Demo video coming soon"
+    },
+    "worksWith": {
+      "label": "Connects to the tools you already use",
+      "caption": "DeeWaanAI runs as an MCP server. One URL, pasted once — per teammate, in any app.",
+      "badges": ["Claude", "ChatGPT", "Kimi", "Cursor", "Any MCP client"]
+    },
+    "problem": {
+      "title": "Most marketplaces sell promises.",
+      "intro": "DeeWaanAI was built because the status quo is broken.",
+      "items": [
+        {
+          "title": "Anyone can upload a prompt",
+          "body": "Most marketplaces have zero quality gates. A listing is a title, a description, and a promise. You have no way to know whether the prompts are well-engineered, quietly broken, or actively malicious."
+        },
+        {
+          "title": "Your data goes who-knows-where",
+          "body": "No transparency on inference. No bring-your-own-keys. Your inputs, your outputs, and your API keys are handled by opaque middlemen with unclear data policies."
+        },
+        {
+          "title": "Locked into one chat app",
+          "body": "Force you to abandon the tools you already use and learn a new interface. Your team can't collaborate unless everyone switches to the same app."
+        }
+      ]
+    },
+    "howItWorks": {
+      "title": "How it works",
+      "steps": [
+        { "title": "Connect", "body": "Paste one MCP URL into your chat client. That's the whole install." },
+        { "title": "Create or discover", "body": "Build multi-step AI pipelines with your own prompts and models, or browse pipelines built by others." },
+        { "title": "Run & improve", "body": "Execute in your chat. Approval gates pause for your OK. Iterate on steps until the output passes." }
+      ]
+    },
+    "audiences": {
+      "creators": {
+        "title": "For creators",
+        "subtitle": "Build and sell certified pipelines",
+        "bullets": [
+          "IF/WHILE loops and quality gates for sophisticated workflows",
+          "AI Auto-Designer turns plain language into optimal pipelines",
+          "Secret prompts stay encrypted — never shown to reviewers",
+          "Certified marketplace badge that actually means something",
+          "Pioneer creators lock in lifetime best commission rate"
+        ]
+      },
+      "users": {
+        "title": "For users",
+        "subtitle": "Pipelines that work, in the chat you already have",
+        "bullets": [
+          "Every purchase is human-certified through 3 independent layers",
+          "Runs with your own API keys — your data goes to your providers, not ours",
+          "One-line setup in any MCP client — Claude, ChatGPT, Kimi, Cursor",
+          "Collaborate with your team on shared pipelines (TeamSync beta)"
+        ]
+      }
+    },
+    "capabilities": {
+      "title": "What you can build",
+      "intro": "Three levels of pipeline design power. Upgrade as your needs grow.",
+      "tiers": [
+        {
+          "name": "Artist",
+          "badge": "Free during beta",
+          "description": "Build sequential pipelines",
+          "features": [
+            "Fixed steps that run in order",
+            "Human-in-the-Loop approval gates",
+            "1 LLM provider per pipeline",
+            "Browse and run certified marketplace pipelines"
+          ]
+        },
+        {
+          "name": "Master",
+          "badge": "Paid tier",
+          "description": "Design custom workflows",
+          "features": [
+            "Everything in Artist",
+            "IF/WHILE loops — auto-retry until output passes",
+            "Quality gates — route or loop based on output scoring",
+            "Up to 3 LLM providers per pipeline",
+            "Publish pipelines to the marketplace"
+          ]
+        },
+        {
+          "name": "Sage",
+          "badge": "Paid tier",
+          "description": "AI builds for you",
+          "features": [
+            "Everything in Master",
+            "AI Auto-Designer — describe your goal, platform builds the optimal pipeline",
+            "Best for rapid prototyping and complex multi-agent chains"
+          ]
+        }
+      ],
+      "smallPrint": "Free during beta. Pioneer members lock in lifetime best terms for paid launch.",
+      "cta": "Join the Pioneer 100 →"
+    },
+    "betaFeatures": {
+      "title": "Beta features — ask for early access",
+      "intro": "Powerful add-ons available behind a feature flag today.",
+      "items": [
+        {
+          "title": "Batch runs (Research Mode)",
+          "body": "Run up to 100 inputs through a pipeline in one go. Live progress, pause/resume on provider outages, and one-click CSV export."
+        },
+        {
+          "title": "Pipeline chaining",
+          "body": "Feed one pipeline's output straight into another. Generation → evaluation → review becomes a single submission, with depth and cycle guards so chains never run away."
+        },
+        {
+          "title": "TeamSync",
+          "body": "Share pipelines, context, and skills with your team. Each member works in their own LLM desktop app — Kimi, Claude, Cursor, anything MCP-compatible — on the same shared workspace."
+        }
+      ]
+    },
+    "trust": {
+      "title": "Certification, not vibes.",
+      "intro": "Anyone can upload a prompt. DeeWaanAI is built for the ones worth paying for.",
+      "layers": [
+        { "title": "Deterministic security scan", "body": "Code, not AI. Catches injection patterns, hidden Unicode tricks, and data-exfiltration attempts. Ungameable." },
+        { "title": "AI triage", "body": "A platform-controlled model scores quality and gives creators instant feedback. It advises — it never decides." },
+        { "title": "Blind human review", "body": "Independent reviewers evaluate real outputs without knowing whose pipeline it is. Only human consensus makes a listing buyable." }
+      ],
+      "closing": "Fail-closed by design: if anything errs, the listing stays unpublished.",
+      "link": "Read how certification works →"
+    },
+    "waitlist": {
+      "title": "Be one of the first 100.",
+      "perks": [
+        "Pioneer badge on your profile — permanent",
+        "Free Pro during beta and beyond",
+        "Lifetime discounted commission as a creator",
+        "3 invites to bring people you trust",
+        "Direct line to the founder — your feedback ships"
+      ],
+      "counterTemplate": "{N} of 100 Pioneer spots claimed",
+      "counterFallback": "Limited to 100 spots",
+      "emailLabel": "Email address",
+      "emailPlaceholder": "you@example.com",
+      "roleLabel": "I want to…",
+      "roleCreator": "Build & sell pipelines",
+      "roleUser": "Use pipelines",
+      "roleBoth": "Both",
+      "submit": "Request my spot",
+      "submitting": "Requesting…",
+      "successTemplate": "You're in the queue at #{position}.",
+      "shareLabel": "Share your link to move up:",
+      "copyButton": "Copy",
+      "copied": "Copied!",
+      "shareTextTemplate": "Just joined the DeeWaanAI Pioneer 100 waitlist — the AI-pipeline marketplace with blind human certification. {referralUrl}",
+      "shareOnX": "Share on X",
+      "shareOnLinkedIn": "Share on LinkedIn",
+      "smallPrint": "Free during beta. Beta perks are promotional benefits and do not constitute equity or ownership.",
+      "errorGeneric": "Something went wrong — please try again in a moment.",
+      "disabledTemplate": "Join via email: {email}"
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "items": [
+        {
+          "q": "What is DeeWaanAI?",
+          "a": "DeeWaanAI is a marketplace for AI pipelines — multi-step AI workflows you can create, buy, and sell. Every listing is certified through an automated security scan, AI triage, and blind human review before it can be purchased."
+        },
+        {
+          "q": "What is a certified AI pipeline?",
+          "a": "A certified pipeline has passed three independent checks: a deterministic security scan of its prompts, an AI quality triage, and blind evaluation of its real outputs by multiple human reviewers who don't know who built it."
+        },
+        {
+          "q": "How do I use DeeWaanAI?",
+          "a": "Paste the DeeWaanAI MCP server URL into any MCP-compatible client — Claude, ChatGPT, Kimi, Cursor, and others. You then create and use pipelines directly from your chat."
+        },
+        {
+          "q": "Do I need new API keys?",
+          "a": "You bring your own LLM provider keys. Your pipeline runs go to your providers under your keys — DeeWaanAI orchestrates, it doesn't intercept."
+        },
+        {
+          "q": "Is my pipeline IP protected if I sell it?",
+          "a": "Yes. Secret prompts are encrypted, never shown to human reviewers, never used for training, and the buyer receives usage rights, not your source prompts."
+        },
+        {
+          "q": "What does beta cost?",
+          "a": "Nothing. During beta everything is free, and marketplace listings are in free preview. Pioneer members lock in the best terms we'll ever offer for when paid launch comes."
+        },
+        {
+          "q": "What is the Pioneer 100?",
+          "a": "Our first 100 beta members. Pioneers get a permanent badge, free Pro, a lifetime discounted creator commission, and 3 invites each. Spots are limited by our human-review capacity — the scarcity is real, not marketing."
+        },
+        {
+          "q": "Can my team use different AI apps?",
+          "a": "Yes. DeeWaanAI is an MCP server, so each teammate connects their own client — Kimi, Claude, Cursor, or any MCP-compatible app — and collaborates on the same shared pipelines and context."
+        },
+        {
+          "q": "What is Research Mode?",
+          "a": "Research Mode adds batch runs (up to 100 inputs in parallel) and pipeline chaining (feed one pipeline's output into another). It's available now behind a feature flag — request early access."
+        },
+        {
+          "q": "What can I do on the free plan?",
+          "a": "The Artist tier (free during beta) lets you build sequential pipelines with fixed steps, Human-in-the-Loop approval gates, and 1 LLM provider. You can also browse and run any certified marketplace pipeline."
+        },
+        {
+          "q": "What are IF/WHILE loops?",
+          "a": "IF/WHILE loops are a Master tier feature that let you build conditional and repeating workflow logic. A quality gate can check an agent's output and automatically loop back until it passes — or route to a different step based on the result."
+        },
+        {
+          "q": "What is the AI Auto-Designer?",
+          "a": "The AI Auto-Designer (Sage tier) lets you describe your goal in plain language — for example, 'turn a product idea into a launch plan' — and the platform automatically generates the optimal pipeline with agents, prompts, quality gates, and approvals."
+        }
+      ]
+    }
+  },
+  "connect": {
+    "metaTitle": "Connect — DeeWaanAI",
+    "metaDescription": "Connect DeeWaanAI to Claude, ChatGPT, Cursor, or any MCP client with one URL. Setup guides for every major chat client.",
+    "title": "Connect DeeWaanAI to your chat client",
+    "intro": "One MCP URL, pasted once. Pick your client below:",
+    "urlLabel": "Your MCP server URL",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "clients": [
+      {
+        "name": "Claude Desktop",
+        "steps": [
+          "Open Claude Desktop → Settings → Connectors → \"Add custom connector\".",
+          "Paste the MCP URL above as the connector URL.",
+          "Approve the sign-in in your browser when the OAuth window opens (use Chrome if Safari shows a localhost error).",
+          "Ask Claude: \"What pipelines do I have?\" — it should call DeeWaanAI and answer."
+        ]
+      },
+      {
+        "name": "Claude.ai (web)",
+        "steps": [
+          "Open claude.ai → Settings → Connectors.",
+          "Choose \"Add custom connector\" and paste the MCP URL.",
+          "Complete the OAuth approval in the browser tab that opens.",
+          "Start a chat and ask about your pipelines to verify the connection."
+        ]
+      },
+      {
+        "name": "ChatGPT",
+        "steps": [
+          "In ChatGPT, go to Settings → Connectors (or Developer mode, depending on your plan).",
+          "Add a new MCP connector and paste the MCP URL.",
+          "Approve access in the OAuth window.",
+          "Verify by asking ChatGPT to list your DeeWaanAI pipelines."
+        ]
+      },
+      {
+        "name": "Cursor",
+        "steps": [
+          "Open Cursor Settings → MCP.",
+          "Add a new MCP server with the URL above (streamable HTTP).",
+          "Complete OAuth in the browser when prompted.",
+          "Ask the agent about your pipelines to confirm it works."
+        ]
+      },
+      {
+        "name": "Generic MCP client",
+        "steps": [
+          "Any MCP-compatible client that supports streamable HTTP works.",
+          "Add the MCP URL as a remote server; the server speaks OAuth 2.1 with dynamic client registration.",
+          "Approve the consent screen once — tokens refresh automatically afterwards."
+        ]
+      }
+    ],
+    "cta": "Don't have access yet? Join the Pioneer 100 →"
+  },
+  "trust": {
+    "metaTitle": "How certification works — DeeWaanAI",
+    "metaDescription": "Every DeeWaanAI marketplace listing passes a deterministic security scan, non-gating AI triage, and blind human review before it can be sold. Fail-closed by design.",
+    "title": "How DeeWaanAI certification works",
+    "intro": "Most AI marketplaces sell promises. DeeWaanAI sells proof. This page explains exactly what happens to a pipeline before it is allowed to be sold — and why.",
+    "sections": [
+      {
+        "h": "The problem with prompt marketplaces",
+        "paragraphs": [
+          "Every AI marketplace has the same structural flaw: anyone can upload anything. A listing is a title, a description, and a promise. The buyer has no way to know whether the prompts are well-engineered, quietly broken, or actively malicious — until after they have paid.",
+          "Some platforms add AI judges. That helps, but an AI grading its peers is gameable: prompt-injection tricks and evaluator-pleasing fluff score well without being good. Others rely on creator self-reviews and star ratings, which measure popularity, not quality.",
+          "DeeWaanAI was designed around a different premise: trust must be earned by the pipeline, in three independent layers, before money can change hands."
+        ]
+      },
+      {
+        "h": "Layer 1 — Deterministic security scan",
+        "paragraphs": [
+          "The first gate is code, not AI. Every submitted pipeline passes through a deterministic scanner that inspects the actual prompt content for injection phrases, hidden Unicode tricks (zero-width characters, bidirectional overrides, homoglyphs), data-exfiltration patterns, embedded secrets, and PII leaks.",
+          "Because the scanner is deterministic, it cannot be charmed, confused, or prompt-injected. A listing that fails is rejected immediately, with the specific findings returned to the creator. No exceptions, no appeals to a language model's mood."
+        ]
+      },
+      {
+        "h": "Layer 2 — AI triage that advises, never decides",
+        "paragraphs": [
+          "Next, the platform — not the creator, not the buyer — runs the pipeline against a suite of generated test inputs on a platform-controlled model. The triage scores quality across six dimensions and gives the creator fast, concrete feedback.",
+          "Crucially, the AI triage is non-gating by design. It can only stop a listing in one case: when quality is so low that sending it to human reviewers would waste their time. It can never approve a listing for sale. AI advises; it never decides. This removes the entire class of 'game the judge' attacks that plague AI-only review systems."
+        ]
+      },
+      {
+        "h": "Layer 3 — Blind human review",
+        "paragraphs": [
+          "The final gate is the one that actually matters. Real outputs from the pipeline — not its prompts, not its marketing copy — are placed in a blind review pool. Independent reviewers score what they see without knowing whose pipeline produced it, what it's called, or how anyone else scored it.",
+          "Blindness is the mechanism that prevents collusion: reviewers cannot coordinate with creators they cannot identify, and self-review is impossible because the system, not the reviewer, assigns tasks. A listing becomes buyable only when multiple independent humans agree the outputs are genuinely good — measured as both an average score and a pass ratio, so one generous outlier cannot carry a weak pipeline."
+        ]
+      },
+      {
+        "h": "Fail-closed by design",
+        "paragraphs": [
+          "Every layer errs in the same direction: if anything goes wrong — a scan error, a triage timeout, a missing review quorum — the listing simply stays unpublished. There is no failure mode in which a pipeline accidentally becomes sellable.",
+          "This is the opposite of how most platforms treat errors, and it is deliberate. Trust compounds slowly and collapses fast; the system is built to never spend trust it hasn't earned."
+        ]
+      },
+      {
+        "h": "What this means for creators' IP",
+        "paragraphs": [
+          "Certification never exposes the creator's work. Secret prompts are encrypted at rest, are never shown to human reviewers (they see inputs and outputs only), and are never used to train models. What a buyer purchases is the right to run the pipeline — not the source prompts behind it.",
+          "The result is a marketplace where creators can sell their best work without giving it away, and buyers can purchase with something no other prompt marketplace offers: evidence."
+        ]
+      }
+    ]
+  },
+  "docsNav": {
+    "metaTitle": "Docs — DeeWaanAI",
+    "metaDescription": "The DeeWaanAI user manual: connect your chat client, create and run pipelines, manage API keys, buy and sell on the certified marketplace, and review listings.",
+    "quickstart": "Quickstart",
+    "pipelines": "Creating & running pipelines",
+    "researchMode": "Research Mode: batch & chaining",
+    "teams": "Teams (TeamSync)",
+    "providers": "Models & API keys",
+    "selling": "Selling on the marketplace",
+    "buying": "Discovering & buying",
+    "reviewing": "Being a reviewer",
+    "troubleshooting": "Troubleshooting",
+    "onThisPage": "On this page",
+    "docsHome": "Docs",
+    "nextTemplate": "Next: {title} →"
+  },
+  "blog": {
+    "metaTitle": "Blog — DeeWaanAI",
+    "metaDescription": "Notes from building DeeWaanAI — the certified AI-pipeline marketplace — in public.",
+    "title": "Blog",
+    "empty": "No posts yet.",
+    "backToBlog": "← All posts",
+    "readMore": "Read →"
+  },
+  "legal": {
+    "reviewNote": "Draft for beta — pending legal review.",
+    "lastUpdatedTemplate": "Last updated: {date}",
+    "terms": {
+      "metaTitle": "Terms of Service — DeeWaanAI",
+      "metaDescription": "The terms that govern use of the DeeWaanAI platform and marketplace during the beta period.",
+      "title": "Terms of Service",
+      "sections": [
+        {
+          "h": "1. Who we are",
+          "paragraphs": [
+            "These Terms of Service (\"Terms\") govern your access to and use of the DeeWaanAI platform, website, MCP server, and marketplace (collectively, the \"Service\"), operated by {{COMPANY_LEGAL_NAME}} (\"we\", \"us\", \"our\"). By creating an account or using the Service, you agree to these Terms."
+          ]
+        },
+        {
+          "h": "2. Beta terms",
+          "paragraphs": [
+            "The Service is currently in beta. During the beta period the Service is provided free of charge, and marketplace listings are in free preview. Features, limits, and certification criteria may change at any time.",
+            "Beta perks — including Pioneer badges, free Pro access, discounted commission rates, and invite allocations — are promotional benefits only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
+          ]
+        },
+        {
+          "h": "3. Your account and API keys",
+          "paragraphs": [
+            "You are responsible for activity under your account and for keeping your credentials confidential. You connect your own LLM provider accounts using your own API keys; your use of those providers is governed by their terms, and you are responsible for their usage costs. Pipeline runs are executed against your providers under your keys."
+          ]
+        },
+        {
+          "h": "4. Intellectual property",
+          "paragraphs": [
+            "Creators retain all intellectual property rights in the pipelines they create, including prompts, step definitions, and configurations. Selling or licensing a pipeline on the marketplace grants the buyer a usage right to run the pipeline; it does not transfer ownership of, or source access to, the underlying prompts.",
+            "You grant us the limited rights needed to operate the Service: to store, encrypt, execute on your behalf, and — for marketplace listings — to evaluate your pipeline through our certification process. We do not use your prompts to train models."
+          ]
+        },
+        {
+          "h": "5. Acceptable use",
+          "paragraphs": [
+            "You must not use the Service to: violate any law or third-party right; upload malicious content, including prompts designed to exfiltrate data, hijack other users' sessions, or bypass certification; attempt to identify blind reviewers or coordinate review outcomes; scrape, reverse-engineer, or overload the Service; or misrepresent certification status.",
+            "We may suspend or terminate accounts that breach these rules, and remove listings that fail or evade certification."
+          ]
+        },
+        {
+          "h": "6. Marketplace purchases and refunds",
+          "paragraphs": [
+            "While listings are in free preview, no payment is taken. When paid purchases begin, the pricing, commission, and refund terms presented at checkout will apply. Certification reflects our review process at a point in time; it is not a warranty of fitness for a particular purpose."
+          ]
+        },
+        {
+          "h": "7. Disclaimers and liability",
+          "paragraphs": [
+            "The Service is provided \"as is\" and \"as available\" during beta, without warranties of any kind. To the maximum extent permitted by law, {{COMPANY_LEGAL_NAME}} is not liable for indirect, incidental, or consequential damages, or for outputs produced by AI pipelines created by third parties."
+          ]
+        },
+        {
+          "h": "8. Assignment",
+          "paragraphs": [
+            "We may assign this agreement, in whole or in part, to an affiliated entity or in connection with a merger, acquisition, reorganization, or sale of assets, without your consent. You may not assign this agreement without our prior written consent."
+          ]
+        },
+        {
+          "h": "9. Changes and contact",
+          "paragraphs": [
+            "We may update these Terms from time to time; material changes will be announced through the Service. Continued use after a change takes effect constitutes acceptance. Questions: {{FALLBACK_EMAIL}}."
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "metaTitle": "Privacy Policy — DeeWaanAI",
+      "metaDescription": "What data DeeWaanAI collects, how it is used and stored, and the rights you have over it.",
+      "title": "Privacy Policy",
+      "sections": [
+        {
+          "h": "1. Overview",
+          "paragraphs": [
+            "This Privacy Policy explains what information {{COMPANY_LEGAL_NAME}} (\"we\", \"us\") collects through the DeeWaanAI platform, website, and MCP server (the \"Service\"), how we use it, and the choices you have."
+          ]
+        },
+        {
+          "h": "2. What we collect",
+          "paragraphs": [
+            "Account data: your email address, username, and authentication identifiers. Configuration data: pipelines, agents, and settings you create. Credentials: LLM provider API keys you choose to store, which are encrypted at rest and used only to call your providers on your behalf. Usage data: run logs, audit events, and technical telemetry needed to operate and secure the Service. Waitlist data: email address, selected role, and referral attribution when you join the Pioneer 100 waitlist."
+          ]
+        },
+        {
+          "h": "3. How we use it",
+          "paragraphs": [
+            "We use collected data to operate the Service (including executing your pipelines with your providers), to certify marketplace listings, to secure the platform and prevent abuse, and to communicate with you about the Service. We do not sell your personal data, and we do not use your prompts or provider keys to train models."
+          ]
+        },
+        {
+          "h": "4. Third-party processors",
+          "paragraphs": [
+            "Pipeline runs send the relevant prompts and inputs to the LLM providers you configured, under your own accounts and keys — this is the core function of the Service. We additionally rely on infrastructure processors (hosting, database, object storage, and payment processing when paid purchases begin) under appropriate data-processing terms."
+          ]
+        },
+        {
+          "h": "5. Retention and deletion",
+          "paragraphs": [
+            "We retain account and configuration data while your account is active. You may export your data at any time through the platform's data-portability tools, and you may request deletion of your account and associated personal data via {{FALLBACK_EMAIL}}. Backups rotate out on a fixed schedule after deletion."
+          ]
+        },
+        {
+          "h": "6. Your rights",
+          "paragraphs": [
+            "Depending on your jurisdiction (including the UK and EEA), you may have rights of access, rectification, erasure, portability, restriction, and objection. Contact {{FALLBACK_EMAIL}} to exercise them. You may also lodge a complaint with your local data-protection authority."
+          ]
+        },
+        {
+          "h": "7. Changes",
+          "paragraphs": [
+            "We may update this policy from time to time and will post the revised version on this page with a new \"last updated\" date."
+          ]
+        }
+      ]
+    }
+  },
+  "notFound": {
+    "metaTitle": "Page not found — DeeWaanAI",
+    "metaDescription": "The page you're looking for doesn't exist or has moved.",
+    "title": "Page not found",
+    "body": "The page you're looking for doesn't exist or has moved.",
+    "back": "Back to homepage"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "unauthenticated": "Authentication required",
+  "insufficientRole": "Insufficient permissions",
+  "mcp": {
+    "errors": {
+      "insufficientScope": "Insufficient scope for tool {{tool}}: requires {{scopes}}"
+    }
+  }
+}

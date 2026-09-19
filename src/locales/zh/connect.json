@@ -1,0 +1,58 @@
+{
+  "title": "连接你的 AI 应用",
+  "subtitle": "在你日常使用的桌面 AI 应用里直接运行流水线、查看运行状态、审批步骤。一次安全登录，无需切换上下文。",
+  "endpoint": {
+    "label": "你的 MCP 服务器地址",
+    "hint": "所有应用使用同一个地址——每个应用都会自动发现登录流程（OAuth 2.1）。",
+    "copy": "复制",
+    "copied": "已复制！"
+  },
+  "howItWorks": {
+    "title": "使用流程",
+    "step1Title": "添加服务器",
+    "step1Desc": "按照下方指南，把 MCP 服务器地址粘贴到你的 AI 应用中。",
+    "step2Title": "登录一次",
+    "step2Desc": "应用会打开浏览器窗口，登录并授权即可——无需管理 API 密钥。",
+    "step3Title": "随处工作",
+    "step3Desc": "无需离开 AI 应用，即可列出流水线、发起运行、审批步骤。"
+  },
+  "appsTitle": "配置指南",
+  "apps": {
+    "claude": {
+      "name": "Claude Desktop",
+      "tagline": "Anthropic 桌面应用",
+      "step1": "打开 设置 → 连接器 → 添加自定义连接器。",
+      "step2": "命名为 “AI Swarm Studio”，粘贴你的 MCP 服务器地址。",
+      "step3": "点击连接——浏览器窗口将打开用于登录。",
+      "step4": "批准授权后，list_pipelines、run_pipeline、get_pipeline、create_pipeline、update_pipeline、design_pipeline 等工具即可在所有对话中使用。"
+    },
+    "chatgpt": {
+      "name": "ChatGPT",
+      "tagline": "开发者模式（Apps SDK）",
+      "step1": "进入 设置 → 应用与连接器 → 高级设置，启用开发者模式。",
+      "step2": "创建新应用，将你的 MCP 服务器地址添加为连接器端点。",
+      "step3": "ChatGPT 会自动发现 OAuth 流程——按提示登录。",
+      "step4": "在任意对话中提及该应用，即可列出并运行你的流水线。"
+    },
+    "qwen": {
+      "name": "Qwen Code",
+      "tagline": "阿里巴巴的命令行编程助手",
+      "step1": "在终端中添加服务器：",
+      "step2": "Qwen Code 会将服务器保存到 ~/.qwen/settings.json。",
+      "step3": "首次使用时会打开浏览器进行 OAuth 登录——批准授权。",
+      "step4": "让 Qwen Code 运行流水线，它会直接调用相应工具。"
+    },
+    "kimi": {
+      "name": "Kimi",
+      "tagline": "月之暗面桌面应用",
+      "step1": "打开 设置 → MCP 服务器 → 添加服务器。",
+      "step2": "选择 streamable HTTP 传输方式，粘贴你的 MCP 服务器地址。",
+      "step3": "保存后点击授权，完成 OAuth 登录。",
+      "step4": "你的流水线会以工具形式出现在新对话中。"
+    }
+  },
+  "securityNote": {
+    "title": "数据始终由你掌控",
+    "desc": "应用只能获得你批准的权限（读取、运行或写入）。访问令牌一小时后过期，你可以随时在设置中撤销任何已连接的应用。"
+  }
+}

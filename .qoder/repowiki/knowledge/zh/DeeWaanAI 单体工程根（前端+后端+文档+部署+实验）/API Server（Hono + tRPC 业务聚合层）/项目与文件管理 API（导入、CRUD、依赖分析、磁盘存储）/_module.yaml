@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: api_server/projects_files
+title: 项目与文件管理 API（导入、CRUD、依赖分析、磁盘存储）
+scope:
+    - api/routers/project.ts
+    - api/routers/projectFiles.ts
+    - api/routers/projectImport.ts
+    - api/services/projectFilesDisk.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/integrations

@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: api_server
+title: API Server（Hono + tRPC 业务聚合层）
+scope:
+    - api/
+source_files: []
+depends_on: []
+related_to: []

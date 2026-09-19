@@ -1,0 +1,86 @@
+{
+  "title": "连接你的团队",
+  "subtitle": "加入团队的共享工作区，连接你日常使用的桌面 AI 应用。每个人都保留自己的应用——记忆、运行和审批在整个团队中保持同步。",
+  "loginRequired": "请先登录，再与团队连接。",
+  "teams": {
+    "title": "我的团队",
+    "joinTitle": "加入团队",
+    "joinDesc": "有队友给你的邀请码？粘贴到这里即可加入他们的团队。",
+    "invitePlaceholder": "粘贴邀请码",
+    "join": "加入",
+    "joining": "正在加入…",
+    "joinedToast": "已加入 {{name}}",
+    "noTeams": "你还没有加入任何团队",
+    "noTeamsDesc": "使用上方邀请码加入，或请队友邀请你。",
+    "membersSuffix": "名成员",
+    "roleLabel": "你的角色",
+    "inviteCode": "邀请码",
+    "copyCode": "复制邀请码",
+    "copied": "已复制！",
+    "membersTitle": "成员",
+    "unknownMember": "未知成员",
+    "openDashboard": "打开团队面板",
+    "roles": {
+      "owner": "所有者",
+      "admin": "管理员",
+      "tester": "测试员",
+      "viewer": "观察员"
+    }
+  },
+  "guide": {
+    "title": "连接你的桌面应用",
+    "desc": "每位队友都把自己的应用连接到同一个团队服务器。在下方选择你的应用并粘贴配置——一次登录，即可与团队协同工作。",
+    "endpointLabel": "团队 MCP 服务器地址",
+    "endpointHint": "所有应用、所有队友使用同一个地址——登录流程自动发现（OAuth 2.1）。",
+    "copy": "复制",
+    "copied": "已复制！",
+    "configLabel": "配置片段",
+    "appsTitle": "配置指南",
+    "apps": {
+      "claude": {
+        "name": "Claude Desktop",
+        "tagline": "Anthropic 桌面应用",
+        "step1": "打开 设置 → 连接器 → 添加自定义连接器。",
+        "step2": "命名为 “AI Swarm Studio”，粘贴团队 MCP 服务器地址——或将下方片段合并到 claude_desktop_config.json。",
+        "step3": "点击连接——浏览器窗口将打开用于登录。",
+        "step4": "批准授权后，团队工具即可在所有对话中使用。"
+      },
+      "chatgpt": {
+        "name": "ChatGPT",
+        "tagline": "开发者模式（Apps SDK）",
+        "step1": "进入 设置 → 应用与连接器 → 高级设置，启用开发者模式。",
+        "step2": "创建新应用，将下方地址粘贴为连接器端点。",
+        "step3": "ChatGPT 会自动发现 OAuth 流程——按提示登录。",
+        "step4": "在任意对话中提及该应用，即可查看等待你处理的团队运行。"
+      },
+      "qwen": {
+        "name": "Qwen Code",
+        "tagline": "阿里巴巴的命令行编程助手",
+        "step1": "在终端中添加团队服务器：",
+        "step2": "Qwen Code 会将服务器保存到 ~/.qwen/settings.json。",
+        "step3": "首次使用时会打开浏览器进行 OAuth 登录——批准授权。",
+        "step4": "让 Qwen Code 查询团队运行，它会直接调用相应工具。"
+      },
+      "kimi": {
+        "name": "Kimi",
+        "tagline": "月之暗面桌面应用",
+        "step1": "打开 设置 → MCP 服务器 → 添加服务器。",
+        "step2": "选择 streamable HTTP 传输方式，粘贴下方地址。",
+        "step3": "保存后点击授权，完成 OAuth 登录。",
+        "step4": "团队工具会以工具形式出现在新对话中。"
+      }
+    }
+  },
+  "handoff": {
+    "title": "“等待你处理”——跨应用审批",
+    "desc": "当队友的运行暂停等待审批时，他们可以把审批移交给你。审批会出现在你自己的桌面应用里——在你的应用中审批后，运行会在队友的应用中继续。谁都无需切换应用。",
+    "step1Title": "运行暂停",
+    "step1Desc": "队友的流水线在审批步骤暂停，而他们恰好离开或正在忙碌。",
+    "step2Title": "移交给你",
+    "step2Desc": "队友将审批指派给你。无论你使用哪个应用，它都会显示为“等待你处理”。",
+    "step3Title": "就地审批",
+    "step3Desc": "在你自己的应用中批准或拒绝，队友的运行即刻继续。",
+    "noteTitle": "无需额外配置",
+    "noteDesc": "连接完成后，审批移交会自动出现在你应用的工具列表中——无需再安装或配置任何东西。"
+  }
+}

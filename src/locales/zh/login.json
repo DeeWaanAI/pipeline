@@ -1,0 +1,45 @@
+{
+  "title": "欢迎回来",
+  "subtitle": "登录以访问您的 AI Swarm 工作空间",
+  "signInButton": "使用 Kimi 登录",
+  "heroTitle": "编排 AI 智能体",
+  "heroHighlight": "如同人类团队",
+  "heroDescription": "首个结合持久化项目记忆、智能体集群并行执行和跨模型编排的平台，且您拥有完整的数据所有权。",
+  "features": {
+    "pipeline": {
+      "title": "4 智能体级联流水线",
+      "desc": "构建者起草、评审者审阅、优化者修复、润色者定稿"
+    },
+    "keys": {
+      "title": "自带密钥",
+      "desc": "API 密钥使用 PBKDF2 + AES-256 加密。您拥有数据所有权。"
+    },
+    "persistent": {
+      "title": "持久化项目",
+      "desc": "每个 LLM 响应都被存储。完整的审计追踪。人工审查工作流。"
+    },
+    "privacy": {
+      "title": "隐私优先",
+      "desc": "无云端依赖。本地运行。Gitee 集成用于存储。"
+    }
+  },
+  "footer": "专为知识工作者、开发者和研究人员设计，他们需要超越单轮 AI 对话的能力。",
+  "terms": "登录即表示您同意我们的隐私优先原则。",
+  "noKeys": "我们绝不会以未加密形式存储您的 API 密钥。",
+  "sso": {
+    "divider": "或",
+    "emailLabel": "企业邮箱",
+    "emailPlaceholder": "you@company.com",
+    "continueButton": "使用 SSO 登录",
+    "invalidEmail": "请输入有效的企业邮箱以使用 SSO 登录。",
+    "noSsoForDomain": "您的组织未在此配置 SSO——请使用用户名和密码登录。",
+    "lookupFailed": "无法检查 SSO 可用性，请重试。",
+    "errors": {
+      "config": "您所在组织的 SSO 配置不正确，请联系管理员。",
+      "exchange": "通过身份提供方登录失败，请重试。",
+      "state": "登录会话已过期，请重试。",
+      "denied": "登录被身份提供方取消或拒绝。",
+      "provision": "无法完成账户创建，请联系管理员。"
+    }
+  }
+}

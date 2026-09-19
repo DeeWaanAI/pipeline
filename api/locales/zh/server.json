@@ -1,0 +1,9 @@
+{
+  "unauthenticated": "需要身份验证",
+  "insufficientRole": "权限不足",
+  "mcp": {
+    "errors": {
+      "insufficientScope": "工具 {{tool}} 权限不足：需要 {{scopes}}"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "consent": {
+    "title": "Authorize {{app}}?",
+    "subtitle": "This app wants to connect to your AI Swarm Studio account.",
+    "scopesTitle": "This will allow the app to:",
+    "scopes": {
+      "mcp:read": "View your pipelines, runs, and project context",
+      "mcp:run": "Start pipeline runs on your behalf",
+      "mcp:write": "Approve steps and append to project memory"
+    },
+    "allow": "Allow",
+    "deny": "Deny",
+    "submitting": "Authorizing…",
+    "invalidTitle": "Invalid authorization request",
+    "invalidDesc": "The link from your AI app is missing required parameters. Please restart the connection from your app.",
+    "loginTitle": "Sign in to continue",
+    "loginDesc": "You need to log in before authorizing this app.",
+    "loginButton": "Log in",
+    "error": "Authorization failed. Please try again.",
+    "footer": "You can revoke this app's access at any time from Settings."
+  }
+}

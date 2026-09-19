@@ -1,0 +1,30 @@
+---
+// /privacy — Privacy Policy skeleton (SPEC §5). Copy from the per-locale
+// string bundle; placeholders stay placeholders (src/config.ts discipline).
+import Legal from "../../layouts/Legal.astro";
+import { getUiStrings } from "../../i18n/ui";
+import { isLocale, DEFAULT_LOCALE, type Locale } from "../../i18n/locales";
+import { localeStaticPaths } from "../../i18n/paths";
+import { SITE } from "../../config";
+
+export const getStaticPaths = localeStaticPaths;
+
+const locale: Locale = isLocale(Astro.params.locale) ? Astro.params.locale : DEFAULT_LOCALE;
+const { strings: s, translated } = getUiStrings(locale);
+const t = s.legal.privacy;
+const render = (text: string) =>
+  text
+    .replaceAll("{{COMPANY_LEGAL_NAME}}", SITE.companyLegalName)
+    .replaceAll("{{FALLBACK_EMAIL}}", SITE.fallbackEmail);
+const lastUpdated = s.legal.lastUpdatedTemplate.replace("{date}", "2026-07-29");
+---
+<Legal title={t.metaTitle} description={t.metaDescription} path="/privacy" locale={locale} translated={translated}>
+  <h1>{t.title}</h1>
+  <p class="!text-neutral-400 text-sm">{lastUpdated}</p>
+  {t.sections.map((sec) => (
+    <>
+      <h2>{sec.h}</h2>
+      {sec.paragraphs.map((para) => <p>{render(para)}</p>)}
+    </>
+  ))}
+</Legal>

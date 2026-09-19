@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: research_orchestration
+title: 编排经济学实验仓库（Orchestration Economics）
+scope:
+    - research/
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/agents_pipelines
+    - path: api_server/swarm

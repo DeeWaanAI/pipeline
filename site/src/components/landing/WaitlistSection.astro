@@ -1,0 +1,167 @@
+---
+// Pioneer 100 waitlist (SPEC §4.7 + §6): scarcity counter, email+role form,
+// referral capture (?ref= → hidden field, persisted to localStorage), success
+// state with share links. Graceful degradation: no API URL → disabled form +
+// fallback email; count fetch fails → "Limited to 100 spots" (never an error).
+import type { UiStrings } from "../../i18n/ui";
+import { WAITLIST_API_URL, SITE } from "../../config";
+
+interface Props { s: UiStrings }
+const { s } = Astro.props;
+const w = s.landing.waitlist;
+---
+<section id="waitlist" aria-labelledby="waitlist-title" class="border-t border-ink-800 py-20">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <h2 id="waitlist-title" class="text-3xl font-bold text-white">{w.title}</h2>
+      <p id="wl-counter" class="mt-3 font-mono text-sm text-accent">{w.counterFallback}</p>
+      <ul class="mx-auto mt-8 max-w-md space-y-2.5 text-start">
+        {w.perks.map((perk) => (
+          <li class="flex items-start gap-2.5 text-sm text-neutral-300">
+            <svg class="mt-0.5 h-4 w-4 shrink-0 text-accent" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            {perk}
+          </li>
+        ))}
+      </ul>
+
+      {WAITLIST_API_URL ? (
+        <form id="wl-form" class="mx-auto mt-8 max-w-md space-y-3" novalidate>
+          <input type="hidden" name="ref" id="wl-ref" value="" />
+          <div>
+            <label for="wl-email" class="sr-only">{w.emailLabel}</label>
+            <input id="wl-email" name="email" type="email" required autocomplete="email"
+              placeholder={w.emailPlaceholder}
+              class="w-full rounded-lg border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-accent focus:outline-none" />
+          </div>
+          <div>
+            <label for="wl-role" class="sr-only">{w.roleLabel}</label>
+            <select id="wl-role" name="role" required
+              class="w-full rounded-lg border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-neutral-300 focus:border-accent focus:outline-none">
+              <option value="" disabled selected>{w.roleLabel}</option>
+              <option value="creator">{w.roleCreator}</option>
+              <option value="user">{w.roleUser}</option>
+              <option value="both">{w.roleBoth}</option>
+            </select>
+          </div>
+          <button type="submit" id="wl-submit" class="btn-accent w-full justify-center">{w.submit}</button>
+          <p id="wl-error" class="hidden text-xs text-red-400" role="alert"></p>
+        </form>
+      ) : (
+        <p class="mt-8 text-sm text-neutral-400">
+          {w.disabledTemplate.replace("{email}", SITE.fallbackEmail)}
+        </p>
+      )}
+
+      <div id="wl-success" class="mx-auto mt-8 hidden max-w-md">
+        <p id="wl-position" class="text-lg font-semibold text-white"></p>
+        <p class="mt-2 text-sm text-neutral-400">{w.shareLabel}</p>
+        <div class="mt-2 flex items-center gap-2">
+          <code id="wl-ref-url" class="flex-1 truncate rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-start font-mono text-xs text-accent-soft"></code>
+          <button id="wl-copy" class="btn-ghost !px-3 !py-2 text-xs">{w.copyButton}</button>
+        </div>
+        <div class="mt-3 flex justify-center gap-3">
+          <a id="wl-share-x" href="#" target="_blank" rel="noopener" class="btn-ghost text-xs">{w.shareOnX}</a>
+          <a id="wl-share-li" href="#" target="_blank" rel="noopener" class="btn-ghost text-xs">{w.shareOnLinkedIn}</a>
+        </div>
+      </div>
+
+      <p class="mt-6 text-[11px] text-neutral-400">{w.smallPrint}</p>
+    </div>
+  </div>
+</section>
+
+{WAITLIST_API_URL && (
+<script define:vars={{
+  apiUrl: WAITLIST_API_URL,
+  i18n: {
+    counterTemplate: w.counterTemplate,
+    successTemplate: w.successTemplate,
+    errorGeneric: w.errorGeneric,
+    copied: w.copied,
+    copyButton: w.copyButton,
+    submitting: w.submitting,
+    shareTextTemplate: w.shareTextTemplate,
+  },
+}}>
+  // ── Scarcity counter (sessionStorage cache, 10 min) ──────────────
+  // NOTE: no TOP-LEVEL await — Astro's define:vars wraps this script in a
+  // non-async IIFE, so top-level await would be a SyntaxError killing the
+  // whole block. Keep awaits inside this async IIFE.
+  const counterEl = document.getElementById("wl-counter");
+  (async () => {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem("wl-count") ?? "null");
+      if (cached && Date.now() - cached.t < 600_000) {
+        counterEl.textContent = i18n.counterTemplate.replace("{N}", cached.n);
+      } else {
+        const res = await fetch(`${apiUrl}/count`);
+        if (!res.ok) throw new Error("count failed");
+        const { claimed } = await res.json();
+        sessionStorage.setItem("wl-count", JSON.stringify({ n: claimed, t: Date.now() }));
+        counterEl.textContent = i18n.counterTemplate.replace("{N}", claimed);
+      }
+    } catch { /* fallback text already rendered — never show an error */ }
+  })();
+
+  // ── Referral capture: ?ref= → hidden field + localStorage ───────
+  const refInput = document.getElementById("wl-ref");
+  const urlRef = new URLSearchParams(location.search).get("ref");
+  if (urlRef) localStorage.setItem("wl-ref", urlRef);
+  const storedRef = localStorage.getItem("wl-ref");
+  if (storedRef && refInput) refInput.value = storedRef;
+
+  // ── Form submit → join (201 and 409 both mean success) ──────────
+  const form = document.getElementById("wl-form");
+  const errorEl = document.getElementById("wl-error");
+  const submitBtn = document.getElementById("wl-submit");
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.classList.add("hidden");
+    submitBtn.disabled = true;
+    submitBtn.textContent = i18n.submitting;
+    try {
+      const res = await fetch(`${apiUrl}/join`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: document.getElementById("wl-email").value,
+          role: document.getElementById("wl-role").value,
+          ref: refInput?.value || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 409) throw new Error(data.message ?? "join failed");
+
+      const referralUrl = `${location.origin}/?ref=${data.referralCode}`;
+      document.getElementById("wl-position").textContent =
+        i18n.successTemplate.replace("{position}", data.position);
+      document.getElementById("wl-ref-url").textContent = referralUrl;
+      const shareText = i18n.shareTextTemplate.replace("{referralUrl}", referralUrl);
+      document.getElementById("wl-share-x").href =
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
+      document.getElementById("wl-share-li").href =
+        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(referralUrl)}`;
+      form.classList.add("hidden");
+      document.getElementById("wl-success").classList.remove("hidden");
+    } catch {
+      errorEl.textContent = i18n.errorGeneric;
+      errorEl.classList.remove("hidden");
+      submitBtn.disabled = false;
+      submitBtn.textContent = submitBtn.dataset.label ?? "Request my spot";
+    }
+  });
+
+  // ── Copy referral link ───────────────────────────────────────────
+  const copyBtn = document.getElementById("wl-copy");
+  copyBtn?.addEventListener("click", async () => {
+    const url = document.getElementById("wl-ref-url").textContent;
+    try {
+      await navigator.clipboard.writeText(url);
+      copyBtn.textContent = i18n.copied;
+      setTimeout(() => { copyBtn.textContent = i18n.copyButton; }, 2000);
+    } catch { /* clipboard unavailable — URL remains visible for manual copy */ }
+  });
+</script>
+)}

@@ -1,0 +1,39 @@
+{
+  "title": "项目",
+  "subtitle": "管理您的 AI Swarm 工作空间",
+  "newProjectButton": "新建项目",
+  "createDialog": {
+    "title": "创建新项目",
+    "description": "设置一个带有持久化工作空间的新 AI Swarm 项目。",
+    "nameLabel": "项目名称",
+    "namePlaceholder": "例如：API 文档生成器",
+    "descriptionLabel": "描述",
+    "descriptionPlaceholder": "这个项目做什么？",
+    "giteeSection": "Gitee 仓库（可选）",
+    "ownerLabel": "仓库所有者",
+    "ownerPlaceholder": "你的用户名",
+    "repoLabel": "仓库名称",
+    "repoPlaceholder": "你的仓库",
+    "cancel": "取消",
+    "submit": "创建项目"
+  },
+  "deleteDialog": {
+    "title": "删除项目",
+    "description": "确定吗？这将删除 \"{{name}}\" 及其所有数据。此操作不可撤销。"
+  },
+  "projectCard": {
+    "agentsConfigured": "{{count}} 个智能体已配置",
+    "updated": "更新于",
+    "never": "从未",
+    "openWorkspace": "打开工作空间",
+    "configure": "配置"
+  },
+  "emptyState": {
+    "title": "暂无项目",
+    "description": "创建您的第一个 AI Swarm 项目，开始编排多个智能体完成复杂任务。",
+    "button": "创建项目"
+  },
+  "errors": {
+    "loadFailed": "加载项目失败"
+  }
+}

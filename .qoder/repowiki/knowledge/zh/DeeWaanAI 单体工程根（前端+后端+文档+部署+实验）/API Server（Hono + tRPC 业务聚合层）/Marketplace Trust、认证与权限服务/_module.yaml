@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: api_server/marketplace_trust
+title: Marketplace Trust、认证与权限服务
+scope:
+    - api/routers/marketplace.ts
+    - api/routers/certification.ts
+    - api/routers/voucher.ts
+    - api/services/cryptoService.ts
+    - api/services/entitlements.ts
+    - api/services/entitlementSync.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/billing_webhooks

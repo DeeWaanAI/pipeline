@@ -1,0 +1,50 @@
+{
+  "title": "流水线配置",
+  "subtitle": "配置此项目的智能体执行顺序",
+  "addStep": "添加步骤",
+  "addDialog": {
+    "title": "添加步骤到流水线"
+  },
+  "remove": {
+    "confirm": "从流水线中移除此步骤？"
+  },
+  "reset": {
+    "confirm": "重置为默认4智能体级联流水线？",
+    "label": "重置"
+  },
+  "enabled": "开启",
+  "disabled": "关闭",
+  "added": "已添加",
+  "template": "模板",
+  "llmLabel": "大模型",
+  "temperature": "温度",
+  "maxTokens": "令牌数",
+  "useProjectDefault": "项目默认",
+  "save": {
+    "success": "流水线已保存"
+  },
+  "tier": {
+    "pro": "专业设计师",
+    "standard": "标准版"
+  },
+  "upgradeHint": "升级到专业设计师版以自定义流水线：重新排序智能体、添加步骤、为每个步骤分配不同的大模型。",
+  "memory": {
+    "title": "记忆模式",
+    "description": "控制对话之间保留多少上下文",
+    "saved": "记忆模式已设为 {{mode}}",
+    "modes": {
+      "conservative": "保守",
+      "balanced": "平衡",
+      "aggressive": "积极"
+    },
+    "hint": {
+      "conservative": "保留最大上下文（最多50K令牌）。适合需要完整历史的复杂项目。",
+      "balanced": "中等上下文（最多20K令牌）。在质量和成本之间取得良好平衡。",
+      "aggressive": "最小上下文（最多10K令牌）。最快最便宜。适合简单的独立任务。"
+    }
+  },
+  "errors": {
+    "noSteps": "流水线至少需要一个步骤",
+    "maxLLMs": "专业设计师版每个流水线最多支持3个不同的大模型"
+  }
+}

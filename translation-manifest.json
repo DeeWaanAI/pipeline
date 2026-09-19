@@ -1,0 +1,1302 @@
+{
+  "meta": {
+    "generatedAt": "2026-07-11",
+    "totalFiles": 22,
+    "totalTranslated": 873,
+    "totalHardcoded": 35,
+    "coveragePercent": 96.1
+  },
+  "files": {
+    "src/pages/Settings.tsx": {
+      "namespaces": [
+        "settings",
+        "pages"
+      ],
+      "translatedKeys": [
+        "common:actions.add",
+        "common:actions.cancel",
+        "common:actions.delete",
+        "common:actions.test",
+        "common:emptyStates.noProviders",
+        "common:emptyStates.noProvidersDesc",
+        "common:security.encrypted",
+        "common:security.keyDetail",
+        "common:security.keysDesc",
+        "common:security.keysNeverLeave",
+        "common:security.ownData",
+        "common:security.ownStorage",
+        "common:security.title",
+        "common:status.failed",
+        "projectSettings.localFolder.apiNote",
+        "projectSettings.localFolder.browserNotSupported",
+        "projectSettings.localFolder.checking",
+        "projectSettings.localFolder.connectedTo",
+        "projectSettings.localFolder.description",
+        "projectSettings.localFolder.linkButton",
+        "projectSettings.localFolder.linkFailed",
+        "projectSettings.localFolder.linked",
+        "projectSettings.localFolder.title",
+        "projectSettings.localFolder.unlink",
+        "projectSettings.localFolder.unlinkSuccess",
+        "settings:projectSettings.dataManagement.backupDownloaded",
+        "settings:projectSettings.dataManagement.description",
+        "settings:projectSettings.dataManagement.downloadBackup",
+        "settings:projectSettings.dataManagement.downloadFailed",
+        "settings:projectSettings.dataManagement.downloading",
+        "settings:projectSettings.dataManagement.fullBackup",
+        "settings:projectSettings.dataManagement.fullBackupDesc",
+        "settings:projectSettings.dataManagement.invalidBackup",
+        "settings:projectSettings.dataManagement.restore",
+        "settings:projectSettings.dataManagement.restoreButton",
+        "settings:projectSettings.dataManagement.restoreConfirm",
+        "settings:projectSettings.dataManagement.restoreDesc",
+        "settings:projectSettings.dataManagement.restoreFailed",
+        "settings:projectSettings.dataManagement.restoreSuccess",
+        "settings:projectSettings.dataManagement.restoring",
+        "settings:projectSettings.dataManagement.title",
+        "settings:providers.addButton",
+        "settings:providers.addFirstButton",
+        "settings:providers.description",
+        "settings:providers.dialog.description",
+        "settings:providers.dialog.title",
+        "settings:providers.title",
+        "settings:subtitle",
+        "settings:title",
+        "settingsExtra:dev.currentTier",
+        "settingsExtra:dev.description",
+        "settingsExtra:dev.proAuto",
+        "settingsExtra:dev.proDesigner",
+        "settingsExtra:dev.standard",
+        "settingsExtra:dev.title",
+        "settingsExtra:gitee.connectButton",
+        "settingsExtra:gitee.connected",
+        "settingsExtra:gitee.connectedAs",
+        "settingsExtra:gitee.description",
+        "settingsExtra:gitee.disconnect",
+        "settingsExtra:gitee.invalidToken",
+        "settingsExtra:gitee.testing",
+        "settingsExtra:gitee.title",
+        "settingsExtra:gitee.tokenHelp",
+        "settingsExtra:gitee.tokenPlaceholder",
+        "settingsExtra:github.connectButton",
+        "settingsExtra:github.connected",
+        "settingsExtra:github.connectedAs",
+        "settingsExtra:github.description",
+        "settingsExtra:github.disconnect",
+        "settingsExtra:github.invalidToken",
+        "settingsExtra:github.testing",
+        "settingsExtra:github.title",
+        "settingsExtra:github.tokenHelp",
+        "settingsExtra:github.tokenPlaceholder",
+        "settingsExtra:provider.addFailed",
+        "settingsExtra:provider.addSuccess",
+        "settingsExtra:provider.apiKey",
+        "settingsExtra:provider.apiKeyHelp",
+        "settingsExtra:provider.apiKeyPlaceholder",
+        "settingsExtra:provider.autoPerProject",
+        "settingsExtra:provider.baseUrl",
+        "settingsExtra:provider.baseUrlPlaceholder",
+        "settingsExtra:provider.cancel",
+        "settingsExtra:provider.close",
+        "settingsExtra:provider.defaultLlmDesc",
+        "settingsExtra:provider.defaultLlmProvider",
+        "settingsExtra:provider.defaultModel",
+        "settingsExtra:provider.defaultUpdated",
+        "settingsExtra:provider.edit",
+        "settingsExtra:provider.fetchModels",
+        "settingsExtra:provider.fetching",
+        "settingsExtra:provider.liveFromApi",
+        "settingsExtra:provider.modelHelp",
+        "settingsExtra:provider.modelManualPlaceholder",
+        "settingsExtra:provider.modelsFound",
+        "settingsExtra:provider.providerPlatform",
+        "settingsExtra:provider.saveChanges",
+        "settingsExtra:provider.selectModel",
+        "settingsExtra:provider.selectPlatform",
+        "settingsExtra:provider.staticFallback",
+        "settingsExtra:provider.validationEnterApiKey",
+        "settingsExtra:provider.validationSelectModel",
+        "settingsExtra:provider.validationSelectPlatform"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "OpenAI",
+          "line": 64
+        },
+        {
+          "text": "DeepSeek",
+          "line": 65
+        },
+        {
+          "text": "Moonshot Kimi",
+          "line": 66
+        },
+        {
+          "text": "Anthropic",
+          "line": 68
+        },
+        {
+          "text": "Tier switched successfully",
+          "line": 847
+        }
+      ],
+      "summary": {
+        "translatedCount": 104,
+        "hardcodedCount": 5
+      }
+    },
+    "src/pages/ProjectSettings.tsx": {
+      "namespaces": [
+        "settings"
+      ],
+      "translatedKeys": [
+        "common:actions.save",
+        "common:emptyStates.noData",
+        "common:errors.projectNotFound",
+        "common:status.saved",
+        "settings:projectSettings.agents.description",
+        "settings:projectSettings.agents.modelLabel",
+        "settings:projectSettings.agents.modelPlaceholder",
+        "settings:projectSettings.agents.roleLabel",
+        "settings:projectSettings.agents.saveChanges",
+        "settings:projectSettings.agents.systemPromptLabel",
+        "settings:projectSettings.agents.temperatureLabel",
+        "settings:projectSettings.agents.title",
+        "settings:projectSettings.gitee.connected",
+        "settings:projectSettings.gitee.ownerLabel",
+        "settings:projectSettings.gitee.ownerPlaceholder",
+        "settings:projectSettings.gitee.repoLabel",
+        "settings:projectSettings.gitee.repoPlaceholder",
+        "settings:projectSettings.gitee.title",
+        "settings:projectSettings.github.connected",
+        "settings:projectSettings.github.ownerLabel",
+        "settings:projectSettings.github.ownerPlaceholder",
+        "settings:projectSettings.github.repoLabel",
+        "settings:projectSettings.github.repoPlaceholder",
+        "settings:projectSettings.github.title",
+        "settings:projectSettings.github.tokenNote",
+        "settings:projectSettings.localFolder.apiNote",
+        "settings:projectSettings.localFolder.browserNotSupported",
+        "settings:projectSettings.localFolder.checking",
+        "settings:projectSettings.localFolder.description",
+        "settings:projectSettings.localFolder.linkButton",
+        "settings:projectSettings.localFolder.linkFailed",
+        "settings:projectSettings.localFolder.linked",
+        "settings:projectSettings.localFolder.title",
+        "settings:projectSettings.localFolder.unlink",
+        "settings:projectSettings.localFolder.unlinkSuccess",
+        "settings:projectSettings.pipeline.applied",
+        "settings:projectSettings.pipeline.current",
+        "settings:projectSettings.pipeline.custom",
+        "settings:projectSettings.pipeline.managePipelines",
+        "settings:projectSettings.pipeline.saveToMyPipelines",
+        "settings:projectSettings.pipeline.savedToMyPipelines",
+        "settings:projectSettings.pipeline.standard",
+        "settings:projectSettings.pipeline.standardOption",
+        "settings:projectSettings.pipeline.steps",
+        "settings:projectSettings.pipeline.title",
+        "settings:projectSettings.title"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "Role",
+          "line": 159
+        }
+      ],
+      "summary": {
+        "translatedCount": 46,
+        "hardcodedCount": 1
+      }
+    },
+    "src/pages/Dashboard.tsx": {
+      "namespaces": [
+        "pages",
+        "dashboard"
+      ],
+      "translatedKeys": [
+        "appName",
+        "common:actions.cancel",
+        "common:actions.create",
+        "dashboard.auth.alreadyHaveAccount",
+        "dashboard.auth.apiKeysEncrypted",
+        "dashboard.auth.createAccount",
+        "dashboard.auth.createAccountDesc",
+        "dashboard.auth.displayNameLabel",
+        "dashboard.auth.displayNamePlaceholder",
+        "dashboard.auth.fillAllFields",
+        "dashboard.auth.needAccount",
+        "dashboard.auth.passwordLabel",
+        "dashboard.auth.passwordPlaceholder",
+        "dashboard.auth.passwordTooShort",
+        "dashboard.auth.signIn",
+        "dashboard.auth.signInDesc",
+        "dashboard.auth.usernameLabel",
+        "dashboard.auth.usernamePlaceholder",
+        "dashboard.createProject.importing",
+        "dashboard.createProject.optional",
+        "dashboard.createProject.sourceZip",
+        "dashboard.createProject.willExtract",
+        "dashboard:card.confirmDelete",
+        "dashboard:card.noDescription",
+        "dashboard:card.openWorkspace",
+        "dashboard:emptyState.button",
+        "dashboard:emptyState.description",
+        "dashboard:emptyState.title",
+        "dashboard:modal.descLabel",
+        "dashboard:modal.descPlaceholder",
+        "dashboard:modal.nameLabel",
+        "dashboard:modal.namePlaceholder",
+        "dashboard:modal.title",
+        "dashboard:newProjectButton",
+        "dashboard:subtitle",
+        "dashboard:title"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "POST",
+          "line": 224
+        }
+      ],
+      "summary": {
+        "translatedCount": 36,
+        "hardcodedCount": 1
+      }
+    },
+    "src/pages/ProjectWorkspace.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "common:errors.projectNotFound",
+        "workspace.approval.approve",
+        "workspace.approval.modify",
+        "workspace.approval.modifyPlaceholder",
+        "workspace.approval.processing",
+        "workspace.approval.reject",
+        "workspace.approval.submit",
+        "workspace.approval.title",
+        "workspace.autoDesign.cancel",
+        "workspace.autoDesign.description",
+        "workspace.autoDesign.designPipeline",
+        "workspace.autoDesign.placeholder",
+        "workspace.autoDesign.title",
+        "workspace.chat.agentError",
+        "workspace.chat.agentsLabel",
+        "workspace.chat.attachFileTypes",
+        "workspace.chat.attachFiles",
+        "workspace.chat.attachFilesTitle",
+        "workspace.chat.autoDesignCreated",
+        "workspace.chat.autoDesignFailed",
+        "workspace.chat.pipelineError",
+        "workspace.chat.pipelineStopped",
+        "workspace.chat.pipelineStoppedPartial",
+        "workspace.chat.pipelineTimeout",
+        "workspace.chat.processing",
+        "workspace.chat.promptSavedHint",
+        "workspace.chat.seeAttachedFiles",
+        "workspace.chat.stepsLabel",
+        "workspace.chat.unknownError",
+        "workspace.chat.uploadFailed",
+        "workspace.chat.uploaded",
+        "workspace.chat.uploading",
+        "workspace.pendingDesign.readyToRun",
+        "workspace.pendingDesign.runPipeline",
+        "workspace.pipelineApplied",
+        "workspace.pipelineMenu.autoDesignNew",
+        "workspace.pipelineMenu.autoDesignSage",
+        "workspace.pipelineMenu.editorMaster",
+        "workspace.pipelineMenu.managePipelines",
+        "workspace.pipelineMenu.myPipelines",
+        "workspace.pipelineMenu.pipelineEditor",
+        "workspace.pipelineMenu.standardPipeline",
+        "workspace.toolbar.agentMode",
+        "workspace.toolbar.agentModeLabel",
+        "workspace.toolbar.agentsCount",
+        "workspace.toolbar.audit",
+        "workspace.toolbar.auditPanel",
+        "workspace.toolbar.autoDesign",
+        "workspace.toolbar.autoDesignRequiresTier",
+        "workspace.toolbar.customPipeline",
+        "workspace.toolbar.pipelineLabel",
+        "workspace.toolbar.pipelineMode",
+        "workspace.toolbar.pipelineModeLabel",
+        "workspace.toolbar.project",
+        "workspace.toolbar.standardPipeline",
+        "workspace.toolbar.stop",
+        "workspace.toolbar.test",
+        "workspace.toolbar.testModeOff",
+        "workspace.toolbar.testModeOn",
+        "workspace:emptyState.description",
+        "workspace:emptyState.title",
+        "workspace:placeholder",
+        "workspace:status.working"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "POST",
+          "line": 196
+        },
+        {
+          "text": "Pipeline",
+          "line": 453
+        },
+        {
+          "text": "Enter",
+          "line": 1097
+        }
+      ],
+      "summary": {
+        "translatedCount": 63,
+        "hardcodedCount": 3
+      }
+    },
+    "src/pages/MyPipelines.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "myPipelines.applyDialog.noChats",
+        "myPipelines.applyDialog.title",
+        "myPipelines.backToDashboard",
+        "myPipelines.card.autoDesignBadge",
+        "myPipelines.card.chats",
+        "myPipelines.card.delete",
+        "myPipelines.card.deleteConfirm",
+        "myPipelines.card.duplicate",
+        "myPipelines.card.edit",
+        "myPipelines.card.more",
+        "myPipelines.card.steps",
+        "myPipelines.card.useInChat",
+        "myPipelines.createAndDesign",
+        "myPipelines.createDesc",
+        "myPipelines.createNewPipeline",
+        "myPipelines.createPipeline",
+        "myPipelines.creating",
+        "myPipelines.currentTier",
+        "myPipelines.empty.createFirst",
+        "myPipelines.empty.masterDesc",
+        "myPipelines.empty.sageDesc",
+        "myPipelines.empty.standardDesc",
+        "myPipelines.empty.title",
+        "myPipelines.namePlaceholder",
+        "myPipelines.subtitle",
+        "myPipelines.tierInfo.masterDesc",
+        "myPipelines.tierInfo.sageDesc",
+        "myPipelines.tierInfo.standardDesc",
+        "myPipelines.tierInfo.yourTier",
+        "myPipelines.title",
+        "myPipelines.toasts.applied",
+        "myPipelines.toasts.created",
+        "myPipelines.toasts.deleted",
+        "myPipelines.toasts.duplicated",
+        "myPipelines.upgradeDesc",
+        "myPipelines.upgradeTitle"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "Agent",
+          "line": 39
+        },
+        {
+          "text": "WHILE",
+          "line": 41
+        },
+        {
+          "text": "Approval",
+          "line": 42
+        },
+        {
+          "text": "Enter",
+          "line": 151
+        }
+      ],
+      "summary": {
+        "translatedCount": 36,
+        "hardcodedCount": 4
+      }
+    },
+    "src/pages/PipelineEditor.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "common:agentRoles.",
+        "pipeline.agentOption",
+        "pipeline.agentRoles",
+        "pipeline.applied",
+        "pipeline.backToPipelines",
+        "pipeline.created",
+        "pipeline.defaultStepName",
+        "pipeline.descriptionPlaceholder",
+        "pipeline.duplicate",
+        "pipeline.duplicated",
+        "pipeline.emptyPrompt",
+        "pipeline.expandPrompt",
+        "pipeline.humanReview",
+        "pipeline.humanReviewOption",
+        "pipeline.ifConfig",
+        "pipeline.ifGate",
+        "pipeline.ifGateOption",
+        "pipeline.maxIterations",
+        "pipeline.maxTokens",
+        "pipeline.myAgents",
+        "pipeline.namePlaceholder",
+        "pipeline.nameRequired",
+        "pipeline.noChats",
+        "pipeline.options",
+        "pipeline.optionsPlaceholder",
+        "pipeline.reviseTarget",
+        "pipeline.save",
+        "pipeline.saved",
+        "pipeline.specialSteps",
+        "pipeline.stepName",
+        "pipeline.stepRole",
+        "pipeline.stepType",
+        "pipeline.systemPrompt",
+        "pipeline.targetStep",
+        "pipeline.temperatureShort",
+        "pipeline.tierRequired",
+        "pipeline.tierRequiredMsg",
+        "pipeline.useInChat",
+        "pipeline.whileConfig",
+        "pipeline.whileLoop",
+        "pipeline.whileOption"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "Builder",
+          "line": 39
+        },
+        {
+          "text": "Critic",
+          "line": 40
+        },
+        {
+          "text": "Refiner",
+          "line": 41
+        },
+        {
+          "text": "Polisher",
+          "line": 42
+        },
+        {
+          "text": "Expert",
+          "line": 43
+        },
+        {
+          "text": "Translator",
+          "line": 44
+        }
+      ],
+      "summary": {
+        "translatedCount": 41,
+        "hardcodedCount": 6
+      }
+    },
+    "src/pages/MarketplaceBrowse.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "marketplace:browse.categories.all",
+        "marketplace:browse.categories.analysis",
+        "marketplace:browse.categories.code",
+        "marketplace:browse.categories.creative",
+        "marketplace:browse.categories.other",
+        "marketplace:browse.categories.translation",
+        "marketplace:browse.categories.writing",
+        "marketplace:browse.noDescription",
+        "marketplace:browse.noPipelines",
+        "marketplace:browse.noPipelinesDesc",
+        "marketplace:browse.perMonth",
+        "marketplace:browse.review",
+        "marketplace:browse.reviews",
+        "marketplace:browse.sales",
+        "marketplace:browse.searchPlaceholder",
+        "marketplace:browse.sellPipeline",
+        "marketplace:browse.sort.grade",
+        "marketplace:browse.sort.newest",
+        "marketplace:browse.sort.popular",
+        "marketplace:browse.sort.priceAsc",
+        "marketplace:browse.sort.priceDesc",
+        "marketplace:browse.subtitle",
+        "marketplace:browse.title"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 23,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/MarketplaceDetail.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "marketplace.detail.buyNow",
+        "marketplace.detail.grade",
+        "marketplace.detail.gradePending",
+        "marketplace.detail.kappa",
+        "marketplace.detail.processing",
+        "marketplace.detail.purchases",
+        "marketplace.detail.revenueSplit",
+        "marketplace.detail.reviewsCount",
+        "marketplace.detail.sales",
+        "marketplace.detail.statsTitle",
+        "marketplace.detail.youCreatedThis",
+        "marketplace:detail.backToMarketplace",
+        "marketplace:detail.by",
+        "marketplace:detail.notFound"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 14,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/CreatorDashboard.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "marketplace:creator.actions.calculateGrade",
+        "marketplace:creator.actions.calculating",
+        "marketplace:creator.actions.deleteConfirm",
+        "marketplace:creator.actions.enrolled",
+        "marketplace:creator.actions.generating",
+        "marketplace:creator.actions.generatingData",
+        "marketplace:creator.actions.generatingProgress",
+        "marketplace:creator.actions.live",
+        "marketplace:creator.actions.pendingReviewers",
+        "marketplace:creator.actions.publish",
+        "marketplace:creator.actions.publishing",
+        "marketplace:creator.actions.selfTest",
+        "marketplace:creator.actions.submitForReview",
+        "marketplace:creator.assignments.reviewerId",
+        "marketplace:creator.assignments.title",
+        "marketplace:creator.categoryLabel",
+        "marketplace:creator.createListing",
+        "marketplace:creator.debug.generating",
+        "marketplace:creator.debug.hideDebug",
+        "marketplace:creator.debug.intermediates",
+        "marketplace:creator.debug.loading",
+        "marketplace:creator.debug.showDebug",
+        "marketplace:creator.debug.status",
+        "marketplace:creator.debug.totalPrompts",
+        "marketplace:creator.debug.withError",
+        "marketplace:creator.debug.withOutput",
+        "marketplace:creator.descriptionLabel",
+        "marketplace:creator.descriptionPlaceholder",
+        "marketplace:creator.empty.desc",
+        "marketplace:creator.empty.title",
+        "marketplace:creator.giteeBackupSkipped",
+        "marketplace:creator.inputFormatLabel",
+        "marketplace:creator.inputFormatPlaceholder",
+        "marketplace:creator.newListing",
+        "marketplace:creator.objectivesLabel",
+        "marketplace:creator.objectivesPlaceholder",
+        "marketplace:creator.outputFormatLabel",
+        "marketplace:creator.outputFormatPlaceholder",
+        "marketplace:creator.pipelineTemplate",
+        "marketplace:creator.priceLabel",
+        "marketplace:creator.remarksLabel",
+        "marketplace:creator.remarksPlaceholder",
+        "marketplace:creator.reviewStats.gradeStatus",
+        "marketplace:creator.reviewStats.ready",
+        "marketplace:creator.reviewStats.reviewers",
+        "marketplace:creator.reviewStats.reviewsSubmitted",
+        "marketplace:creator.reviewStats.testPrompts",
+        "marketplace:creator.reviewStats.waiting",
+        "marketplace:creator.selectPipeline",
+        "marketplace:creator.selfTest.description",
+        "marketplace:creator.selfTest.finalOutput",
+        "marketplace:creator.selfTest.input",
+        "marketplace:creator.selfTest.output",
+        "marketplace:creator.selfTest.pipeline",
+        "marketplace:creator.selfTest.runTest",
+        "marketplace:creator.selfTest.running",
+        "marketplace:creator.selfTest.stepLabel",
+        "marketplace:creator.selfTest.stepsExecuted",
+        "marketplace:creator.selfTest.testInputLabel",
+        "marketplace:creator.selfTest.testInputPlaceholder",
+        "marketplace:creator.selfTest.title",
+        "marketplace:creator.selfTest.tokens",
+        "marketplace:creator.sellDialogTitle",
+        "marketplace:creator.stats.avgGrade",
+        "marketplace:creator.stats.published",
+        "marketplace:creator.stats.totalListings",
+        "marketplace:creator.stats.totalSales",
+        "marketplace:creator.table.actions",
+        "marketplace:creator.table.grade",
+        "marketplace:creator.table.pending",
+        "marketplace:creator.table.pipeline",
+        "marketplace:creator.table.price",
+        "marketplace:creator.table.sales",
+        "marketplace:creator.table.status",
+        "marketplace:creator.testPrompts.input",
+        "marketplace:creator.testPrompts.loading",
+        "marketplace:creator.testPrompts.none",
+        "marketplace:creator.testPrompts.pipelineOutput",
+        "marketplace:creator.testPrompts.title",
+        "marketplace:creator.title",
+        "marketplace:creator.titleLabel",
+        "marketplace:creator.titlePlaceholder"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "Waiting for review reports",
+          "line": 293
+        }
+      ],
+      "summary": {
+        "translatedCount": 82,
+        "hardcodedCount": 1
+      }
+    },
+    "src/pages/ReviewerPortal.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "reviewer.portal.assignments.due",
+        "reviewer.portal.assignments.noPending",
+        "reviewer.portal.assignments.noPendingDesc",
+        "reviewer.portal.assignments.title",
+        "reviewer.portal.backToMarketplace",
+        "reviewer.portal.benefits.buildReputation",
+        "reviewer.portal.benefits.buildReputationDesc",
+        "reviewer.portal.benefits.earnSageDays",
+        "reviewer.portal.benefits.earnSageDesc",
+        "reviewer.portal.benefits.shapeQuality",
+        "reviewer.portal.benefits.shapeQualityDesc",
+        "reviewer.portal.enrollAsReviewer",
+        "reviewer.portal.leaderboard.headers.points",
+        "reviewer.portal.leaderboard.headers.rank",
+        "reviewer.portal.leaderboard.headers.reviewer",
+        "reviewer.portal.leaderboard.headers.reviews",
+        "reviewer.portal.leaderboard.noReviewers",
+        "reviewer.portal.leaderboard.reviewerId",
+        "reviewer.portal.leaderboard.title",
+        "reviewer.portal.leaderboard.you",
+        "reviewer.portal.redemption.balance",
+        "reviewer.portal.redemption.cost",
+        "reviewer.portal.redemption.days",
+        "reviewer.portal.redemption.insufficientPoints",
+        "reviewer.portal.redemption.masterCost",
+        "reviewer.portal.redemption.masterTier",
+        "reviewer.portal.redemption.masterValue",
+        "reviewer.portal.redemption.pts",
+        "reviewer.portal.redemption.redeem",
+        "reviewer.portal.redemption.redeeming",
+        "reviewer.portal.redemption.sageCost",
+        "reviewer.portal.redemption.sageTier",
+        "reviewer.portal.redemption.sageValue",
+        "reviewer.portal.redemption.title",
+        "reviewer.portal.stats.atRisk",
+        "reviewer.portal.stats.flagged",
+        "reviewer.portal.stats.points",
+        "reviewer.portal.stats.reviewsDone",
+        "reviewer.portal.stats.status",
+        "reviewer.portal.stats.subDays",
+        "reviewer.portal.stats.trustScore",
+        "reviewer.portal.subtitle",
+        "reviewer.portal.title"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 43,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/ReviewerReview.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "reviewer.review.alertRateDimension",
+        "reviewer.review.backToPortal",
+        "reviewer.review.done",
+        "reviewer.review.hideTraces",
+        "reviewer.review.input",
+        "reviewer.review.nextPrompt",
+        "reviewer.review.noOutput",
+        "reviewer.review.noPrompts",
+        "reviewer.review.noPromptsDesc",
+        "reviewer.review.noTracesSubmitted",
+        "reviewer.review.output",
+        "reviewer.review.outputNote",
+        "reviewer.review.pipelineOutput",
+        "reviewer.review.previous",
+        "reviewer.review.qualityOverSpeed",
+        "reviewer.review.reviewSubmitted",
+        "reviewer.review.reviewed",
+        "reviewer.review.showTraces",
+        "reviewer.review.stepLabel",
+        "reviewer.review.submitReview",
+        "reviewer.review.submitToLoadTraces",
+        "reviewer.review.testInput",
+        "reviewer.review.title",
+        "reviewer.review.tokens",
+        "reviewer.review.weightedScore"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 25,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/AdminPanel.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "admin.accessDenied",
+        "admin.accessDeniedDesc",
+        "admin.feedback.all",
+        "admin.feedback.allFilter",
+        "admin.feedback.anonymous",
+        "admin.feedback.changeStatus",
+        "admin.feedback.consoleLogs",
+        "admin.feedback.content",
+        "admin.feedback.context",
+        "admin.feedback.itemsSuffix",
+        "admin.feedback.loadFailed",
+        "admin.feedback.model",
+        "admin.feedback.noResults",
+        "admin.feedback.pipeline",
+        "admin.feedback.screenshot",
+        "admin.feedback.screenshotAlt",
+        "admin.feedback.screenshotFull",
+        "admin.feedback.severities.cosmetic",
+        "admin.feedback.severities.critical",
+        "admin.feedback.severities.major",
+        "admin.feedback.severities.minor",
+        "admin.feedback.severity",
+        "admin.feedback.status",
+        "admin.feedback.statusUpdated",
+        "admin.feedback.statuses.closed",
+        "admin.feedback.statuses.in_progress",
+        "admin.feedback.statuses.new",
+        "admin.feedback.statuses.resolved",
+        "admin.feedback.statuses.triaged",
+        "admin.feedback.statuses.verified",
+        "admin.feedback.step",
+        "admin.feedback.type",
+        "admin.feedback.types.bug",
+        "admin.feedback.types.confusion",
+        "admin.feedback.types.praise",
+        "admin.feedback.types.suggestion",
+        "admin.feedback.updateFailed",
+        "admin.flags.betaUsers",
+        "admin.flags.empty",
+        "admin.flags.loadFailed",
+        "admin.flags.plugin",
+        "admin.flags.rollout",
+        "admin.flags.updated",
+        "admin.meta.created",
+        "admin.meta.id",
+        "admin.meta.projectId",
+        "admin.meta.userId",
+        "admin.pagination.of",
+        "admin.pagination.page",
+        "admin.pagination.total",
+        "admin.stats.active7d",
+        "admin.stats.completed",
+        "admin.stats.criticalOpen",
+        "admin.stats.failed",
+        "admin.stats.feedbackGroup",
+        "admin.stats.heapUsed",
+        "admin.stats.loadFailed",
+        "admin.stats.memoryRss",
+        "admin.stats.open",
+        "admin.stats.proAuto",
+        "admin.stats.proDesigner",
+        "admin.stats.projects",
+        "admin.stats.runsGroup",
+        "admin.stats.standardTier",
+        "admin.stats.systemGroup",
+        "admin.stats.totalFeedback",
+        "admin.stats.totalRuns",
+        "admin.stats.totalTokens",
+        "admin.stats.totalUsers",
+        "admin.stats.unknownError",
+        "admin.stats.uptime",
+        "admin.stats.usersGroup",
+        "admin.subtitle",
+        "admin.tabs.feedback",
+        "admin.tabs.flags",
+        "admin.tabs.stats",
+        "admin.tabs.users",
+        "admin.time.daysAgo",
+        "admin.time.hoursAgo",
+        "admin.time.justNow",
+        "admin.time.minutesAgo",
+        "admin.title",
+        "admin.users.countSuffix",
+        "admin.users.headers.email",
+        "admin.users.headers.lastSignIn",
+        "admin.users.headers.projects",
+        "admin.users.headers.role",
+        "admin.users.headers.runs",
+        "admin.users.headers.tier",
+        "admin.users.headers.user",
+        "admin.users.noResults",
+        "admin.users.roleUpdated",
+        "admin.users.searchPlaceholder",
+        "admin.users.tierUpdated"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 94,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/MyData.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "myData.audit.allRuns",
+        "myData.audit.noPrompt",
+        "myData.audit.noRuns",
+        "myData.audit.noRunsDesc",
+        "myData.audit.selectRun",
+        "myData.audit.selectRunDesc",
+        "myData.audit.testBadge",
+        "myData.fixture.complexity",
+        "myData.fixture.created",
+        "myData.fixture.delete",
+        "myData.fixture.deleteConfirm",
+        "myData.fixture.deleteFailed",
+        "myData.fixture.deleteSuccess",
+        "myData.fixture.description",
+        "myData.fixture.downloadFailed",
+        "myData.fixture.downloadZip",
+        "myData.fixture.files",
+        "myData.fixture.size",
+        "myData.fixture.subtitle",
+        "myData.responseChain.agent",
+        "myData.responseChain.flagged",
+        "myData.responseChain.noData",
+        "myData.responseChain.responses",
+        "myData.responseChain.title",
+        "myData.tabs.audit",
+        "myData.tabs.testing",
+        "myData.testing.fixtures",
+        "myData.testing.noData",
+        "myData.testing.noDataDesc",
+        "myData.testing.noFixtures",
+        "myData.testing.noRuns",
+        "myData.testing.notFound",
+        "myData.testing.selectItem",
+        "myData.testing.selectItemDesc",
+        "myData.testing.testRuns",
+        "myData.title"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "DELETE",
+          "line": 292
+        }
+      ],
+      "summary": {
+        "translatedCount": 36,
+        "hardcodedCount": 1
+      }
+    },
+    "src/pages/TestFixtures.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "testFixtures.cancelButton",
+        "testFixtures.closeButton",
+        "testFixtures.complexityComplex",
+        "testFixtures.complexityEasy",
+        "testFixtures.complexityLabel",
+        "testFixtures.complexityMedium",
+        "testFixtures.deleteConfirm",
+        "testFixtures.deleteFailed",
+        "testFixtures.deleteSuccess",
+        "testFixtures.deleteTooltip",
+        "testFixtures.descriptionLabel",
+        "testFixtures.descriptionPlaceholder",
+        "testFixtures.downloadFailed",
+        "testFixtures.downloadTooltip",
+        "testFixtures.dropzone",
+        "testFixtures.emptyDesc",
+        "testFixtures.emptyTitle",
+        "testFixtures.filesSuffix",
+        "testFixtures.maxSize",
+        "testFixtures.nameLabel",
+        "testFixtures.namePlaceholder",
+        "testFixtures.onlyZip",
+        "testFixtures.selectZipFirst",
+        "testFixtures.subtitle",
+        "testFixtures.title",
+        "testFixtures.uploadButton",
+        "testFixtures.uploadButtonSubmit",
+        "testFixtures.uploadFailed",
+        "testFixtures.uploadSuccess"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "POST",
+          "line": 84
+        },
+        {
+          "text": "DELETE",
+          "line": 112
+        }
+      ],
+      "summary": {
+        "translatedCount": 29,
+        "hardcodedCount": 2
+      }
+    },
+    "src/pages/TeamDashboard.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "team.cancel",
+        "team.create",
+        "team.createTeam",
+        "team.createTeamHeading",
+        "team.empty.createNew",
+        "team.empty.joinExisting",
+        "team.empty.noTeam",
+        "team.empty.noTeamDesc",
+        "team.empty.or",
+        "team.empty.pasteCode",
+        "team.feedback.anonymous",
+        "team.feedback.loadFailed",
+        "team.feedback.none",
+        "team.feedback.noneDesc",
+        "team.feedback.screenshotAlt",
+        "team.feedback.screenshotFullAlt",
+        "team.feedback.statusUpdated",
+        "team.feedback.updateFailed",
+        "team.invite",
+        "team.inviteCodePlaceholder",
+        "team.joinButton",
+        "team.joinTeam",
+        "team.loginRequired",
+        "team.members",
+        "team.members.unknown",
+        "team.noTeams",
+        "team.overview.feedback",
+        "team.overview.feedbackByType",
+        "team.overview.members",
+        "team.overview.openFeedback",
+        "team.overview.resolved",
+        "team.space.addProject",
+        "team.space.by",
+        "team.space.importTo",
+        "team.space.noProjects",
+        "team.space.projectsSuffix",
+        "team.space.shareAgentsHint",
+        "team.space.shareProjectHint",
+        "team.space.sharedAgents",
+        "team.space.sharedPipelines",
+        "team.space.sharedProjects",
+        "team.space.stepsSuffix",
+        "team.tabs.space",
+        "team.teamNamePlaceholder",
+        "team.title",
+        "team.toasts.agentImported",
+        "team.toasts.created",
+        "team.toasts.joined",
+        "team.toasts.pipelineImported",
+        "team.toasts.projectShared",
+        "team.yourRole",
+        "team.yourTeams"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 52,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/MyAgents.tsx": {
+      "namespaces": [
+        "agents"
+      ],
+      "translatedKeys": [
+        "agents:conditional.description",
+        "agents:conditional.humanReview",
+        "agents:conditional.humanReviewDesc",
+        "agents:conditional.ifGate",
+        "agents:conditional.ifGateDesc",
+        "agents:conditional.title",
+        "agents:conditional.whileLoop",
+        "agents:conditional.whileLoopDesc",
+        "agents:create.desc",
+        "agents:create.success",
+        "agents:create.title",
+        "agents:createAgent",
+        "agents:delete.confirm",
+        "agents:delete.success",
+        "agents:edit.desc",
+        "agents:edit.title",
+        "agents:empty",
+        "agents:emptyDesc",
+        "agents:errors.required",
+        "agents:form.descPlaceholder",
+        "agents:form.description",
+        "agents:form.maxTokens",
+        "agents:form.modelLabel",
+        "agents:form.name",
+        "agents:form.namePlaceholder",
+        "agents:form.pickProviderFirst",
+        "agents:form.projectDefault",
+        "agents:form.promptPlaceholder",
+        "agents:form.providerDefault",
+        "agents:form.providerLabel",
+        "agents:form.providerPlaceholder",
+        "agents:form.role",
+        "agents:form.selectModel",
+        "agents:form.slug",
+        "agents:form.systemPrompt",
+        "agents:form.tempLabel",
+        "agents:form.temperature",
+        "agents:form.tokensLabel",
+        "agents:myAgents",
+        "agents:subtitle",
+        "agents:templates",
+        "agents:tierBadge.cycleHint",
+        "agents:tierBadge.reset",
+        "agents:tierBadge.upgrade",
+        "agents:tiers.artist",
+        "agents:tiers.master",
+        "agents:tiers.sage",
+        "agents:title",
+        "agents:update.success",
+        "agents:upgradeRequired",
+        "agents:upgradeRequiredAlert",
+        "common:actions.cancel",
+        "common:actions.create",
+        "common:actions.loading",
+        "common:actions.save",
+        "common:agentRoles."
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 56,
+        "hardcodedCount": 0
+      }
+    },
+    "src/pages/NotFound.tsx": {
+      "namespaces": [
+        "common"
+      ],
+      "translatedKeys": [
+        "errors.backToHome",
+        "errors.notFound"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 2,
+        "hardcodedCount": 0
+      }
+    },
+    "src/components/layout/AppShell.tsx": {
+      "namespaces": [
+        "common"
+      ],
+      "translatedKeys": [
+        "appName",
+        "nav.admin",
+        "nav.audit",
+        "nav.collapse",
+        "nav.dashboard",
+        "nav.logout",
+        "nav.marketplace",
+        "nav.myAgents",
+        "nav.myData",
+        "nav.myPipelines",
+        "nav.myTeams",
+        "nav.projects",
+        "nav.review",
+        "nav.settings",
+        "nav.testFixtures",
+        "nav.userFallback"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "Marketplace",
+          "line": 41
+        },
+        {
+          "text": "Review",
+          "line": 42
+        },
+        {
+          "text": "My Pipelines",
+          "line": 43
+        },
+        {
+          "text": "My Data",
+          "line": 45
+        },
+        {
+          "text": "Test Fixtures",
+          "line": 46
+        },
+        {
+          "text": "Admin",
+          "line": 53
+        },
+        {
+          "text": "User",
+          "line": 138
+        }
+      ],
+      "summary": {
+        "translatedCount": 16,
+        "hardcodedCount": 7
+      }
+    },
+    "src/components/feedback/MessageReactions.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "workspace.feedback.reactions.comment",
+        "workspace.feedback.reactions.commentPlaceholder",
+        "workspace.feedback.reactions.feedbackRecorded",
+        "workspace.feedback.reactions.helpful",
+        "workspace.feedback.reactions.needsWork",
+        "workspace.feedback.reactions.send"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 6,
+        "hardcodedCount": 0
+      }
+    },
+    "src/components/feedback/FloatingFeedbackButton.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "workspace.feedback.floating.buttonLabel",
+        "workspace.feedback.floating.captureScreenshot",
+        "workspace.feedback.floating.capturing",
+        "workspace.feedback.floating.describeRequired",
+        "workspace.feedback.floating.descriptionLabel",
+        "workspace.feedback.floating.descriptionPlaceholder",
+        "workspace.feedback.floating.screenshotAlt",
+        "workspace.feedback.floating.screenshotFailed",
+        "workspace.feedback.floating.screenshotLabel",
+        "workspace.feedback.floating.sendFeedback",
+        "workspace.feedback.floating.sending",
+        "workspace.feedback.floating.sent",
+        "workspace.feedback.floating.severityLabel",
+        "workspace.feedback.floating.submitFailed",
+        "workspace.feedback.floating.title",
+        "workspace.feedback.floating.typeLabel",
+        "workspace.feedback.floating.types.bug",
+        "workspace.feedback.floating.types.confused",
+        "workspace.feedback.floating.types.idea",
+        "workspace.feedback.floating.types.praise"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "POST",
+          "line": 118
+        },
+        {
+          "text": "Content-Type",
+          "line": 120
+        }
+      ],
+      "summary": {
+        "translatedCount": 20,
+        "hardcodedCount": 2
+      }
+    },
+    "src/components/feedback/PrivacyConsentModal.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "workspace.privacyConsent.allowSelected",
+        "workspace.privacyConsent.footer",
+        "workspace.privacyConsent.options.conversationHistory",
+        "workspace.privacyConsent.options.conversationHistoryDesc",
+        "workspace.privacyConsent.options.feedbackStorage",
+        "workspace.privacyConsent.options.feedbackStorageDesc",
+        "workspace.privacyConsent.options.promptStorage",
+        "workspace.privacyConsent.options.promptStorageDesc",
+        "workspace.privacyConsent.options.screenshots",
+        "workspace.privacyConsent.options.screenshotsDesc",
+        "workspace.privacyConsent.skipForNow",
+        "workspace.privacyConsent.subtitle",
+        "workspace.privacyConsent.title"
+      ],
+      "potentialHardcoded": [],
+      "summary": {
+        "translatedCount": 13,
+        "hardcodedCount": 0
+      }
+    },
+    "src/components/project/ProjectFilesPanel.tsx": {
+      "namespaces": [
+        "pages"
+      ],
+      "translatedKeys": [
+        "workspace.files.archPrefix",
+        "workspace.files.clear",
+        "workspace.files.clearConfirm",
+        "workspace.files.cleared",
+        "workspace.files.entryPrefix",
+        "workspace.files.excludedFromChat",
+        "workspace.files.expandAll",
+        "workspace.files.filesLabel",
+        "workspace.files.folderAccessLost",
+        "workspace.files.folderUnlinked",
+        "workspace.files.importFailed",
+        "workspace.files.importedFiles",
+        "workspace.files.includedInChat",
+        "workspace.files.linkFailed",
+        "workspace.files.linkProjectFolder",
+        "workspace.files.linkedFolder",
+        "workspace.files.loadFailed",
+        "workspace.files.local",
+        "workspace.files.localPrefix",
+        "workspace.files.noAccess",
+        "workspace.files.noFiles",
+        "workspace.files.noFilesDesc",
+        "workspace.files.noZipsFound",
+        "workspace.files.or",
+        "workspace.files.processing",
+        "workspace.files.searchFiles",
+        "workspace.files.selectZip",
+        "workspace.files.selectZipFile",
+        "workspace.files.syncedToGitee",
+        "workspace.files.todos",
+        "workspace.files.unlink",
+        "workspace.files.uploadFailed",
+        "workspace.files.uploadProjectZip",
+        "workspace.files.uploadProjectZipDesc",
+        "workspace.files.uploadZip",
+        "workspace.files.zipsInFolder"
+      ],
+      "potentialHardcoded": [
+        {
+          "text": "POST",
+          "line": 259
+        },
+        {
+          "text": "Project not found",
+          "line": 348
+        }
+      ],
+      "summary": {
+        "translatedCount": 36,
+        "hardcodedCount": 2
+      }
+    }
+  }
+}

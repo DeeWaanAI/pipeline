@@ -1,0 +1,42 @@
+schema_version: 1
+module_path: ""
+title: DeeWaanAI 单体工程根（前端+后端+文档+部署+实验）
+scope:
+    - README.md
+    - DEPLOY.md
+    - ENGINEERING.md
+    - package.json
+    - tsconfig.json
+    - vite.config.ts
+    - docker-compose.yml
+    - Dockerfile
+    - .backend-features.json
+    - .dockerignore
+    - .env.example
+    - .gitignore
+    - .prettierignore
+    - .prettierrc
+    - COMMERCIAL.md
+    - CV_2026_Ahmed_ElZubair.html
+    - CV_Optimization_Report.html
+    - LICENSE
+    - components.json
+    - docker-compose.backup.yml
+    - docker-compose.relay.yml
+    - drizzle.config.ts
+    - ecosystem.config.cjs
+    - eslint.config.js
+    - fix_schema.py
+    - index.html
+    - migrate-tier.cjs
+    - package-lock.json
+    - postcss.config.js
+    - tailwind.config.js
+    - translation-manifest.json
+    - tsconfig.app.json
+    - tsconfig.node.json
+    - tsconfig.server.json
+    - vitest.config.ts
+source_files: []
+depends_on: []
+related_to: []

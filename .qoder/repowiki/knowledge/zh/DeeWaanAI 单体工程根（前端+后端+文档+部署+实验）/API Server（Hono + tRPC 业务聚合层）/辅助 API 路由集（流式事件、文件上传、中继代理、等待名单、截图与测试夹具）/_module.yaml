@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: api_server/misc_routes
+title: 辅助 API 路由集（流式事件、文件上传、中继代理、等待名单、截图与测试夹具）
+scope:
+    - api/stream-route.ts
+    - api/upload-route.ts
+    - api/relay-route.ts
+    - api/waitlist-route.ts
+    - api/feedback-screenshot-route.ts
+    - api/test-fixture-route.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: api_server/server_bootstrap
