@@ -16,6 +16,14 @@
 | Fresh schema | ✅ `db:push` → **58 tables** on empty local DB |
 | Secrets | ✅ prod Railway DB/Redis URLs + master keys **removed** from `app25_v2/.env` (owner-authorized); fresh random dev keys; `.env` gitignored |
 | Pre-existing defect fixed | `api/services/backup.ts:154` — `escape(v: unknown)` TS2345 (newer mysql2 typings); cast applied, no behavior change |
+| `npm audit --omit=dev` | 9 vulnerabilities (4 moderate, 5 high) — **identical dependency set to prod lockfile**; not patched in P0 to preserve baseline parity; remediation belongs to a separate authorized dependency-update task |
+
+## 1b. Owner decisions recorded (2026-09-19)
+
+- **D-a** Fresh private git repo for v2: `github.com/youssef-hariri/deewaanai-v2` (private; rename planned later). Baseline tag `v2-baseline`.
+- **D-b** P0 execution authorized and completed.
+- **D-c** Staging DB will be seeded from the latest S3 prod-snapshot restore, cleared at product launch.
+- **D-e (new)** Separate DB/Redis confirmed after split-brain risk review — v2 never shares the live prod database or queues, even within the same Railway project.
 
 ## 2. Schema & migration history state
 
