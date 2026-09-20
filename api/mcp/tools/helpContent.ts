@@ -294,6 +294,18 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     name: "protected_run_status", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",
     summary: "Progress and final output of a protected run: step states, names, tokens and latency plus the answer — never the workflow's prompts or intermediate content.",
   },
+  {
+    name: "model_retest_suggestions", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
+    summary: "Your model-freshness suggestions from admin-reviewed release events. Nothing has been re-run and nothing has been spent; your published scores and test dates are untouched, and age alone never delists a listing.",
+  },
+  {
+    name: "respond_retest_suggestion", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
+    summary: "Dismiss, snooze, or note that you intend to retest. 'plan_retest' starts nothing — you still create, quote and approve a benchmark yourself, so a suggestion can never turn into a billable run on its own.",
+  },
+  {
+    name: "listing_model_freshness", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
+    summary: "Which provider/model/version a listing's published evidence was tested on and when, whether the provider has since deprecated it, and the reviewed successor — explicit lineage, never a name match.",
+  },
   // ── Account ─────────────────────────────────────────────────────
   {
     name: "upgrade_tier", group: "Account", scopes: ["mcp:read"],

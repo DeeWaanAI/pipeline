@@ -44,6 +44,7 @@ import { runBatch } from "./runBatch";
 import { batchStatus } from "./batchStatus";
 import { PUBLICATION_TOOLS } from "./publicationTools";
 import { PROTECTED_EXECUTION_TOOLS } from "./protectedExecutionTools";
+import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
 import { resumeBatchTool } from "./resumeBatch";
 import { exportBatchResultsTool } from "./exportBatchResults";
 
@@ -67,6 +68,9 @@ export const TOOLS: McpTool[] = [
   // Offering redesign v2 — protected buyer execution (hidden unless
   // v2ProtectedExecution). Buyer-side half of §8.
   ...PROTECTED_EXECUTION_TOOLS,
+  // Offering redesign v2 — model release awareness (§12.1). Suggestions only:
+  // no public tool can record a model or fan out notices.
+  ...MODEL_CATALOG_TOOLS,
   deewaanaiHelp,
   suggestLlmProviders,
   addProvider,
