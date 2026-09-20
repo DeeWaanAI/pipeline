@@ -3,7 +3,13 @@ import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { debugLogs, agentRuns, agentResponses, swarmRuns } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { assertProjectVisible, assertRunVisible } from "../services/runAccess";
 
+// Every procedure in this router used to query by swarmRunId/projectId alone,
+// with no check that the caller could see that run. `debugLogs` rows carry
+// prompt-derived content, so this was the widest A12 hole in the app — and it
+// was reachable for a marketplace buyer run too, where the logged material
+// describes the SELLER's workflow.
 export const debugRouter = createRouter({
   list: authedQuery
     .input(
@@ -16,7 +22,8 @@ export const debugRouter = createRouter({
         offset: z.number().default(0),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertRunVisible(ctx.user.id, input.swarmRunId);
       const conditions = [eq(debugLogs.swarmRunId, input.swarmRunId)];
       if (input.eventType) {
         conditions.push(eq(debugLogs.eventType, input.eventType));
@@ -33,7 +40,8 @@ export const debugRouter = createRouter({
 
   getBySwarmRun: authedQuery
     .input(z.object({ swarmRunId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertRunVisible(ctx.user.id, input.swarmRunId);
       return getDb()
         .select()
         .from(debugLogs)
@@ -44,7 +52,8 @@ export const debugRouter = createRouter({
   // Get per-run stats (for audit page)
   getRunStats: authedQuery
     .input(z.object({ swarmRunId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertRunVisible(ctx.user.id, input.swarmRunId);
       // Get run info
       const [run] = await getDb()
         .select()
@@ -116,7 +125,8 @@ export const debugRouter = createRouter({
   // Get aggregate stats for a project (kept for backward compat)
   getStats: authedQuery
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertProjectVisible(ctx.user.id, input.projectId);
       const [runsResult] = await getDb()
         .select({ count: sql<number>`count(*)` })
         .from(agentRuns)

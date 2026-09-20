@@ -15,7 +15,7 @@ const queryClient = new QueryClient({
     mutations: { retry: false, networkMode: "always" },
   },
 });
-const trpcClient = trpc.createClient({
+export const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",

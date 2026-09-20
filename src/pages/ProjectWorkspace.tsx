@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { trpc } from "@/providers/trpc";
+import { trpc, trpcClient } from "@/providers/trpc";
 import { AppShell } from "@/components/layout/AppShell";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useCapabilities } from "@/hooks/useCapabilities";
@@ -406,10 +406,19 @@ export default function ProjectWorkspace() {
     closeEventSource();
   };
 
-  const setupSSE = useCallback((rid: number): Promise<void> => {
+  const setupSSE = useCallback(async (rid: number): Promise<void> => {
+    closeEventSource();
+    // The stream is no longer openable by run id alone (any visitor could watch
+    // another tenant's run), and EventSource cannot send auth headers — so the
+    // browser fetches a signature scoped to this run.
+    let url: string;
+    try {
+      ({ url } = await trpcClient.swarm.streamUrl.query({ swarmRunId: rid }));
+    } catch {
+      return;
+    }
     return new Promise((resolve) => {
-      closeEventSource();
-      const es = new EventSource(`/api/stream/${rid}`);
+      const es = new EventSource(url);
       eventSourceRef.current = es;
       let resolved = false;
       const resolveOnce = () => { if (!resolved) { resolved = true; resolve(); } };

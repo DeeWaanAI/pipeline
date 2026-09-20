@@ -4,11 +4,15 @@ import { getDb } from "../queries/connection";
 import { agents } from "@db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import { CreateAgentSchema, UpdateAgentSchema, DEFAULT_AGENT_PROMPTS } from "@contracts/index";
+import { assertProjectVisible } from "../services/runAccess";
 
 export const agentRouter = createRouter({
   list: authedQuery
     .input(z.object({ projectId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // Legacy agent rows carry system prompts, and this read took any
+      // projectId with no check that the caller could see it (A12).
+      await assertProjectVisible(ctx.user.id, input.projectId);
       return getDb()
         .select()
         .from(agents)

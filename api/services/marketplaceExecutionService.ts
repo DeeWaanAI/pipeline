@@ -310,9 +310,38 @@ export async function loadAuthorizedSnapshotSteps(args: {
   return { steps, endpoint, sellerId: right.sellerId };
 }
 
+/**
+ * A provider error can quote the request it rejected, and on a protected run
+ * that request contains the seller's workflow. §8.1's "sanitized progress" is
+ * honored by returning a CATEGORY instead of the text: the buyer learns why it
+ * failed, nobody learns what was sent. The raw message stays on the run row for
+ * the operator, who is not a buyer.
+ */
+export interface ProtectedErrorSummary {
+  category: "cancelled" | "throttled" | "credit_exhausted" | "timeout" | "provider_error" | "failed";
+  retryable: boolean;
+  note: string;
+}
+
+export function classifyProtectedError(raw: string | null | undefined): ProtectedErrorSummary | null {
+  if (!raw) return null;
+  const lower = String(raw).toLowerCase();
+  const category = lower.includes("cancel") ? "cancelled"
+    : lower.includes("credit") ? "credit_exhausted"
+      : lower.includes("429") || lower.includes("rate limit") || lower.includes("throttl") ? "throttled"
+        : lower.includes("timeout") || lower.includes("timed out") ? "timeout"
+          : /provider|upstream|5\d\d/.test(lower) ? "provider_error"
+            : "failed";
+  return {
+    category,
+    retryable: category === "throttled" || category === "timeout" || category === "provider_error",
+    note: "The provider's own message is not returned on a protected run — it can quote the request, and that request contains the seller's workflow.",
+  };
+}
+
 /** §8.1: the buyer-visible view. Final output plus per-step metadata only —
- *  `agentRuns.systemPrompt`/`userPrompt`/`contextInput` are summaries that
- *  still describe the seller's prompts, so they are never selected here. */
+ *  `agentRuns.systemPrompt`/`userPrompt`/`contextInput` are redacted at the
+ *  write AND not selected here, so there are two independent bars. */
 export async function getProtectedRunView(opts: { buyerId: number; swarmRunId: number }): Promise<{
   swarmRunId: number;
   listingId: number;
@@ -321,7 +350,7 @@ export async function getProtectedRunView(opts: { buyerId: number; swarmRunId: n
   progress: Array<{ step: number; name: string; role: string; status: string; tokensUsed: number | null; latencyMs: number | null }>;
   totals: { tokensUsed: number | null; latencyMs: number | null };
   protectionClass: "standard" | "reduced" | null;
-  error: string | null;
+  error: ProtectedErrorSummary | null;
 } | null> {
   const db = getDb();
   const [run] = await db.select().from(swarmRuns)
@@ -357,6 +386,6 @@ export async function getProtectedRunView(opts: { buyerId: number; swarmRunId: n
     })),
     totals: { tokensUsed: run.totalTokensUsed ?? null, latencyMs: run.totalLatencyMs ?? null },
     protectionClass: params.protectedRun.endpoint?.protectionClass ?? null,
-    error: run.error ?? null,
+    error: classifyProtectedError(run.error),
   };
 }

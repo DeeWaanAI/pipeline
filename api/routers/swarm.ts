@@ -13,6 +13,8 @@ import { createProviderAdapter } from "../lib/providers";
 import { getMasterKey, encrypt } from "../services/cryptoService";
 import { loadPipelineSteps, callWithRetry, decryptApiKey, type SwarmRunParams } from "../services/swarmService";
 import { enqueueSwarmRun } from "../workers/swarmWorker";
+import { assertRunControlAllowed, canAccessRun } from "../services/runAccess";
+import { signStreamPath } from "../lib/streamToken";
 import { runAutoDesign } from "../services/autoDesignService";
 import { createBatch, getBatchStatus, listBatches, cancelBatch, resumeBatch, exportBatchResults } from "../services/batchService";
 import { isFeatureEnabled } from "../plugins/featureFlags";
@@ -106,6 +108,16 @@ export const swarmRouter = createRouter({
       };
     }),
 
+  // A12: the SSE route is no longer reachable by run id alone. EventSource
+  // cannot send headers, so the browser asks here for a signature scoped to one
+  // run and valid for an hour; the session token never enters a URL.
+  streamUrl: authedQuery
+    .input(z.object({ swarmRunId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      if (!(await canAccessRun(ctx.user.id, input.swarmRunId))) throw new Error("Run not found");
+      return { url: signStreamPath(input.swarmRunId, ctx.user.id) };
+    }),
+
   execute: authedQuery
     .input(ExecuteSwarmSchema)
     .mutation(async ({ input, ctx }) => {
@@ -129,6 +141,10 @@ export const swarmRouter = createRouter({
         const [existing] = await db.select().from(swarmRuns)
           .where(and(eq(swarmRuns.id, input.runId), eq(swarmRuns.userId, ctx.user.id)));
         if (!existing) throw new Error("Run not found");
+        // A marketplace run belongs to `marketplaceExecution.start`, not to this
+        // entry point: re-running it here would rebuild run_params and lose the
+        // protected context rather than reuse it.
+        assertRunControlAllowed(existing);
 
         // Guard: refuse to resume a run that is no longer active. Prevents
         // stale HITL clicks on old chats from re-running tail steps (which
@@ -216,7 +232,10 @@ export const swarmRouter = createRouter({
 
       const [run] = await db.select().from(swarmRuns)
         .where(eq(swarmRuns.id, input.runId)).limit(1);
-      if (!run) throw new Error("Run not found");
+      // Was fetched by id with no owner check, then re-queued: a stranger could
+      // resume another user's run. Scoped to the run's owner (§8.1, A12).
+      if (!run || run.userId !== ctx.user.id) throw new Error("Run not found");
+      assertRunControlAllowed(run);
 
       const [project] = await db.select().from(projects)
         .where(eq(projects.id, run.projectId)).limit(1);
@@ -255,6 +274,7 @@ export const swarmRouter = createRouter({
       const [run] = await db.select().from(swarmRuns)
         .where(and(eq(swarmRuns.id, input.runId), eq(swarmRuns.userId, ctx.user.id)));
       if (!run) throw new Error("Run not found");
+      assertRunControlAllowed(run);
       if (!run.executionState) throw new Error("No pending approval for this run");
 
       // Update execution state with the approval action

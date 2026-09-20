@@ -2,7 +2,8 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { agentResponses, swarmRuns, projects } from "@db/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import { assertProjectVisible, assertResponseVisible, isProtectedRun } from "../services/runAccess";
 
 export const responseRouter = createRouter({
   getChain: authedQuery
@@ -15,21 +16,45 @@ export const responseRouter = createRouter({
         .where(and(eq(swarmRuns.id, input.swarmRunId), eq(swarmRuns.userId, ctx.user.id)));
       if (!run) return [];
 
-      return getDb()
+      const rows = await getDb()
         .select()
         .from(agentResponses)
         .where(eq(agentResponses.swarmRunId, input.swarmRunId))
         .orderBy(asc(agentResponses.id));
+      // §8.1: a protected run's buyer view is the FINAL output. Intermediates
+      // are withheld even from the buyer, because a step could echo the seller's
+      // instructions into its own output.
+      if (isProtectedRun(run)) {
+        return run.finalResponseId
+          ? rows.filter((r) => r.id === run.finalResponseId)
+          : [];
+      }
+      return rows;
     }),
 
   getById: authedQuery
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // Was queried by id alone: any authenticated user could read any
+      // tenant's response content (A12).
+      await assertResponseVisible(ctx.user.id, input.id);
       const [response] = await getDb()
         .select()
         .from(agentResponses)
         .where(eq(agentResponses.id, input.id));
-      return response ?? null;
+      if (!response) return null;
+      // §8.1: visibility of the PROJECT is not visibility of the step. A
+      // protected run's intermediates stay withheld even from its own buyer,
+      // who can otherwise read this id straight from the chain listing.
+      if (response.swarmRunId) {
+        const [run] = await getDb()
+          .select({ runParams: swarmRuns.runParams, finalResponseId: swarmRuns.finalResponseId })
+          .from(swarmRuns)
+          .where(eq(swarmRuns.id, response.swarmRunId))
+          .limit(1);
+        if (isProtectedRun(run) && run.finalResponseId !== response.id) return null;
+      }
+      return response;
     }),
 
   listByType: authedQuery
@@ -41,8 +66,11 @@ export const responseRouter = createRouter({
         offset: z.number().default(0),
       })
     )
-    .query(async ({ input }) => {
-      return getDb()
+    .query(async ({ input, ctx }) => {
+      // Queried by projectId alone before: any user could enumerate another
+      // tenant's outputs (A12).
+      await assertProjectVisible(ctx.user.id, input.projectId);
+      const rows = await getDb()
         .select()
         .from(agentResponses)
         .where(
@@ -54,6 +82,17 @@ export const responseRouter = createRouter({
         .orderBy(desc(agentResponses.createdAt))
         .limit(input.limit)
         .offset(input.offset);
+      // Protected runs keep their intermediates hidden, from their own buyer
+      // included (§8.1).
+      if (rows.length === 0) return rows;
+      const runIds = [...new Set(rows.map((r) => r.swarmRunId).filter(Boolean) as number[])];
+      if (runIds.length === 0) return rows;
+      const runs = await getDb()
+        .select({ id: swarmRuns.id, runParams: swarmRuns.runParams, finalResponseId: swarmRuns.finalResponseId })
+        .from(swarmRuns).where(inArray(swarmRuns.id, runIds));
+      const protectedRuns = new Map(runs.filter(isProtectedRun).map((r) => [r.id, r.finalResponseId]));
+      if (protectedRuns.size === 0) return rows;
+      return rows.filter((r) => !protectedRuns.has(r.swarmRunId ?? -1) || r.id === protectedRuns.get(r.swarmRunId ?? -1));
     }),
 
   flagResponse: authedQuery
@@ -63,7 +102,10 @@ export const responseRouter = createRouter({
         notes: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // A write, and previously unguarded: any user could flag or annotate any
+      // tenant's response by id.
+      await assertResponseVisible(ctx.user.id, input.responseId);
       await getDb()
         .update(agentResponses)
         .set({ isFlagged: true, humanNotes: input.notes ?? null })
@@ -79,7 +121,8 @@ export const responseRouter = createRouter({
         rating: z.number().min(1).max(5).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertResponseVisible(ctx.user.id, input.responseId);
       await getDb()
         .update(agentResponses)
         .set({

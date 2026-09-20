@@ -15,6 +15,18 @@ import {
   ledgerToCsvFiles,
   signLedger,
 } from "../services/auditExport";
+import { isProtectedRun, PROMPT_BEARING_RUN_COLUMNS } from "../services/runAccess";
+
+export const PROTECTED_EXPORT_NOTE =
+  "Protected marketplace run: the workflow definition belongs to the seller, so step prompts are stored as lengths only and intermediate step outputs are not part of the buyer's export.";
+
+/** §8.1's second bar: the writer already refuses to store a protected run's
+ *  prompt text, and the export does not return those columns either. */
+function redactProtectedAgentRun(row: typeof agentRuns.$inferSelect) {
+  const copy: Record<string, unknown> = { ...row };
+  for (const column of PROMPT_BEARING_RUN_COLUMNS) delete copy[column];
+  return copy;
+}
 
 export const exportRouter = createRouter({
   // Export all custom agents for the current user
@@ -79,6 +91,20 @@ export const exportRouter = createRouter({
         .orderBy(agentResponses.createdAt);
 
       logger.info("Run exported", { userId: ctx.user.id, runId: input.runId });
+      // §8.1: a marketplace run's buyer owns the ANSWER, not the workflow's
+      // intermediate products — an echo of the seller's instructions can ride
+      // along in any of them. The prompt columns are already redacted at the
+      // write; dropping them here as well keeps two independent bars.
+      if (isProtectedRun(run)) {
+        return {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          run,
+          agentRuns: runs.map(redactProtectedAgentRun),
+          agentResponses: responses.filter((r) => r.id === run.finalResponseId),
+          protection: PROTECTED_EXPORT_NOTE,
+        };
+      }
       return {
         version: 1,
         exportedAt: new Date().toISOString(),
@@ -168,14 +194,18 @@ export const exportRouter = createRouter({
         : [];
 
       logger.info("Project backup exported", { userId: ctx.user.id, projectId: input.projectId });
+      // The buyer's marketplace container is project-exportable like any other
+      // project, so the same protected-run projection applies here (§8.1).
+      const protectedFinals = new Map(runs.filter(isProtectedRun).map((r) => [r.id, r.finalResponseId]));
       return {
         version: 1,
         exportedAt: new Date().toISOString(),
         project,
         pipelineSteps: steps,
         swarmRuns: runs,
-        agentRuns: allAgentRuns,
-        agentResponses: allResponses,
+        agentRuns: allAgentRuns.map((r) => (protectedFinals.has(r.swarmRunId ?? -1) ? redactProtectedAgentRun(r) : r)),
+        agentResponses: allResponses.filter((r) =>
+          !protectedFinals.has(r.swarmRunId ?? -1) || r.id === protectedFinals.get(r.swarmRunId ?? -1)),
       };
     }),
 

@@ -254,6 +254,50 @@ export interface ResolvedStep {
 const MAX_STEP_VISITS = 1000; // Hard cap: any step visited more than this forces advance
 const MAX_WHILE_ITERATIONS = 3; // Hard cap for WHILE loops regardless of DB config
 
+/**
+ * The three `agent_runs` columns that carry prompt text.
+ *
+ * For an ordinary run they hold a 200-char summary, which is what the owner's
+ * history/debug screens read. On a PROTECTED run the same rows are written
+ * under the BUYER's project — so a summary of the seller's system prompt would
+ * be reachable by anyone entitled to read that run (export, history, team
+ * views, debug). §8.1 forbids that, so nothing of the definition is persisted
+ * on a protected run at all: the columns record only that a step ran, with its
+ * length. Redacting at the write beats filtering at every read, because a read
+ * path added next month inherits the protection automatically.
+ */
+export function stepPromptAuditFields(fields: {
+  systemPrompt: string;
+  userPromptText: string;
+  contextData: string | null;
+  restricted?: boolean;
+}): { systemPrompt: string | null; userPrompt: string; contextInput: string | null } {
+  if (fields.restricted) {
+    return {
+      systemPrompt: fields.systemPrompt
+        ? `[protected: ${fields.systemPrompt.length.toLocaleString()} chars, not stored]`
+        : null,
+      userPrompt: `[protected: ${fields.userPromptText.length.toLocaleString()} chars, not stored]`,
+      contextInput: null,
+    };
+  }
+  const fileCount = (fields.userPromptText.match(/=== FILE:/g) || []).length;
+  return {
+    systemPrompt: fields.systemPrompt
+      ? `[${fields.systemPrompt.length.toLocaleString()} chars] ${fields.systemPrompt.substring(0, 200).replace(/\n/g, " ")}`
+      : null,
+    userPrompt: `[${fields.userPromptText.length.toLocaleString()} chars${fileCount > 0 ? `, ${fileCount} files` : ""}] ${fields.userPromptText.substring(0, 200).replace(/\n/g, " ")}`,
+    contextInput: fields.contextData,
+  };
+}
+
+/** A provider error can quote the request it rejected, and on a protected run
+ *  that request IS the seller's workflow. The stream therefore carries a fixed
+ *  notice instead; `marketplaceExecution.get` classifies the stored error into
+ *  a category so the buyer still learns why it failed (§8.1, A12). */
+const PROTECTED_ERROR_NOTICE =
+  "protected_run_error: the provider's message is withheld on a protected run because it can quote the seller's workflow. Read marketplaceExecution.get for the failure category.";
+
 interface ExecCtx {
   currentIndex: number;        // Position in pipeline array
   chain: typeof agentResponses.$inferSelect[];
@@ -395,14 +439,14 @@ async function executeAgentStep(opts: {
   emitEvent(swarmRunId, { type: "step_start", step: stepNum, agentRole, agentName });
 
   // Store only a summary in DB — full prompt stays in memory for LLM call
-  const fileCount = (userPromptText.match(/=== FILE:/g) || []).length;
-  const promptSummary = `[${userPromptText.length.toLocaleString()} chars${fileCount > 0 ? `, ${fileCount} files` : ""}] ${userPromptText.substring(0, 200).replace(/\n/g, " ")}`;
-  const systemSummary = systemPrompt ? `[${systemPrompt.length.toLocaleString()} chars] ${systemPrompt.substring(0, 200).replace(/\n/g, " ")}` : null;
+  const auditFields = stepPromptAuditFields({ systemPrompt, userPromptText, contextData, restricted });
 
   await db.insert(agentRuns).values({
     swarmRunId, projectId, agentId: agentId ?? null,
     agentName, agentRole, pipelineStep: stepNum, iteration: 1,
-    systemPrompt: systemSummary, userPrompt: promptSummary, contextInput: contextData,
+    systemPrompt: auditFields.systemPrompt,
+    userPrompt: auditFields.userPrompt,
+    contextInput: auditFields.contextInput,
     status: "running",
   });
 
@@ -489,7 +533,11 @@ async function executeAgentStep(opts: {
       step: stepNum,
       agentRole,
       agentName,
-      error: isCredit ? `CREDIT_EXHAUSTED: ${msg}` : msg,
+      error: isCredit
+        ? `CREDIT_EXHAUSTED: ${restricted ? "out of credits — top up to run this workflow" : msg}`
+        : restricted
+          ? PROTECTED_ERROR_NOTICE
+          : msg,
       isCreditError: isCredit,
     });
     throw err;
@@ -629,9 +677,13 @@ async function runExecutionLoop(opts: {
 
     // ─── APPROVAL: pause for human ───
     if (step.stepType === "approval") {
-      if (autoApprove) {
+      // A protected (buyer) run has no human in the loop: the person on the
+      // other side bought an ANSWER, not the seller's review workflow, and the
+      // pause state would otherwise carry an intermediate output the buyer view
+      // is not allowed to contain (§8.1 final-output-only).
+      if (autoApprove || restricted) {
         // Test mode: auto-approve and continue without pausing
-        logger.info(`[AUTO-APPROVE] Step ${step.stepOrder} (${step.name}) auto-approved for test run`);
+        logger.info(`[AUTO-APPROVE] Step ${step.stepOrder} (${step.name}) auto-approved for ${restricted ? "protected" : "test"} run`);
         execCtx.currentIndex++;
         continue;
       }
@@ -1054,7 +1106,9 @@ async function runPipelineAsync(opts: {
       finalResponse: finalResponseText,
       totalTokens: totalTokens.value,
       totalLatencyMs: totalLatency.value,
-      chain: result.chain.map((r) => ({ id: r.id, content: r.content, agentRole: r.metadata.agentRole, agentName: r.metadata.agentName })),
+      // Intermediate step content is not part of a protected run's stream; the
+      // buyer reads the final output, nothing else (§8.1).
+      ...(restricted ? {} : { chain: result.chain.map((r) => ({ id: r.id, content: r.content, agentRole: r.metadata.agentRole, agentName: r.metadata.agentName })) }),
       timestamp: new Date().toISOString(),
     });
 
@@ -1147,7 +1201,7 @@ async function runPipelineAsync(opts: {
 
     emitEvent(swarmRunId, {
       type: "pipeline_error",
-      error: errorMsg,
+      error: restricted ? PROTECTED_ERROR_NOTICE : errorMsg,
       timestamp: new Date().toISOString(),
     });
 
