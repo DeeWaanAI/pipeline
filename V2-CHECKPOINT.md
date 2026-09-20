@@ -1,6 +1,6 @@
 # V2 PROGRESS CHECKPOINT — autonomous continuation point
 
-**Updated:** 2026-09-19 22:57 (+03:00)
+**Updated:** 2026-09-20 14:53 (+03:00)
 **Purpose:** if the implementing session or laptop dies, ANY new session resumes from this file + the plan doc. Do not restart completed work.
 
 ## Read first (in order)
@@ -16,7 +16,7 @@
 | P1 additive foundations | ✅ done + pushed |
 | P2a durable design jobs | ✅ done + pushed (commit `2e7be2d`) |
 | P2b benchmark engine | ✅ done locally 2026-09-20 — A01/A02/A06/A07/A08 + A21 containment implemented and tested; real-broker queue drill deferred to P6 (same treatment as P2a) |
-| P3 evidence + protected exec | ▶️ next (unblocked) |
+| P3 evidence + protected exec | ▶️ in progress — evidence manifests + publication states DONE and pushed (`01be427`); protected execution, `marketplace.publishVersion` boundary and model catalog remain |
 | P5 interfaces | **Rescoped by owner decision D9 (2026-09-20)** — MCP-first workbench, no new authoring screens; remaining work = adapt the existing shop front + build the public evidence page. See plan §6. Revisit after real beta usage. |
 | P6/W6 rehearsal + verification | local prep unblocked; Railway service creation + ANY domain/production action = OWNER GO ONLY |
 | P4 commercial | BLOCKED by spec: owner must resolve policies P1–P7 (never invent defaults) |
@@ -49,11 +49,14 @@ P3 — evidence publication, protected marketplace execution, model catalog (pla
 **D9 interfaces (spec §1.1, plan §6):** the workbench is MCP-first, so every v2 capability must be reachable and readable through MCP with complete, labeled, markdown-renderable DTOs — no data that exists only in a web screen. **DONE 2026-09-20:** the 10 `benchmark_*` MCP tools are registered behind `v2Benchmarks` (create/prepare_rubric/prepare_cases/quote/approve_spend/start/status/list/cancel/resume), each a thin adapter over `api/services/benchmark` so a desktop client cannot bypass authorization, plan hashing or spend approval; `deewaanai_help` gained an "Evaluate" group fed by the same flags, and `api/mcp/tools/registry.test.ts` now pins registry↔help parity so the guide can neither advertise an unregistered tool nor hide a live one.
 
 Start with: spec §7.3 (full disclosure manifest list), §8.1–8.2 (restricted snapshot execution + trusted-egress policy), §10.1 (`evidence.preview`, `marketplace.publishVersion`, community publish/report/withdraw, public DTO-only endpoints), §12.1 (model catalog + release events + deduped notices). Then:
-1. `api/services/evidenceService.ts`: manifest builder from a COMPLETED benchmark + its frozen plan; preview hash; consent gate; `draft_preview → published → withdrawn`; replacement creates a new publication row (never rewrites `testedAt`).
+1. ✅ **DONE 2026-09-20 (`01be427`)** `api/services/evidenceService.ts`: manifest builder from a COMPLETED benchmark + its frozen plan; preview hash; consent gate; `draft_preview → published → withdrawn`; replacement creates a new publication row (never rewrites `testedAt`).
+   Evidence: `buildEvidencePreview` validates against the frozen `PublicEvidenceManifestSchema` and returns a `previewHash` = sha256 over `stableStringify(manifest)` (so hash is reproducible — `pricingAsOf` is anchored to the run's `finishedAt`, NOT wall clock); `publishEvidence` refuses without the exact `approvedPreviewHash` + consent version, is idempotent on the same (benchmark, hash, kind), runs transactionally and bumps `evidenceSummaryRevision` when attaching to a listing; `withdrawPublication` unpublishes the listing only when that publication was its current evidence; `supersedePublication` writes a NEW immutable row with `supersedesPublicationId` and copies `testedAt` verbatim. §4.3 is enforced by refusing to certify an imported-only benchmark as seller evidence with a policy message (publish as community instead); §7.3 refuses a limited-disclosure report as seller evidence up front rather than letting the schema reject it; §7.1 disabled validators and per-candidate provenance are carried into every manifest; `scanForSecrets` blocks credential-bearing manifests and the test plants a fake `sk-…` key to prove the redaction survives end to end. 7/7 in `evidenceService.integration.test.ts` (throwaway DB `swarm_v2test_evidence`).
+   **Still open on this file:** it is a service only — no tRPC router and no MCP tool reaches it yet (grep for `evidenceService` finds just its test). Under D9 both surfaces are required.
 2. Refactor `swarmService` so an authorized snapshot loader is the only way a protected version executes for a buyer (§8.1) — the P2b `snapshotVersionId` path is the seam; no copies of seller prompts into buyer-owned rows.
 3. `marketplace.publishVersion` as the sole seller boundary, transactional + idempotent, flag `v2Publication` / `v2ProtectedExecution` (both default OFF).
 4. Legacy certification paths must be unable to publish v2 listings (run the old flows against v2 fixtures).
-5. Tests A09–A14 + A19, with the A12 leakage battery across every audited surface (template apply/duplicate, MCP reads, SSE, export, signed URLs, error strings, logs).
+5. Expose evidence preview/publish/withdraw/supersede + the public evidence read through tRPC AND MCP tools behind `v2Publication`, and wire the 10 `benchmark_*` help/registry parity test to cover them.
+6. Tests A09–A14 + A19, with the A12 leakage battery across every audited surface (template apply/duplicate, MCP reads, SSE, export, signed URLs, error strings, logs).
 
 Carried-over open risks to handle deliberately, not silently:
 - `contracts/offeringV2.ts` `CallPlanEstimateSchema` is richer than the benchmark service's `QuoteResult` (per-line costs, assumptions, price-vector metadata, bounded-high totals). Reconcile before P5 builds the cost-approval dialog on it. The internal `RubricSpec` also diverges from `RubricSchema` (`anchor` vs `anchors`, numeric vs decimal-string weights).
