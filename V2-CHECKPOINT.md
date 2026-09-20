@@ -5,7 +5,7 @@
 
 ## Read first (in order)
 1. `DeeWaanAI-Next/OFFERING-REDESIGN-V2-IMPLEMENTATION-PLAN.md` — phases, gates, decisions D-a/b/c/e
-2. `DeeWaanAI-Next/OFFERING-REDESIGN-TECH-SPECS.md` — governing spec (v2.0); §1.3 open policies P1–P7 are owner-gated
+2. `DeeWaanAI-Next/OFFERING-REDESIGN-TECH-SPECS.md` — governing spec (v2.0); §1.3 open policies P1–P8 are owner-gated
 3. `DeeWaanAI-Next/G0-INVENTORY.md` — baseline facts
 4. `git log --oneline -15` — source of truth for what is DONE (checkpoint text may lag by one commit)
 
@@ -44,7 +44,16 @@ Nohup caffeinate protects against sleep, not battery: if the laptop died, just p
 When finishing any increment: (1) commit+push, (2) tick the plan-doc checkboxes with evidence, (3) rewrite "current step" below, (4) when a phase completes set its row ✅ and the next ▶️. When ALL unblocked phases (P2b, P3, P5, P6-local) are done and verified, disable the cron task `v2-phase-watchdog` (qoder_cron remove/run list to find id) and write `V2-ALL-BLOCKED-PHASES-COMPLETE.md` with the acceptance-matrix summary.
 
 ## Current step
-P3 — evidence publication, protected marketplace execution, model catalog (plan §4, spec §7.3, §8, §10.1, §12.1). P2b is closed locally and pushed; read plan §3 P2b for the evidence trail before assuming anything about it.
+P3 is functionally closed (items 1–6 ✅, item 7's A12 battery ✅ pushed as `4919f36`); what is left of P3 is item 7's two follow-on tests and item 8 (`communityEvidence.reportExternal`). The next move is a **live-behind-flags session**, not more mocked code — see "First real-key session" below. P2b is closed locally and pushed; read plan §3 P2b for the evidence trail before assuming anything about it.
+
+**Owner input taken 2026-09-20 (later in the A12 session):** D10 admin panel and D11 consented pipeline attachments are now IN SCOPE and written into spec §1.1 + plan §6, and the data-residency question is recorded as open policy **P8** (spec §1.3) — do NOT design storage around it until the owner decides. Both D10 and D11 are "adapt what already ships": `src/pages/AdminPanel.tsx` + 14 `routers/admin.ts` procedures and `routers/feedback.ts` + the floating screenshot button already exist, so the work is the v2 half of each, not a new product.
+
+**First real-key session (owner asked when live LLM keys become necessary — answer: now, for the four things below; everything else stays mocked):**
+1. `trusted_provider_endpoints` rows must be REAL base URLs before protected execution can run at all — the table is empty by policy, so a buyer run is unreachable today (P6 needs the owner's list of approved destinations).
+2. Judge quality and cost vectors: rubric grading, judge agreement and the per-candidate Σ arithmetic have only been proven structurally. Pricing (P4) cannot be proposed from mocked token counts.
+3. The §12.1 fan-out test against a real published manifest needs a real model id in the catalog.
+4. **D9 validation from a user's seat:** register an MCP client against the local server, connect DeeWaanAI MCP to the desktop app, and run one full journey — design job → benchmark → publish evidence → buy → protected run — reading only what a chat client renders. This is the only test that can catch DTOs that are technically correct and unusable in a conversation.
+Cheapest useful tranche: one provider key + one cheap model, 1 design job, a 5-case benchmark, 1 protected run. The c=100 pilot is a later, budgeted step, not this one.
 
 **D9 interfaces (spec §1.1, plan §6):** the workbench is MCP-first, so every v2 capability must be reachable and readable through MCP with complete, labeled, markdown-renderable DTOs — no data that exists only in a web screen. **DONE 2026-09-20:** the 10 `benchmark_*` MCP tools are registered behind `v2Benchmarks` (create/prepare_rubric/prepare_cases/quote/approve_spend/start/status/list/cancel/resume), each a thin adapter over `api/services/benchmark` so a desktop client cannot bypass authorization, plan hashing or spend approval; `deewaanai_help` gained an "Evaluate" group fed by the same flags, and `api/mcp/tools/registry.test.ts` now pins registry↔help parity so the guide can neither advertise an unregistered tool nor hide a live one.
 
