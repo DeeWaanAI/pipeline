@@ -224,6 +224,12 @@ export const swarmRuns = mysqlTable("swarm_runs", {
       depth: number;
       lineage: number[];
     };
+    // Offering redesign v2: execute an immutable workflow-version snapshot
+    // instead of the mutable project steps (benchmark candidates, P3
+    // protected runs). callPlanId links back to the benchmark for ledger
+    // traceability.
+    snapshotVersionId?: number;
+    callPlanId?: number;
   } | null>(),
   startedAt: timestamp("started_at").defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -1521,9 +1527,10 @@ export const benchmarks = mysqlTable("benchmarks", {
     .references(() => users.id, { onDelete: "restrict" })
     .notNull(),
   listingId: int("listing_id").references(() => marketplaceListings.id, { onDelete: "set null" }),
+  // NULL while the benchmark is a draft: the immutable snapshot is only
+  // frozen at start (migration 026). Authoritative afterwards.
   pipelineVersionId: int("pipeline_version_id")
-    .references(() => pipelineVersions.id, { onDelete: "restrict" })
-    .notNull(),
+    .references(() => pipelineVersions.id, { onDelete: "restrict" }),
   executionMode: mysqlEnum("execution_mode", ["grade_only", "compare_models", "compare_frontier_solo"])
     .notNull(),
   schemaVersion: int("schema_version").default(1).notNull(),
@@ -1537,11 +1544,21 @@ export const benchmarks = mysqlTable("benchmarks", {
   aggregateAvailability: mysqlEnum("aggregate_availability", ["none", "complete", "incomplete"])
     .default("none").notNull(), // missing coverage → incomplete, never silently reweighted (§6.3)
   leaseToken: varchar("lease_token", { length: 64 }),
+  leaseExpiresAt: timestamp("lease_expires_at"),
+  cancelRequestedAt: timestamp("cancel_requested_at"),
+  // Draft-stage source pointer (projects.id). Frozen pipelineVersionId is
+  // authoritative after start; this only lets quote/validate re-snapshot.
+  sourceProjectId: int("source_project_id"),
   idempotencyKey: varchar("idempotency_key", { length: 120 }),
   costCurrency: varchar("cost_currency", { length: 4 }).default("USD"),
   totalEstimatedCost: decimal("total_estimated_cost", { precision: 18, scale: 8 }),
   totalObservedCost: decimal("total_observed_cost", { precision: 18, scale: 8 }),
   costCompleteness: mysqlEnum("cost_completeness", ["complete", "partial", "unknown"]).default("unknown"),
+  // Descriptive-only evaluation summary (spec §7.2): counts, spread,
+  // agreement, failures, observed cost. NEVER a place for inferred
+  // statistics or quality certification.
+  summary: mediumtext("summary"),
+  summaryComputedAt: timestamp("summary_computed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   startedAt: timestamp("started_at"),
   finishedAt: timestamp("finished_at"),

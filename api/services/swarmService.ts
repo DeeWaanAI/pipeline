@@ -80,6 +80,11 @@ export interface SwarmRunParams {
     depth: number;
     lineage: number[];
   };
+  // Offering redesign v2: immutable workflow-version snapshot to execute
+  // instead of the mutable project steps (benchmark candidates, protected
+  // runs). The steps are loaded from pipeline_versions at execution time.
+  snapshotVersionId?: number;
+  callPlanId?: number;
 }
 
 export function decryptApiKey(encryptedRef: string): string {
@@ -1332,6 +1337,30 @@ export async function executeSwarmRun(
       : undefined;
     const memoryMode: MemoryMode = (params.memoryMode as MemoryMode) ?? "balanced";
     const autoApprove = params.autoApprove ?? false;
+
+    // ─── V2 snapshot execution (offering redesign spec §5.3/§8.1) ───
+    // When the run carries an immutable step snapshot, the engine executes
+    // THAT definition with side effects disabled (no repo/memory writes —
+    // the synthetic project below has no gitee wiring and memory loads are
+    // gated on real project metadata). The mutable project steps are never
+    // read or written on this path.
+    if (params.snapshotVersionId) {
+      const { loadVersionDefinition, resolveSnapshotSteps } = await import("./benchmark/versionService");
+      const { version, definition } = await loadVersionDefinition(params.snapshotVersionId);
+      if (version.ownerId !== userId) throw new Error("Workflow version not found");
+      const syntheticProject = {
+        ...project,
+        giteeOwner: null, giteeRepo: null, githubOwner: null, githubRepo: null,
+        localFolderName: null,
+      } as typeof project;
+      await runExecutePipeline({
+        db, run, userId, swarmRunId,
+        project: syntheticProject, projectWithUserDefault: syntheticProject,
+        params, giteeToken: undefined, memoryMode: "conservative", autoApprove,
+        pipeline: resolveSnapshotSteps(definition), useLegacy: false, legacyAgents: [],
+      });
+      return;
+    }
 
     const pipeline = await loadPipelineSteps(db, run.projectId);
     logger.info(`[executeSwarmRun] run=${swarmRunId} project=${run.projectId}: pipeline=${pipeline ? pipeline.length + " custom steps" : "null"} source=${params.source}`);

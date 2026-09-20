@@ -21,6 +21,7 @@ import { registerSsoRoutes } from "./sso-route";
 import { registerRelayRoutes } from "./relay-route";
 import { startSwarmWorker, stopSwarmWorker, enqueueSwarmRun, isSwarmWorkerRunning } from "./workers/swarmWorker";
 import { startDesignWorker, startDesignOutboxReconciler, stopDesignWorker } from "./workers/designWorker";
+import { startBenchmarkWorker, startBenchmarkReconciler, stopBenchmarkWorker } from "./workers/benchmarkWorker";
 import { closeAllQueues, getQueueBackend } from "./infra/queue";
 import { getRedis, isRedisEnabled } from "./infra/redis";
 import { logger } from "./lib/logger";
@@ -74,8 +75,10 @@ if (process.env.START_WORKER !== "false") {
   // harmless (no-op with an empty outbox) and MUST run in every process so
   // accepted intent is always dispatched.
   startDesignWorker();
+  startBenchmarkWorker();
 }
 startDesignOutboxReconciler();
+startBenchmarkReconciler();
 
 // ─── Health Check (liveness) ───────────────────────────────────────
 // 200 as long as the process is up and MySQL answers; degraded when the DB
@@ -408,6 +411,7 @@ async function gracefulShutdown(signal: string) {
     // (lease expiry + reconciler heal).
     await stopSwarmWorker();
     await stopDesignWorker();
+    await stopBenchmarkWorker();
     await closeAllQueues();
     logger.info("Shutdown: worker stopped and queues closed");
   } catch (err) {

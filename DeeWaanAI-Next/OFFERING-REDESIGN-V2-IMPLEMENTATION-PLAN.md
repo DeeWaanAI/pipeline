@@ -71,16 +71,17 @@ Implemented as one migration (25 new tables); the spec's 022…02N split was jud
 
 **Gate: PASSED locally.** Live end-to-end with a real BYOK key + queue drill (Redis kill) belongs to the P6 staging rehearsal.
 
-### P2b — Benchmark engine (spec §4.1–4.2, §7, §9)
-- [ ] `api/services/benchmarkService.ts`: draft → freeze plan+hash → quote → atomic spend approval → fan-out via coordinator reusing `swarmService` execution loop against **immutable snapshots** (never rewrite mutable user projects per candidate).
-- [ ] Modes: `grade_only` (default, A01), `compare_models` (whole-workflow override, A02), `compare_frontier_solo`.
-- [ ] Rubric editor storage + judges as explicit config; pairwise blinded orientation; injection hardening per §7.1; deterministic validators only where sandbox exists, else disabled.
-- [ ] Cost preflight per §9 arithmetic (C×M×R×J etc.), unknown-as-unknown pricing, `callAttempts` append-only ledger.
-- [ ] `api/routers/benchmark.ts`: `create/updateDraft/prepareRubric/prepareCases/quote/start/get/cancel/resume`.
-- [ ] Descriptive-only summaries (§7.2): counts, spread, agreement, failures, observed cost. No CIs, no "equivalent quality" badges (A07).
-- [ ] Tests: A01, A02, A06 (plan change invalidates approval; resume preserves attempts), A08 (18 vs 9 judgment arithmetic), A21.
+### P2b — Benchmark engine (spec §4.1–4.2, §7, §9) — **in progress 2026-09-20**
+- [x] Engine (`api/services/benchmark/benchmarkService.ts`, split from the single proposed file): draft → freeze plan+hash → quote → atomic spend approval → fan-out reusing the `swarmService` execution loop against **immutable snapshots** (`executeSwarmRun({ snapshotVersionId })`; the mutable project steps are never read or written). Proven end-to-end on real MySQL by `api/services/benchmark/benchmarkService.integration.test.ts`: create→quote→approve→start leaves 3 pending children bound to the frozen version and **zero** `call_attempts` (nothing spent before execution). No `jobOutbox` here, unlike P2a: dispatch is post-commit plus reconciler re-dispatch of `queued` rows.
+- [~] Modes: `grade_only` is now the default ✅; `compare_models` whole-workflow override implemented (`versionService.materializeOverrideVersion`) but not yet proven at execution level; `compare_frontier_solo` builds the 1-step baseline version, frontier selection/limits still open. Mode↔candidate-shape contradictions are rejected by preflight before any write.
+- [~] Rubric editor storage ✅ (presets + authoritative server-side weight normalization + `versionRef`; loading a preset makes no paid call, LLM assist refuses), judges as explicit config ✅, pairwise blinded orientation ✅, §7.1 injection hardening ✅ (delimiters, marker stripping, anti-instruction prompt, temperature 0, out-of-range verdicts → `validation_failed` not 0); **deterministic validators absent** (A21).
+- [x] Cost preflight per §9: C×M×R×J rubric vs C×PR×P×J×O pairwise pinned by unit test (18 vs 9, A08), pairwise shape explicit (paired repeats/orientations stated, never an implicit cross-product), unknown-as-unknown pricing ✅, `callAttempts` append-only ledger ✅. `hashPlan` excludes only the materialized `baseVersionId` (a row ID, not approved intent); every intent field — cases, candidates, judges, rubric, limits, mode, and the call counts — still invalidates the approval.
+- [x] `api/routers/benchmark.ts`: `create/updateDraft/prepareRubric/prepareCases/quote/approveSpend/start/get/cancel/resume/list`. `v2Benchmarks` gates every entry point AND the worker + reconciler (a queued job stays queued while the flag is off, so flag-off is a real rollback).
+- [~] Descriptive-only summaries (§7.2/A07): counts, spread, mean, failures, observed cost, explicit scope statement; no CIs, no "equivalent quality" badge. **Judge-agreement metric missing.**
+- [ ] Remaining tests: A01 (grade an EXISTING owned output — today `grade_only` regenerates), A02 overrides observed at execution, A06 resume-preserves-attempts, A08 ledger reconciliation on a real run, A21 validators, plus judge-phase/summary DB drills and the queue-fault drill. Landed so far: 12 pure tests + 7 DB tests (A06 case-edit and rubric-edit invalidation, read-only quote, preflight spend refusal, cross-tenant refusal).
+- [x] Migrations 024 (summary), 025 (lease/cancel/source project), 026 (`benchmarks.pipeline_version_id` widened to NULL — a draft has no frozen version, and the placeholder `0` insert violated the FK). Applied to the local dev schema; 026 re-applied to prove restartability, FK + RESTRICT intact.
 
-**Gate:** an internal user can auto-design and grade a private pipeline output with durable jobs, full cost ledger, cancel/resume; queue-fault drills pass (A01–A08 at the private-journey level).
+**Gate:** an internal user can auto-design and grade a private pipeline output with durable jobs, full cost ledger, cancel/resume; queue-fault drills pass (A01–A08 at the private-journey level). **NOT PASSED** — the private-journey tests above are the remaining work.
 
 ---
 

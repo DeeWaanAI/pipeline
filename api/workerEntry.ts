@@ -17,6 +17,7 @@
 
 import { startSwarmWorker, stopSwarmWorker } from "./workers/swarmWorker";
 import { startDesignWorker, startDesignOutboxReconciler, stopDesignWorker } from "./workers/designWorker";
+import { startBenchmarkWorker, startBenchmarkReconciler, stopBenchmarkWorker } from "./workers/benchmarkWorker";
 import { closeAllQueues } from "./infra/queue";
 import { logger } from "./lib/logger";
 import { initObservability } from "./lib/observability";
@@ -26,6 +27,8 @@ void initObservability();
 startSwarmWorker();
 startDesignWorker();
 startDesignOutboxReconciler();
+startBenchmarkWorker();
+startBenchmarkReconciler();
 logger.info("Worker process started", { pid: process.pid });
 
 // ─── Global Error Handlers ─────────────────────────────────────────
@@ -54,6 +57,7 @@ async function gracefulShutdown(signal: string) {
     // left as-is: the DB-heal at next web boot resets + re-enqueues them.
     await stopSwarmWorker();
     await stopDesignWorker();
+    await stopBenchmarkWorker();
     await closeAllQueues();
     logger.info("Worker: shutdown complete");
   } catch (err) {
