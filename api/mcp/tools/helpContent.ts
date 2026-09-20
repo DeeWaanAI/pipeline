@@ -6,7 +6,7 @@
 
 export interface HelpCatalogEntry {
   name: string;
-  group: "Discover" | "Run" | "Research" | "Author" | "Marketplace" | "Account" | "Your data" | "Team" | "Diagnostics";
+  group: "Discover" | "Run" | "Research" | "Author" | "Evaluate" | "Marketplace" | "Account" | "Your data" | "Team" | "Diagnostics";
   summary: string;
   example?: string;
   scopes: string[];
@@ -41,7 +41,7 @@ export interface HelpContent {
 }
 
 const GROUP_ORDER: HelpCatalogEntry["group"][] = [
-  "Discover", "Run", "Research", "Author", "Marketplace", "Account", "Your data", "Team", "Diagnostics",
+  "Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Account", "Your data", "Team", "Diagnostics",
 ];
 
 // ─── Tier marketing copy (internal upsell) ─────────────────────────
@@ -170,6 +170,49 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   {
     name: "cancel_design_job", group: "Author", scopes: ["mcp:write"], flag: "v2DesignJobs",
     summary: "Cancel a queued or running design job. Calls already incurred are not refunded.",
+  },
+  // ── Evaluate (private evaluation, offering redesign v2 / owner decision D9) ──
+  {
+    name: "create_benchmark", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Draft a PRIVATE evaluation of one of your workflows: real task inputs, your judging panel, grade_only by default. Optionally grade an output you already have instead of regenerating it.",
+    example: "\"Benchmark my Arabic contract pipeline on these 5 real clauses.\"",
+  },
+  {
+    name: "prepare_benchmark_rubric", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Pick a rubric template (generic / translation / code) or supply your own dimensions; weights are normalized server-side. Costs nothing.",
+  },
+  {
+    name: "prepare_benchmark_cases", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Set the case list: trimmed, duplicates reported, stable ids kept so a resume still matches recorded attempts.",
+  },
+  {
+    name: "quote_benchmark", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
+    summary: "The cost preflight before any spend: planned provider calls per candidate, estimated cost (unknown where unpriced, never zero), disclosed upper bounds, and the planHash that binds your approval. Writes nothing.",
+    example: "\"What will that benchmark cost before I approve it?\"",
+  },
+  {
+    name: "approve_benchmark_spend", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Authorize spending on exactly the plan you were quoted, on your own enabled credentials. The hash is recomputed server-side; approvals expire and are used once.",
+  },
+  {
+    name: "start_benchmark", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Freeze the approved plan and queue it. Your workflow is snapshotted as an immutable version and every candidate runs that snapshot — your project is never rewritten. Refused if anything changed since the quote.",
+  },
+  {
+    name: "benchmark_status", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
+    summary: "Progress and the descriptive summary: counts, spread, judge agreement, failures, observed cost. No confidence intervals, no certification wording, no winner in grade-only.",
+  },
+  {
+    name: "list_benchmarks", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
+    summary: "Your benchmarks, newest first, with state and evidence availability.",
+  },
+  {
+    name: "cancel_benchmark", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Stop a queued or running benchmark. Calls already made stay recorded and are not refunded; nothing is deleted.",
+  },
+  {
+    name: "resume_benchmark", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Continue a partial or cancelled plan under its frozen hash. Finished work is never re-run and attempts are appended, never overwritten; needs a fresh approval because resuming spends again.",
   },
   {
     name: "memory_append", group: "Author", scopes: ["mcp:write"],
