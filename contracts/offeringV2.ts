@@ -171,8 +171,12 @@ export type AggregateAvailability = z.infer<typeof AggregateAvailabilitySchema>;
 export const BenchmarkCaseOriginSchema = z.enum(["user", "generated", "paraphrase"]);
 export type BenchmarkCaseOrigin = z.infer<typeof BenchmarkCaseOriginSchema>;
 
-/** Candidate strategy. Mirrors `benchmarkCandidates.strategy`. */
-export const CandidateStrategySchema = z.enum(["pipeline", "solo_baseline"]);
+/** Candidate strategy. Mirrors `benchmarkCandidates.strategy`.
+ *  `imported_output` (migration 027, spec §4.1/A01) graded an output that
+ *  already existed instead of executing the workflow, so it must stay
+ *  distinguishable in a published manifest rather than being reported as the
+ *  nearest executable strategy. */
+export const CandidateStrategySchema = z.enum(["pipeline", "solo_baseline", "imported_output"]);
 export type CandidateStrategy = z.infer<typeof CandidateStrategySchema>;
 
 /** Judgment kinds. Mirrors `benchmarkJudgments.kind` and `pairPreference`. */

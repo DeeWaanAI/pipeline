@@ -87,6 +87,11 @@ export interface RubricDimensionSpec {
   upperBound: number;
   weight: number;
   anchor: string;
+  /** Optional richer wording (contracts/offeringV2.ts RubricDimensionSchema
+   *  requires a definition plus an anchors list). Absent for drafts built
+   *  before D9, in which case `anchor` is what is published. */
+  definition?: string;
+  anchors?: string[];
 }
 
 export interface RubricSpec {
