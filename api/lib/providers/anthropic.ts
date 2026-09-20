@@ -103,6 +103,8 @@ export function createAnthropicAdapter(
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
+        // §8.2: never hand the prompt and the key to a redirect target.
+        ...(options?.noRedirect ? { redirect: "error" as const } : {}),
       });
 
       if (!response.ok) {

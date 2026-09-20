@@ -85,6 +85,11 @@ export interface SwarmRunParams {
   // runs). The steps are loaded from pipeline_versions at execution time.
   snapshotVersionId?: number;
   callPlanId?: number;
+  /** §8.1: present when the snapshot belongs to ANOTHER user (a marketplace
+   *  buyer running a seller's published version). Execution is authorized
+   *  through this context and re-checked against current rows, never through
+   *  ownership of the version. */
+  protectedRun?: import("./marketplaceExecutionService").ProtectedRunParams;
 }
 
 export function decryptApiKey(encryptedRef: string): string {
@@ -379,10 +384,12 @@ async function executeAgentStep(opts: {
   parentRespId?: number;
   onTokens: (t: number) => void;
   onLatency: (l: number) => void;
+  /** §8.2: protected snapshot run — harden the transport of this call. */
+  restricted?: boolean;
   giteeSave?: { token: string; owner: string; repo: string; branch: string; basePath: string; promptNum: string; index: number };
 }) {
   const { db, ctx, swarmRunId, projectId, project, stepNum, agentName, agentRole } = opts;
-  const { agentId, systemPrompt, providerId, model, temperature, maxTokens, userPromptText, contextData, attachments, parentRespId, onTokens, onLatency, giteeSave } = opts;
+  const { agentId, systemPrompt, providerId, model, temperature, maxTokens, userPromptText, contextData, attachments, parentRespId, onTokens, onLatency, restricted, giteeSave } = opts;
 
   logger.debug(`[STEP-TRACE] Step ${stepNum} "${agentName}" START`);
   emitEvent(swarmRunId, { type: "step_start", step: stepNum, agentRole, agentName });
@@ -457,6 +464,7 @@ async function executeAgentStep(opts: {
         model: model ?? prov!.defaultModel,
         temperature: parseFloat(temperature ?? "0.7"),
         maxTokens: maxTokens ?? 4096,
+        ...(restricted ? { noRedirect: true } : {}),
       }),
       { maxRetries: 3, label: `Pipeline[${swarmRunId}] step ${stepNum}` },
     );
@@ -584,8 +592,9 @@ async function runExecutionLoop(opts: {
   checkCancelled: (label?: string) => Promise<boolean>;
   attachments?: ChatAttachment[];
   autoApprove?: boolean;
+  restricted?: boolean;
 }): Promise<{ chain: typeof agentResponses.$inferSelect[]; completed: boolean; awaitingApproval?: { stepOrder: number; lastOutput: string } }> {
-  const { db, ctx, swarmRunId, project, pipeline, execCtx, builderPrompt, totalTokens, totalLatency, giteeConfig, checkCancelled, attachments, autoApprove } = opts;
+  const { db, ctx, swarmRunId, project, pipeline, execCtx, builderPrompt, totalTokens, totalLatency, giteeConfig, checkCancelled, attachments, autoApprove, restricted } = opts;
 
   const makeGiteeSave = (index: number) => giteeConfig ? { ...giteeConfig, index } : undefined;
   const tk = (t: number) => { totalTokens.value += t; };
@@ -786,6 +795,7 @@ Now process the actual content below and produce an improved version. Output the
       attachments,
       parentRespId: execCtx.chain[execCtx.chain.length - 1]?.id,
       onTokens: tk, onLatency: lat,
+      restricted,
       giteeSave: makeGiteeSave(execCtx.chain.length),
     });
 
@@ -940,8 +950,12 @@ async function runPipelineAsync(opts: {
   autoApprove?: boolean;
   batchId?: number;
   chain?: SwarmRunParams["chain"];
+  /** §8.2: this run executes a protected (non-owner) snapshot, so transport
+   *  hardening applies: no HTTP redirect may take the prompt and the key to
+   *  another origin. Ordinary runs keep default fetch behavior. */
+  restricted?: boolean;
 }) {
-  const { db, ctx, input, swarmRunId, project, giteeConfig, memoryMode, useLegacy, legacyAgents, pipeline, builderPrompt, state, episodes, execCtx, autoApprove, batchId, chain } = opts;
+  const { db, ctx, input, swarmRunId, project, giteeConfig, memoryMode, useLegacy, legacyAgents, pipeline, builderPrompt, state, episodes, execCtx, autoApprove, batchId, chain, restricted } = opts;
 
   // ─── checkCancelled helper ───
   const checkCancelled = async (label?: string) => {
@@ -1003,6 +1017,7 @@ async function runPipelineAsync(opts: {
       giteeConfig, checkCancelled,
       attachments: input.attachments,
       autoApprove,
+      restricted,
     });
 
     // ─── Approval pause ───
@@ -1347,7 +1362,24 @@ export async function executeSwarmRun(
     if (params.snapshotVersionId) {
       const { loadVersionDefinition, resolveSnapshotSteps } = await import("./benchmark/versionService");
       const { version, definition } = await loadVersionDefinition(params.snapshotVersionId);
-      if (version.ownerId !== userId) throw new Error("Workflow version not found");
+      let pipeline;
+      if (version.ownerId === userId) {
+        // The owner running their own version (durable design jobs, benchmarks).
+        pipeline = resolveSnapshotSteps(definition);
+      } else if (params.protectedRun) {
+        // §8.1: a BUYER running a seller's published version. Authorized
+        // through the protected context, re-checked against CURRENT rows —
+        // the right is never inferred from the run_params blob alone, so a
+        // grant revoked after queuing stops the run here.
+        const { loadAuthorizedSnapshotSteps } = await import("./marketplaceExecutionService");
+        pipeline = (await loadAuthorizedSnapshotSteps({
+          runRow: run, callerId: userId, params: params.protectedRun, versionId: params.snapshotVersionId,
+        })).steps;
+      } else {
+        // Identical message either way: a caller must not learn that some other
+        // user's workflow version exists (§10.1).
+        throw new Error("Workflow version not found");
+      }
       const syntheticProject = {
         ...project,
         giteeOwner: null, giteeRepo: null, githubOwner: null, githubRepo: null,
@@ -1357,7 +1389,7 @@ export async function executeSwarmRun(
         db, run, userId, swarmRunId,
         project: syntheticProject, projectWithUserDefault: syntheticProject,
         params, giteeToken: undefined, memoryMode: "conservative", autoApprove,
-        pipeline: resolveSnapshotSteps(definition), useLegacy: false, legacyAgents: [],
+        pipeline, useLegacy: false, legacyAgents: [],
       });
       return;
     }
@@ -1663,6 +1695,7 @@ async function runExecutePipeline(opts: {
     autoApprove,
     batchId: run.batchId ?? undefined,
     chain: params.chain,
+    restricted: Boolean(params.protectedRun),
   });
 }
 

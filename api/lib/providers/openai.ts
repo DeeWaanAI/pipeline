@@ -137,6 +137,7 @@ export function createOpenAIAdapter(
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
+          ...(options?.noRedirect ? { redirect: "error" as const } : {}),
         });
 
       let response = await postChat(buildRequestBody("max_tokens"));

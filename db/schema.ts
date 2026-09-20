@@ -230,6 +230,11 @@ export const swarmRuns = mysqlTable("swarm_runs", {
     // traceability.
     snapshotVersionId?: number;
     callPlanId?: number;
+    /** §8.1 protected (non-owner) execution context. Typed loosely here
+     *  because this module must not import from api/; `swarmService` casts it
+     *  to its own SwarmRunParams, and nothing is trusted from this blob — the
+     *  right is re-resolved from current rows before a single call is made. */
+    protectedRun?: object;
   } | null>(),
   startedAt: timestamp("started_at").defaultNow(),
   completedAt: timestamp("completed_at"),

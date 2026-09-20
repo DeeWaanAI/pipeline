@@ -19,6 +19,12 @@ export interface ChatOptions {
   systemPrompt?: string;
   /** Provider-specific request-body extensions (e.g. { enable_thinking: false } for Qwen). */
   extraBody?: Record<string, unknown>;
+  /**
+   * Protected-execution transport policy (spec §8.2): fail instead of following
+   * an HTTP redirect, so an approved origin cannot hand the prompt — and the
+   * bearer key — to another host. Ordinary runs keep fetch's default behavior.
+   */
+  noRedirect?: boolean;
 }
 
 export interface ChatResponse {

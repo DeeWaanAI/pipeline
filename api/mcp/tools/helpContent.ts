@@ -281,6 +281,19 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Read any listing's published evidence: scores with their bounds and weights, judge agreement, attempts, costs and disclosure class. Public manifests only — never the seller's private prompts or benchmark rows.",
     example: "\"Show me the evidence behind listing 7 before I buy it.\"",
   },
+  {
+    name: "start_protected_run", group: "Marketplace", scopes: ["mcp:run"], flag: "v2ProtectedExecution",
+    summary: "Run a pipeline you bought WITHOUT getting its definition. The seller's published immutable version executes server-side in a restricted context — their prompts, files, memory, repository tokens and tools are not reachable, your own approved provider is the only billable route, and the endpoint must be on the approved list. The result states the protection class and the provider's logging disclosure.",
+    example: "\"Run listing 3 on this text using my OpenAI provider.\"",
+  },
+  {
+    name: "marketplace_execution_right", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",
+    summary: "Whether you may run a listing, exactly which workflow version that covers (an old purchase cannot keep running a superseded version), how the right was obtained, when it expires, and which evidence hash currently backs it.",
+  },
+  {
+    name: "protected_run_status", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",
+    summary: "Progress and final output of a protected run: step states, names, tokens and latency plus the answer — never the workflow's prompts or intermediate content.",
+  },
   // ── Account ─────────────────────────────────────────────────────
   {
     name: "upgrade_tier", group: "Account", scopes: ["mcp:read"],
