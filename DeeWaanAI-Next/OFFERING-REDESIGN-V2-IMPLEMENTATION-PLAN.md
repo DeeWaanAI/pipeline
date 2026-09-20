@@ -118,14 +118,23 @@ Once resolved:
 
 ---
 
-## 6. Phase P5 — Frontend (spec W5) — parallel from P1 contracts onward
+## 6. Phase P5 — Interfaces (spec W5) — **rescoped by owner decision D9, 2026-09-20**
 
-- [ ] Benchmark workspace page (new, routed in `src/App.tsx`): grade-only default, existing-output grading, optional comparisons, rubric/case editors, judge picker, cost-approval dialog with call-plan table, progress/cancel/resume.
-- [ ] `PipelineEditor.tsx` / `PipelineConfigurator.tsx`: surface plain solo + solo-plus-refine templates; advanced graph stays; no forced refine (A22).
-- [ ] `MyPipelines.tsx`: Evaluate action + auto-design job status/apply.
-- [ ] `MarketplaceBrowse.tsx` / `MarketplaceDetail.tsx`: evidence/model/date summary, full manifest, community filter, report/reply flow; no "human certified" wording for v2.
-- [ ] `CreatorDashboard.tsx`: versions, publication consent preview, suggested retests, earnings labeled held/eligible/paid.
-- [ ] i18n for all new strings (en/ar/zh per existing pattern); `npm run i18n:check` green; backend authorization enforced even where UI hides controls.
+**D9:** the workbench is MCP-first — design, benchmark, grade, run and publish happen through MCP from the user's own LLM desktop app. The browser stays as the **shop front and the record**: marketplace browse/detail, the public evidence page, pricing/checkout, account credentials, spend, consent and withdrawal. No new authoring screens are built. Rationale and consequences live in spec §1.1 D9.
+
+Dropped from the original P5 list (superseded, not deferred):
+- ~~Benchmark workspace page (rubric/case editors, judge picker, cost-approval dialog, progress)~~ → the `benchmark.*` procedures + MCP tools ARE the interface; P2b already ships them.
+- ~~`MyPipelines.tsx` Evaluate action + design-job status/apply screens~~ → MCP.
+- ~~`PipelineEditor.tsx`/`PipelineConfigurator.tsx` template surfacing~~ → no new authoring UI.
+
+Remaining P5 work (adaptation of what already ships — 23 pages exist today):
+- [ ] `MarketplaceBrowse.tsx` / `MarketplaceDetail.tsx`: v2 evidence/model/date summary, link to the full public manifest, community filter, report/reply flow; no "human certified" wording (A22).
+- [ ] **Public evidence page** — the canonical URL D9 depends on: renders a publication manifest by hash with `testedAt` distinct from `publishedAt`, withdrawn/superseded state visible, public DTOs only (§6.2).
+- [ ] `CreatorDashboard.tsx`: versions, publication consent preview, suggested retests; earnings columns stay hidden until P4 policy resolves.
+- [ ] Account surface check: BYOK credential entry, spend view, consent revocation, data deletion reachable without an MCP client.
+- [ ] MCP responses as a first-class interface: every tool returns a complete, labeled, markdown-renderable DTO (no data reachable only in the web UI), and hidden-when-disabled flag behavior verified.
+- [ ] i18n for all new strings (en/ar/zh); `npm run i18n:check` green; backend authorization enforced independent of what any UI hides.
+- [ ] Revisit this whole phase against real beta user behavior before investing further — that was the agreement behind D9.
 
 ---
 

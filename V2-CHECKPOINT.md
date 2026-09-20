@@ -17,7 +17,7 @@
 | P2a durable design jobs | ✅ done + pushed (commit `2e7be2d`) |
 | P2b benchmark engine | ✅ done locally 2026-09-20 — A01/A02/A06/A07/A08 + A21 containment implemented and tested; real-broker queue drill deferred to P6 (same treatment as P2a) |
 | P3 evidence + protected exec | ▶️ next (unblocked) |
-| P5 frontend | pending (unblocked; contracts frozen in `contracts/offeringV2.ts`) |
+| P5 interfaces | **Rescoped by owner decision D9 (2026-09-20)** — MCP-first workbench, no new authoring screens; remaining work = adapt the existing shop front + build the public evidence page. See plan §6. Revisit after real beta usage. |
 | P6/W6 rehearsal + verification | local prep unblocked; Railway service creation + ANY domain/production action = OWNER GO ONLY |
 | P4 commercial | BLOCKED by spec: owner must resolve policies P1–P7 (never invent defaults) |
 
@@ -45,6 +45,8 @@ When finishing any increment: (1) commit+push, (2) tick the plan-doc checkboxes 
 
 ## Current step
 P3 — evidence publication, protected marketplace execution, model catalog (plan §4, spec §7.3, §8, §10.1, §12.1). P2b is closed locally and pushed; read plan §3 P2b for the evidence trail before assuming anything about it.
+
+**D9 changes what "done" means for interfaces (spec §1.1, plan §6):** the workbench is MCP-first, so every v2 capability must be reachable and readable through MCP with complete, labeled, markdown-renderable DTOs — no data that exists only in a web screen. Benchmark procedures currently have NO MCP tools (P2a's design jobs do); adding `benchmark_*` MCP tools is part of the workbench, not optional polish.
 
 Start with: spec §7.3 (full disclosure manifest list), §8.1–8.2 (restricted snapshot execution + trusted-egress policy), §10.1 (`evidence.preview`, `marketplace.publishVersion`, community publish/report/withdraw, public DTO-only endpoints), §12.1 (model catalog + release events + deduped notices). Then:
 1. `api/services/evidenceService.ts`: manifest builder from a COMPLETED benchmark + its frozen plan; preview hash; consent gate; `draft_preview → published → withdrawn`; replacement creates a new publication row (never rewrites `testedAt`).
