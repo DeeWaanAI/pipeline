@@ -25,14 +25,17 @@ import {
 import { getDb } from "../../queries/connection";
 import { logger } from "../../lib/logger";
 import { executeSwarmRun } from "../swarmService";
-import type {
-  BenchmarkCallPlan, CallCounts, CandidateSpec, CaseSpec, JudgeSpec, RubricSpec, SnapshotStep,
+import {
+  VALIDATORS_DISABLED_REASON,
+  type BenchmarkCallPlan, type CallCounts, type CandidateSpec, type CaseSpec,
+  type JudgeSpec, type RubricSpec, type SnapshotStep, type ValidatorSpec, type VersionDefinition,
 } from "./benchmarkTypes";
 import {
-  computeCounts, expandDraftCandidates, hashPlan, planPreflightErrors, planStepsPerGeneration,
+  computeCounts, expandDraftCandidates, hashPlan, planPreflightErrors,
+  repeatsForCandidate, stepsPerGenerationForCandidate,
 } from "./benchmarkCallPlan";
 import {
-  captureVersionFromProject, loadVersionDefinition, materializeOverrideVersion,
+  captureVersionFromProject, createVersionRow, loadVersionDefinition, materializeOverrideVersion,
   snapshotStepsFromProject, stepResolutionsFromSnapshot,
 } from "./versionService";
 import {
@@ -63,7 +66,12 @@ export interface CreateBenchmarkInput {
   executionMode?: BenchmarkCallPlan["executionMode"];
   cases: Array<{ inputText: string; origin?: CaseSpec["origin"]; baseCaseId?: string; expectedOutput?: string }>;
   judges: Array<{ providerId: number; model: string }>;
-  candidates?: Array<{ label?: string; overrideModel?: string; overrideProviderId?: number; isFrontierSoloBaseline?: boolean; baselinePrompt?: string }>;
+  candidates?: Array<{
+    label?: string; overrideModel?: string; overrideProviderId?: number;
+    isFrontierSoloBaseline?: boolean; baselinePrompt?: string;
+    /** A01: grade this owned response instead of generating a new one. */
+    existingResponseId?: number;
+  }>;
   rubric?: RubricSpec;
   generationRepeats?: number;
   judgmentKind?: "rubric" | "pairwise";
@@ -78,6 +86,10 @@ interface DraftPlan {
   candidates: Array<Omit<CandidateSpec, "baseVersionId"> & { baseVersionId?: number }>;
   judges: JudgeSpec[];
   rubric: RubricSpec;
+  /** Always empty/disabled in this deployment — see spec §7.1. Carried in the
+   *  plan so the quote and the published manifest can DISCLOSE that no
+   *  deterministic validation happened, rather than leaving it unstated. */
+  validators: ValidatorSpec[];
   generationRepeats: number;
   judgmentKind: "rubric" | "pairwise";
   /** Pairwise only: which generation repeats are paired. Explicit, never an
@@ -106,6 +118,23 @@ async function assertOwnerProviders(userId: number, providerIds: number[]) {
   }
 }
 
+/** Imported outputs must be the caller's own recorded responses (spec §4.1:
+ *  an owned run's output; existence of someone else's row is never revealed). */
+async function assertOwnedResponses(userId: number, responseIds: number[]): Promise<void> {
+  const unique = [...new Set(responseIds)];
+  const db = getDb();
+  const rows = await db.select({ id: agentResponses.id, content: agentResponses.content, runOwner: swarmRuns.userId })
+    .from(agentResponses)
+    .innerJoin(swarmRuns, eq(agentResponses.swarmRunId, swarmRuns.id))
+    .where(inArray(agentResponses.id, unique));
+  if (rows.length !== unique.length || rows.some((r) => r.runOwner !== userId)) {
+    throw new Error("not_found_or_not_authorized");
+  }
+  if (rows.some((r) => !String(r.content ?? "").trim())) {
+    throw new Error("An imported output is empty — there is nothing to grade");
+  }
+}
+
 function toDraftPlan(input: CreateBenchmarkInput): DraftPlan {
   const judgmentKind = input.judgmentKind ?? "rubric";
   const generationRepeats = Math.min(Math.max(input.generationRepeats ?? 1, 1), 5);
@@ -124,7 +153,10 @@ function toDraftPlan(input: CreateBenchmarkInput): DraftPlan {
     })),
     candidates: (input.candidates ?? []).map((c, i) => ({
       stableCandidateId: c.label || `candidate-${i + 1}`,
-      strategy: c.isFrontierSoloBaseline ? "solo_baseline" as const : "pipeline" as const,
+      strategy: c.existingResponseId
+        ? "imported_output" as const
+        : c.isFrontierSoloBaseline ? "solo_baseline" as const : "pipeline" as const,
+      ...(c.existingResponseId ? { importedResponseId: c.existingResponseId } : {}),
       ...(c.overrideModel ? { overrideModel: c.overrideModel } : {}),
       ...(c.overrideProviderId ? { overrideProviderId: c.overrideProviderId } : {}),
       ...(c.baselinePrompt ? { baselinePrompt: c.baselinePrompt } : {}),
@@ -132,6 +164,7 @@ function toDraftPlan(input: CreateBenchmarkInput): DraftPlan {
     })),
     judges: input.judges.map((j, i) => ({ slot: i + 1, providerId: j.providerId, model: j.model })),
     rubric: input.rubric ?? DEFAULT_RUBRIC,
+    validators: [],
     generationRepeats,
     judgmentKind,
     ...(requestedPairs.length ? { pairedRepeatIndexes: [...new Set(requestedPairs)].sort((a, b) => a - b) } : {}),
@@ -151,6 +184,10 @@ export async function createBenchmarkDraft(input: CreateBenchmarkInput): Promise
     ...input.judges.map((j) => j.providerId),
     ...(input.candidates ?? []).map((c) => c.overrideProviderId).filter((v): v is number => typeof v === "number"),
   ]);
+  // A01: an imported output must be the owner's own recorded response with
+  // something to grade. Never accept another tenant's response id.
+  const importedIds = (input.candidates ?? []).map((c) => c.existingResponseId).filter((v): v is number => typeof v === "number");
+  if (importedIds.length) await assertOwnedResponses(input.userId, importedIds);
 
   const draft = toDraftPlan(input);
   const [res] = await db.insert(benchmarks).values({
@@ -179,6 +216,8 @@ export async function updateBenchmarkDraft(opts: {
     ...opts.draft.judges.map((j) => j.providerId),
     ...opts.draft.candidates.map((c) => c.overrideProviderId).filter((v): v is number => typeof v === "number"),
   ]);
+  const imported = opts.draft.candidates.map((c) => c.importedResponseId).filter((v): v is number => typeof v === "number");
+  if (imported.length) await assertOwnedResponses(opts.userId, imported);
   await db.update(benchmarks).set({ plan: JSON.stringify(opts.draft), executionMode: opts.draft.executionMode })
     .where(eq(benchmarks.id, b.id));
   return { ok: true, message: "draft updated" };
@@ -377,11 +416,14 @@ function countsForDraft(draft: DraftPlan, steps: SnapshotStep[]): CallCounts {
   const paired = pairedRepeatsOf(draft);
   return computeCounts({
     caseCount: draft.cases.length,
-    candidateCount: M,
-    generationRepeats: draft.generationRepeats,
     judgeCount: draft.judges.length,
-    stepsPerGeneration: planStepsPerGeneration(candidates, steps),
     judgmentKind: draft.judgmentKind,
+    candidates: candidates.map((c) => ({
+      stableCandidateId: c.stableCandidateId,
+      strategy: c.strategy,
+      repeats: repeatsForCandidate(c, draft.generationRepeats),
+      stepsPerGeneration: stepsPerGenerationForCandidate(c, steps),
+    })),
     ...(draft.judgmentKind === "pairwise"
       ? { pairedRepeatCount: paired.length, pairCount: Math.max((M * (M - 1)) / 2, 1), orientationCount: PAIRWISE_ORIENTATIONS }
       : {}),
@@ -390,7 +432,7 @@ function countsForDraft(draft: DraftPlan, steps: SnapshotStep[]): CallCounts {
 
 function planFromDraft(draft: DraftPlan, steps: SnapshotStep[]): BenchmarkCallPlan {
   const candidates = expandDraftCandidates(draft.candidates).map((c): CandidateSpec => ({ ...c, baseVersionId: 0 }));
-  return { ...draft, candidates, counts: countsForDraft(draft, steps) };
+  return { ...draft, validators: draft.validators ?? [], candidates, counts: countsForDraft(draft, steps) };
 }
 
 async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteResult & { plan: BenchmarkCallPlan }> {
@@ -403,9 +445,10 @@ async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteRes
   const plan = planFromDraft(draft, steps);
   const counts = plan.counts;
 
+  const executing = plan.candidates.filter((c) => c.strategy !== "imported_output");
   const pipelineModels = [...new Set([
-    ...plan.candidates.filter((c) => c.strategy === "pipeline").map((c) => c.overrideModel).filter((m): m is string => !!m),
-    ...(plan.candidates.some((c) => !c.overrideModel) ? steps.map((s) => s.model).filter((m): m is string => !!m) : []),
+    ...executing.filter((c) => c.strategy === "pipeline").map((c) => c.overrideModel).filter((m): m is string => !!m),
+    ...(executing.some((c) => !c.overrideModel) ? steps.map((s) => s.model).filter((m): m is string => !!m) : []),
   ])];
   const judgeModels = plan.judges.map((j) => j.model);
   const warnings: string[] = [];
@@ -414,8 +457,9 @@ async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteRes
   if (genCost === null && counts.generationCalls > 0) warnings.push("generation cost UNKNOWN — no approved price-vector entry for one or more executor models (shown as unknown, never zero, spec §9)");
   if (judgeCost === null && counts.judgingCalls > 0) warnings.push("judging cost UNKNOWN — no approved price-vector entry for one or more judge models");
   warnings.push("generation calls are an honest upper bound: if-gates counted at widest path, while-loops at max iterations (spec §9)");
-  if (plan.judgmentKind !== "pairwise" && plan.candidates.some((c) => c.strategy === "solo_baseline")) {
-    warnings.push("mixed solo/pipeline candidates: every generation is quoted at the largest candidate's step count, so a solo baseline is quoted high, never low");
+  warnings.push(`deterministic validators: DISABLED — ${VALIDATORS_DISABLED_REASON}. Nothing here verifies executable output; the rubric judgment is the only assessment.`);
+  if (plan.candidates.some((c) => c.strategy === "imported_output")) {
+    warnings.push("one or more candidates is an EXISTING output graded without regeneration (A01): it adds no generation call, and it is not attested execution produced by this plan (spec §4.3)");
   }
 
   const blocking = planPreflightErrors(plan, steps);
@@ -440,15 +484,23 @@ export async function quoteBenchmark(opts: { userId: number; benchmarkId: number
 }
 
 /** Read-only view of the workflow a draft would run, used for counting and
- *  preflight. Quoting must never write: only `start` freezes a version. */
+ *  preflight. Quoting must never write: only `start` freezes a version.
+ *  An imported-output-only plan runs no workflow at all (A01). */
 async function stepsForDraft(userId: number, b: typeof benchmarks.$inferSelect, draft: DraftPlan): Promise<SnapshotStep[]> {
-  const runsPipeline = draft.candidates.length === 0 || draft.candidates.some((c) => c.strategy !== "solo_baseline");
-  if (!runsPipeline) return SOLO_ONLY_STEPS;
+  if (!planNeedsSnapshot(draft)) return SOLO_ONLY_STEPS;
   const projectId = b.sourceProjectId ?? (b.pipelineVersionId
     ? (await loadVersionDefinition(b.pipelineVersionId)).version.sourceProjectId
     : null);
   if (!projectId) throw new Error("Benchmark has no source project or version");
   return (await snapshotStepsFromProject(userId, projectId)).steps;
+}
+
+/** Does this plan execute anything, or only grade outputs the owner already
+ *  has? Imported-only plans never capture a version and never spend a
+ *  generation call. */
+function planNeedsSnapshot(draft: Pick<DraftPlan, "candidates">): boolean {
+  const candidates = expandDraftCandidates(draft.candidates);
+  return candidates.some((c) => c.strategy !== "imported_output");
 }
 
 export async function approveBenchmarkSpend(opts: {
@@ -458,7 +510,12 @@ export async function approveBenchmarkSpend(opts: {
   const [b] = await db.select().from(benchmarks)
     .where(and(eq(benchmarks.id, opts.benchmarkId), eq(benchmarks.ownerId, opts.userId))).limit(1);
   if (!b) throw new Error("not_found_or_not_authorized");
-  if (b.state !== "draft") throw new Error("only a draft plan can be approved for spend");
+  // A draft is approved before it runs. A cancelled/partial/failed plan can
+  // also be approved again, because RESUMING spends again (A06) — the hash
+  // check below still binds the approval to the exact frozen plan.
+  if (!["draft", "cancelled", "partial", "failed"].includes(b.state)) {
+    throw new Error(`no spend approval can be granted while the benchmark is '${b.state}'`);
+  }
   // The approved hash is recomputed server-side: a caller must not be able to
   // record an approval against a hash it was never shown (A06).
   const { plan, counts, blockingErrors } = await buildQuote(opts.userId, opts.benchmarkId);
@@ -514,6 +571,7 @@ export async function startBenchmark(opts: {
   if (approval.purpose !== "private_evaluation" || approval.payerId !== opts.userId) {
     return { ok: false, error: "spend approval is not an owner-funded private_evaluation approval" };
   }
+  const needsSnapshot = planNeedsSnapshot(JSON.parse(String(b.plan)) as DraftPlan);
 
   // 1 — validate and verify the approved hash BEFORE writing anything. The
   //     quote derivation is the same function the quote and approval used, so
@@ -531,18 +589,31 @@ export async function startBenchmark(opts: {
     ...approvedPlan.candidates.map((c) => c.overrideProviderId).filter((v): v is number => typeof v === "number"),
   ]);
 
-  // 3 — freeze the immutable snapshot, then materialize per-candidate versions.
-  const captured = await captureVersionFromProject(opts.userId, b.sourceProjectId, { designerMethod: "manual" });
-  const recheck = planPreflightErrors(approvedPlan, captured.definition.steps);
+  // 3 — freeze the immutable snapshot (only when something must run), then
+  //     materialize per-candidate versions SEQUENTIALLY. Each materialization
+  //     allocates the next version number for (owner, project); running them
+  //     concurrently just makes them collide on the unique index and retry, so
+  //     ordering them here removes the contention we would otherwise absorb.
+  const captured = needsSnapshot
+    ? await captureVersionFromProject(opts.userId, b.sourceProjectId, { designerMethod: "manual" })
+    : null;
+  const recheck = planPreflightErrors(approvedPlan, captured?.definition.steps ?? []);
   if (recheck.length) return { ok: false, error: recheck.join("; ") };
 
-  const candidates: CandidateSpec[] = await Promise.all(approvedPlan.candidates.map(async (c): Promise<CandidateSpec> => {
+  const candidates: CandidateSpec[] = [];
+  for (const c of approvedPlan.candidates) {
+    if (c.strategy === "imported_output") { candidates.push(c); continue; } // A01: nothing materialized
+    const baseVersionId = captured!.versionId;
     if (c.strategy === "solo_baseline") {
-      return { ...c, baseVersionId: await soloBaselineVersion(opts.userId, captured.versionId, c.baselinePrompt ?? "") };
+      candidates.push({ ...c, baseVersionId: await soloBaselineVersion(opts.userId, baseVersionId, c.baselinePrompt ?? "") });
+      continue;
     }
     const needsOverride = Boolean(c.overrideModel || c.overrideProviderId);
-    return { ...c, baseVersionId: needsOverride ? await materializeOverrideVersion(opts.userId, captured.versionId, c) : captured.versionId };
-  }));
+    candidates.push({
+      ...c,
+      baseVersionId: needsOverride ? await materializeOverrideVersion(opts.userId, baseVersionId, c) : baseVersionId,
+    });
+  }
 
   // 4 — materialization must not have changed the approved intent: candidate
   //     version IDs are excluded from the hash, everything else must still match.
@@ -559,17 +630,19 @@ export async function startBenchmark(opts: {
     })));
     await tx.insert(benchmarkCandidates).values(plan.candidates.map((c) => ({
       benchmarkId: b.id, stableCandidateId: c.stableCandidateId, strategy: c.strategy,
-      workflowVersionId: c.baseVersionId,
+      workflowVersionId: c.strategy === "imported_output" ? null : c.baseVersionId || null,
+      importedResponseId: c.importedResponseId ?? null,
       baselinePrompt: c.baselinePrompt ?? null,
       requestedModel: c.overrideModel ?? null,
       requestedProviderId: c.overrideProviderId ?? null,
-      stepResolutionPolicy: c.overrideModel || c.overrideProviderId
-        ? { mode: "override_all" as const, overrideModel: c.overrideModel, overrideProviderId: c.overrideProviderId }
-        : { mode: "as_configured" as const },
+      stepResolutionPolicy: c.strategy === "imported_output" ? null
+        : c.overrideModel || c.overrideProviderId
+          ? { mode: "override_all" as const, overrideModel: c.overrideModel, overrideProviderId: c.overrideProviderId }
+          : { mode: "as_configured" as const },
       decodingSnapshot: c.decoding,
     })));
     await tx.update(benchmarks).set({
-      pipelineVersionId: captured.versionId,
+      pipelineVersionId: captured?.versionId ?? null,
       plan: JSON.stringify(plan),
       planHash: finalHash,
       spendApprovalId: opts.spendApprovalId,
@@ -598,17 +671,12 @@ async function soloBaselineVersion(userId: number, baseVersionId: number, baseli
     stepType: "agent", providerId: project?.defaultProviderId ?? null, model: null,
     temperature: "0.7", maxTokens: 4096, ifConfig: null, whileConfig: null,
   };
-  const def = { schemaVersion: 1, steps: [step], pipelineConfig: null, sourceAgentIds: [null] };
-  const siblings = await db.select({ m: pipelineVersions.versionNumber }).from(pipelineVersions)
-    .where(eq(pipelineVersions.sourceProjectId, version.sourceProjectId ?? -1));
-  const nextNum = siblings.reduce((mx, r) => Math.max(mx, r.m), 0) + 1;
-  const [res] = await db.insert(pipelineVersions).values({
-    ownerId: userId, sourceProjectId: version.sourceProjectId,
-    versionNumber: nextNum, definitionSchemaVersion: 1,
-    definition: JSON.stringify(def), definitionHash: sha256(JSON.stringify(def)),
+  const def: VersionDefinition = { schemaVersion: 1, steps: [step], pipelineConfig: null, sourceAgentIds: [null] };
+  const { versionId } = await createVersionRow({
+    ownerId: userId, sourceProjectId: version.sourceProjectId ?? null, definition: def,
     designerMethod: "manual", parentVersionId: baseVersionId,
   });
-  return Number((res as { insertId: number }).insertId);
+  return versionId;
 }
 
 async function ensureChildRuns(benchmarkId: number): Promise<void> {
@@ -622,7 +690,10 @@ async function ensureChildRuns(benchmarkId: number): Promise<void> {
   const have = new Set(existing.map((r) => r.logicalExecutionId));
   for (const c of cases) {
     for (const cand of cands) {
-      for (let r = 1; r <= plan.generationRepeats; r++) {
+      // Repeats are per candidate: an imported output exists once (A01).
+      const candSpec = plan.candidates.find((p) => p.stableCandidateId === cand.stableCandidateId);
+      const repeats = repeatsForCandidate(candSpec ?? { strategy: cand.strategy }, plan.generationRepeats);
+      for (let r = 1; r <= repeats; r++) {
         const logical = `bm-${benchmarkId}-${c.stableCaseId}-${cand.stableCandidateId}-r${r}`;
         if (have.has(logical)) continue;
         await db.insert(benchmarkRuns).values({
@@ -693,9 +764,23 @@ export async function executeBenchmark(opts: { benchmarkId: number; leaseToken: 
     const kase = caseById.get(run.caseId);
     const cand = candById.get(run.candidateId);
     const caseInput = String(kase?.inputText ?? "").trim();
-    const hostProjectId = cand?.workflowVersionId ? projectOfVersion.get(cand.workflowVersionId) ?? null : null;
-    if (!kase || !cand?.workflowVersionId || !caseInput || !(hostProjectId ?? b.sourceProjectId)) {
-      await failChild(run.id, b.id, "child has no resolvable case input, candidate version or host project — no call made");
+    if (!kase || !cand || !caseInput) {
+      await failChild(run.id, b.id, "child has no resolvable case input or candidate binding — no call made");
+      continue;
+    }
+    if (cand.strategy === "imported_output") {
+      // A01: grade the owner's existing output. No provider call, therefore no
+      // ledger attempt and nothing charged to the approved plan.
+      await resolveImportedChild(run.id, cand, b);
+      continue;
+    }
+    if (!cand.workflowVersionId) {
+      await failChild(run.id, b.id, `candidate "${cand.stableCandidateId}" has no workflow version to execute`);
+      continue;
+    }
+    const hostProjectId = projectOfVersion.get(cand.workflowVersionId) ?? null;
+    if (!(hostProjectId ?? b.sourceProjectId)) {
+      await failChild(run.id, b.id, "candidate snapshot has no host project — no call made");
       continue;
     }
     const execProjectId = hostProjectId ?? b.sourceProjectId!;
@@ -769,6 +854,50 @@ async function failChild(runId: number, benchmarkId: number, reason: string): Pr
   await db.update(benchmarkRuns).set({ status: "failed", finishedAt: new Date(), errorSummary: safeStr(reason) })
     .where(eq(benchmarkRuns.id, runId));
   logger.warn("[benchmark] child failed before any provider call", { benchmarkId, runId, reason });
+}
+
+/** A01: the child's text already exists, so "executing" it means copying and
+ *  hashing what is there. Ownership is re-checked here rather than trusted
+ *  from draft time, and the origin is recorded so P3 can never present this as
+ *  execution performed by this plan (spec §4.1, §4.3). */
+async function resolveImportedChild(
+  runId: number,
+  cand: typeof benchmarkCandidates.$inferSelect,
+  b: typeof benchmarks.$inferSelect,
+): Promise<void> {
+  const db = getDb();
+  const text = cand.importedResponseId
+    ? await (async () => {
+      const [row] = await db
+        .select({
+          content: agentResponses.content, model: agentResponses.metadata,
+          createdAt: agentResponses.createdAt, runOwner: swarmRuns.userId, runId: swarmRuns.id,
+        })
+        .from(agentResponses)
+        .innerJoin(swarmRuns, eq(agentResponses.swarmRunId, swarmRuns.id))
+        .where(eq(agentResponses.id, cand.importedResponseId!))
+        .limit(1);
+      return row && row.runOwner === b.ownerId ? row : null;
+    })()
+    : null;
+
+  if (!text || !String(text.content ?? "").trim()) {
+    await failChild(runId, b.id, "the imported output is no longer available or is not this owner's — nothing was graded");
+    return;
+  }
+  await db.update(benchmarkRuns).set({
+    status: "completed",
+    outputText: text.content,
+    outputHash: sha256(text.content),
+    finishedAt: new Date(),
+    importedProvenance: {
+      kind: "owned_run", sourceResponseId: cand.importedResponseId ?? undefined,
+      sourceSwarmRunId: text.runId, reportedModel: text.model?.model ?? undefined,
+      reportedAt: text.createdAt?.toISOString?.(),
+    },
+    executorMetadata: { stepModels: [], providerRoute: undefined, revisionExposed: undefined },
+    usageSummary: { promptTokens: 0, completionTokens: 0 },
+  }).where(eq(benchmarkRuns.id, runId));
 }
 
 async function runTokenUsage(swarmRunId: number): Promise<{ promptTokens: number; completionTokens: number }> {
@@ -933,6 +1062,11 @@ export async function computeSummary(benchmarkId: number): Promise<Record<string
     const scores = rubricOk.map((j) => Number(j.normalizedAggregate)).filter(Number.isFinite);
     return {
       candidateId: cand.stableCandidateId, strategy: cand.strategy,
+      // An imported output is not execution evidence for THIS plan (§4.1/§4.3),
+      // so P3 must be able to tell the two apart without re-deriving it.
+      provenance: cand.strategy === "imported_output"
+        ? "graded_existing_output__not_executed_by_this_plan"
+        : "platform_recorded_execution",
       runs: { planned: candRuns.length, completed: completed.length, failed: candRuns.filter((r) => r.status === "failed").length },
       judgments: { completed: rubricOk.length, parseFailed: own.filter((j) => j.status === "parse_failed").length, validationFailed: own.filter((j) => j.status === "validation_failed").length, callFailed: own.filter((j) => j.status === "failed").length },
       meanNormalizedScore0to1: scores.length ? Number((scores.reduce((a, x) => a + x, 0) / scores.length).toFixed(6)) : null,
@@ -940,13 +1074,56 @@ export async function computeSummary(benchmarkId: number): Promise<Record<string
     };
   });
 
+  // Descriptive agreement among the judges actually used (§7.2 lists it). This
+  // is a description of these panel scores — not an inter-rater reliability
+  // statistic, and no inference is drawn from it.
+  const panels = new Map<number, number[]>();
+  for (const j of judgments) {
+    if (j.kind !== "rubric" || j.status !== "completed" || j.runId == null) continue;
+    const score = Number(j.normalizedAggregate);
+    if (!Number.isFinite(score)) continue;
+    panels.set(j.runId, [...(panels.get(j.runId) ?? []), score]);
+  }
+  const fullPanels = [...panels.values()].filter((scores) => scores.length >= 2);
+  const meanAbsDiff = fullPanels.length
+    ? fullPanels.reduce((acc, scores) => {
+      const mean = scores.reduce((a, x) => a + x, 0) / scores.length;
+      return acc + scores.reduce((a, x) => a + Math.abs(x - mean), 0) / scores.length;
+    }, 0) / fullPanels.length
+    : null;
+  const judgeAgreement = {
+    panelsGradedByTwoOrMoreJudges: fullPanels.length,
+    panelsPlanned: runs.filter((r) => r.status === "completed").length,
+    meanAbsoluteDeviation0to1: meanAbsDiff == null ? null : Number(meanAbsDiff.toFixed(6)),
+    widestPanelSpread0to1: fullPanels.length
+      ? Number(Math.max(...fullPanels.map((s) => Math.max(...s) - Math.min(...s))).toFixed(6))
+      : null,
+    note: "observed dispersion among the judges in this panel only; not an inter-rater reliability measure and not an inference about any model",
+  };
+
   const summary: Record<string, unknown> = {
     descriptiveOnly: true,
     executionMode: plan.executionMode,
     rubric: plan.rubric.versionRef,
     judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model })),
+    // Disclosed, not omitted: no deterministic validation ran, and why (§7.1).
+    validators: {
+      enabled: (plan.validators ?? []).filter((v) => (v as { enabled?: boolean }).enabled).length,
+      configured: (plan.validators ?? []).length,
+      status: "disabled",
+      reason: VALIDATORS_DISABLED_REASON,
+    },
+    judgeAgreement,
     perCandidate,
-    costObserved: { knownUsd: totals.knownCostUsd, completeness: totals.costCompleteness, totalCalls: totals.totalCalls, uncertainCalls: totals.uncertainCalls, currency: "USD" },
+    costObserved: {
+      knownUsd: totals.knownCostUsd, completeness: totals.costCompleteness,
+      totalCalls: totals.totalCalls, uncertainCalls: totals.uncertainCalls, currency: "USD",
+      // Different UNITS, stated rather than left for a reader to assume (§9:
+      // uncertainty is disclosed, never hidden).
+      observedOperations: { generation: totals.generationOperations, judgment: totals.judgmentOperations },
+      plannedCalls: { generation: plan.counts.generationCalls, judging: plan.counts.judgingCalls },
+      unitNote: "plannedCalls counts provider LLM calls; observedOperations counts logical operations, each carrying the summed usage of every call it made. They are not one-to-one comparable.",
+    },
     scopeStatement: "These numbers describe ONLY the tested cases, models, judges and repeats recorded in this benchmark. They are not a percentage of objective quality, not inferential statistics, and not a certification.",
   };
   if (plan.executionMode !== "grade_only") {
@@ -994,13 +1171,22 @@ async function finalizeCompleted(benchmarkId: number, leaseToken: string): Promi
     status: benchmarkRuns.status, id: benchmarkRuns.id,
     caseId: benchmarkRuns.caseId, replicationIndex: benchmarkRuns.replicationIndex,
   }).from(benchmarkRuns).where(eq(benchmarkRuns.benchmarkId, benchmarkId));
-  const expectedJudgments = expectedJudgmentCount(plan, runs);
   const judgments = await db.select({
     status: benchmarkJudgments.status, runId: benchmarkJudgments.runId,
   }).from(benchmarkJudgments).where(eq(benchmarkJudgments.benchmarkId, benchmarkId));
+  const expectedJudgments = expectedJudgmentCount(plan, runs);
   const okJudgments = judgments.filter((j) => j.status === "completed").length;
-  const allRunsTerminal = runs.length > 0 && runs.every((r) => ["completed", "failed", "cancelled"].includes(r.status));
-  const state = allRunsTerminal && okJudgments >= expectedJudgments && expectedJudgments > 0 ? "completed" : allRunsTerminal ? "partial" : "failed";
+  // §10.2: `completed` requires ALL planned logical outputs, judgments and
+  // validators. A child that failed outright therefore makes the plan
+  // `partial`, never `completed` — judging only the survivors would quietly
+  // narrow the evidence. No child finished at all → `failed`.
+  const completedChildren = runs.filter((r) => r.status === "completed").length;
+  const allChildrenTerminal = runs.length > 0 && runs.every((r) => ["completed", "failed", "cancelled"].includes(r.status));
+  const judgmentsComplete = expectedJudgments > 0 && okJudgments >= expectedJudgments;
+  const state = !allChildrenTerminal ? "failed"
+    : completedChildren === 0 ? "failed"
+      : completedChildren === runs.length && judgmentsComplete ? "completed"
+        : "partial";
   await finalize(benchmarkId, leaseToken, state);
 }
 
@@ -1099,8 +1285,12 @@ export async function resumeBenchmark(opts: {
 
   await db.transaction(async (tx) => {
     for (const child of unfinished) {
-      await tx.update(benchmarkRuns).set({ status: "pending", errorSummary: null, finishedAt: null })
-        .where(eq(benchmarkRuns.id, child.id));
+      // A retried child gets a FRESH execution row: the prior swarm run (and
+      // its failure) stay as history, and the attempt ledger keeps both.
+      await tx.update(benchmarkRuns).set({
+        status: "pending", errorSummary: null, finishedAt: null, startedAt: null,
+        linkedSwarmRunId: null, outputText: null, outputHash: null,
+      }).where(eq(benchmarkRuns.id, child.id));
     }
     await tx.update(benchmarks).set({
       state: "queued", cancelRequestedAt: null, leaseToken: null, leaseExpiresAt: null, finishedAt: null,

@@ -75,22 +75,15 @@ export async function captureVersionFromProject(userId: number, projectId: numbe
     pipelineConfig: project.pipelineConfig ?? null,
     sourceAgentIds: snapshot.sourceAgentIds,
   };
-  const hash = createHash("sha256").update(stableJson(definition)).digest("hex");
-  const [res] = await db.insert(pipelineVersions).values({
-    ownerId: userId,
-    sourceProjectId: projectId,
-    versionNumber: await nextVersionNumberFor(userId, projectId),
-    definitionSchemaVersion: 1,
-    definition: stableJson(definition),
-    definitionHash: hash,
+  const created = await createVersionRow({
+    ownerId: userId, sourceProjectId: projectId, definition,
     designerMethod: opts?.designerMethod ?? "manual",
     designerProviderId: opts?.designerProviderId ?? null,
     designerModel: opts?.designerModel ?? null,
     designerPromptVersion: opts?.designerPromptVersion ?? null,
     parentVersionId: opts?.parentVersionId ?? null,
   });
-  const versionId = Number((res as { insertId: number }).insertId);
-  return { versionId, definition, hash };
+  return { versionId: created.versionId, definition, hash: created.definitionHash };
 }
 
 /** Versions are unique per (owner, source project, version number), so the
@@ -106,6 +99,54 @@ async function nextVersionNumberFor(userId: number, projectId: number | null): P
       projectId == null ? isNull(pipelineVersions.sourceProjectId) : eq(pipelineVersions.sourceProjectId, projectId),
     ));
   return Number(rows[0]?.m ?? 0) + 1;
+}
+
+export interface NewVersion {
+  ownerId: number;
+  sourceProjectId: number | null;
+  definition: VersionDefinition;
+  designerMethod: "manual" | "auto";
+  designerProviderId?: number | null;
+  designerModel?: string | null;
+  designerPromptVersion?: string | null;
+  parentVersionId?: number | null;
+}
+
+const VERSION_NUMBER_RETRIES = 8;
+
+/** The ONLY writer of `pipeline_versions` rows. A benchmark materializes one
+ *  version per candidate concurrently, so a read-then-insert of MAX+1 can hand
+ *  two inserts the same number; the unique index catches it and we retry.
+ *  Never silently reuse the colliding row — every version is a distinct,
+ *  evidentiary snapshot. */
+export async function createVersionRow(v: NewVersion): Promise<{ versionId: number; definitionHash: string; definition: VersionDefinition }> {
+  const db = getDb();
+  const definition = stableJson(v.definition);
+  const definitionHash = createHash("sha256").update(definition).digest("hex");
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < VERSION_NUMBER_RETRIES; attempt++) {
+    const versionNumber = await nextVersionNumberFor(v.ownerId, v.sourceProjectId ?? null);
+    try {
+      const [res] = await db.insert(pipelineVersions).values({
+        ownerId: v.ownerId,
+        sourceProjectId: v.sourceProjectId,
+        versionNumber,
+        definitionSchemaVersion: 1,
+        definition,
+        definitionHash,
+        designerMethod: v.designerMethod,
+        designerProviderId: v.designerProviderId ?? null,
+        designerModel: v.designerModel ?? null,
+        designerPromptVersion: v.designerPromptVersion ?? null,
+        parentVersionId: v.parentVersionId ?? null,
+      });
+      return { versionId: Number((res as { insertId: number }).insertId), definitionHash, definition: JSON.parse(definition) as VersionDefinition };
+    } catch (err) {
+      if ((err as { code?: string }).code !== "ER_DUP_ENTRY") throw err;
+      lastError = err;
+    }
+  }
+  throw lastError ?? new Error("Could not allocate a workflow version number");
 }
 
 function stableJson(value: unknown): string {
@@ -141,22 +182,17 @@ export async function materializeOverrideVersion(userId: number, baseVersionId: 
       ? s
       : { ...s, model: candidate.overrideModel ?? s.model, providerId: candidate.overrideProviderId ?? s.providerId }),
   };
-  const db = getDb();
-  const hash = createHash("sha256").update(stableJson(overridden)).digest("hex");
-  const [res] = await db.insert(pipelineVersions).values({
+  const created = await createVersionRow({
     ownerId: userId,
-    sourceProjectId: version.sourceProjectId,
-    versionNumber: await nextVersionNumberFor(userId, version.sourceProjectId ?? null),
-    definitionSchemaVersion: 1,
-    definition: stableJson(overridden),
-    definitionHash: hash,
-    designerMethod: version.designerMethod,
+    sourceProjectId: version.sourceProjectId ?? null,
+    definition: overridden,
+    designerMethod: version.designerMethod === "auto" ? "auto" : "manual",
     designerProviderId: version.designerProviderId,
     designerModel: candidate.overrideModel ?? version.designerModel,
     designerPromptVersion: version.designerPromptVersion,
     parentVersionId: baseVersionId,
   });
-  return Number((res as { insertId: number }).insertId);
+  return created.versionId;
 }
 
 /** Resolve snapshot steps into the engine's ResolvedStep shape. */

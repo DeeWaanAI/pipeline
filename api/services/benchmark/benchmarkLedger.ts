@@ -64,6 +64,12 @@ export async function recordCallAttempt(input: RecordAttemptInput): Promise<numb
 export interface LedgerTotals {
   totalCalls: number;
   uncertainCalls: number;
+  /** Ledger rows are ONE PER LOGICAL OPERATION (a generation run, a judge
+   *  call) with that operation's summed usage — NOT one per provider LLM call.
+   *  A pipeline generation that made 6 provider calls is one `generation`
+   *  row, so these counts are never comparable with the plan's call counts. */
+  generationOperations: number;
+  judgmentOperations: number;
   knownCostUsd: string;
   costCompleteness: "complete" | "partial" | "unknown";
 }
@@ -71,6 +77,7 @@ export interface LedgerTotals {
 export async function benchmarkLedgerTotals(benchmarkId: number): Promise<LedgerTotals> {
   const db = getDb();
   const rows = await db.select({
+    operationKind: callAttempts.operationKind,
     outcome: callAttempts.outcome,
     estimatedCostUsd: callAttempts.estimatedCostUsd,
     costCompleteness: callAttempts.costCompleteness,
@@ -78,14 +85,20 @@ export async function benchmarkLedgerTotals(benchmarkId: number): Promise<Ledger
   let known = 0;
   let anyUnknown = false;
   let uncertain = 0;
+  let generationOperations = 0;
+  let judgmentOperations = 0;
   for (const r of rows) {
     if (r.outcome === "uncertain") uncertain++;
+    if (r.operationKind === "generation") generationOperations++;
+    if (r.operationKind === "judgment") judgmentOperations++;
     if (r.costCompleteness !== "complete") anyUnknown = true;
     if (r.estimatedCostUsd != null) known += Number(r.estimatedCostUsd);
   }
   return {
     totalCalls: rows.length,
     uncertainCalls: uncertain,
+    generationOperations,
+    judgmentOperations,
     knownCostUsd: known.toFixed(8),
     costCompleteness: rows.length === 0 ? "unknown" : anyUnknown ? "partial" : "complete",
   };

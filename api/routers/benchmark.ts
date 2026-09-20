@@ -49,6 +49,16 @@ const candidateSchema = z.object({
   overrideProviderId: z.number().int().positive().optional(),
   isFrontierSoloBaseline: z.boolean().optional(),
   baselinePrompt: z.string().max(20000).optional(),
+  /** A01: grade this owned prior output instead of generating one. */
+  existingResponseId: z.number().int().positive().optional(),
+});
+
+/** Validators are accepted only in their DISABLED form: this deployment has no
+ *  isolated execution sandbox, so spec §7.1 forbids enabling them. */
+const validatorSchema = z.object({
+  kind: z.enum(["schema", "expected_value", "owner_test"]),
+  enabled: z.literal(false),
+  disabledReason: z.string().min(1).max(500),
 });
 
 const draftCore = {
@@ -82,15 +92,17 @@ export const benchmarkRouter = createRouter({
         cases: z.array(caseSchema).min(1).max(50),
         candidates: z.array(z.object({
           stableCandidateId: z.string().min(1).max(60),
-          strategy: z.enum(["pipeline", "solo_baseline"]),
+          strategy: z.enum(["pipeline", "solo_baseline", "imported_output"]),
           baseVersionId: z.number().int().optional(),
           overrideModel: z.string().max(120).optional(),
           overrideProviderId: z.number().int().positive().optional(),
           baselinePrompt: z.string().max(20000).optional(),
+          importedResponseId: z.number().int().positive().optional(),
           decoding: z.object({ temperature: z.number().optional(), maxTokens: z.number().optional() }),
         })).max(4),
         judges: z.array(z.object({ slot: z.number().int().min(1), providerId: z.number().int().positive(), model: z.string().min(1).max(120) })).min(1).max(5),
         rubric: rubricSchema,
+        validators: z.array(validatorSchema).max(4).default([]),
         generationRepeats: z.number().int().min(1).max(5),
         judgmentKind: z.enum(["rubric", "pairwise"]),
         limits: z.object({ maxConcurrency: z.number().int().min(1).max(10), deadlineMs: z.number().int().min(10_000).max(3_600_000), maxTokensPerCall: z.number().int().min(1) }),

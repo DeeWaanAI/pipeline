@@ -1601,8 +1601,13 @@ export const benchmarkCandidates = mysqlTable("benchmark_candidates", {
     .references(() => benchmarks.id, { onDelete: "cascade" })
     .notNull(),
   stableCandidateId: varchar("stable_candidate_id", { length: 60 }).notNull(),
-  strategy: mysqlEnum("strategy", ["pipeline", "solo_baseline"]).notNull(),
+  // `imported_output` = grade an output the owner already has, without
+  // regenerating it (spec §4.1/A01, migration 027).
+  strategy: mysqlEnum("strategy", ["pipeline", "solo_baseline", "imported_output"]).notNull(),
   workflowVersionId: int("workflow_version_id").references(() => pipelineVersions.id, { onDelete: "restrict" }),
+  // The owner's existing response being graded. SET NULL: the graded text and
+  // hash are copied onto benchmark_runs, so the evidence stands on its own.
+  importedResponseId: int("imported_response_id").references(() => agentResponsesTable.id, { onDelete: "set null" }),
   baselinePrompt: mediumtext("baseline_prompt"), // solo_baseline only
   baselinePromptVersion: varchar("baseline_prompt_version", { length: 60 }),
   requestedProviderId: int("requested_provider_id"), // payer-owned, resolved server-side
@@ -1641,11 +1646,15 @@ export const benchmarkRuns = mysqlTable("benchmark_runs", {
   logicalExecutionId: varchar("logical_execution_id", { length: 60 }).notNull(),
   linkedSwarmRunId: int("linked_swarm_run_id").references(() => swarmRuns.id, { onDelete: "set null" }),
   // For grading existing outputs: user-reported origin is NOT attested
-  // platform execution evidence (spec §4.1).
+  // platform execution evidence (spec §4.1). `owned_run` means the text came
+  // from a response row this platform recorded for the same owner, so its
+  // model/timestamp are known — still not execution performed by THIS plan.
   importedProvenance: json("imported_provenance").$type<{
-    kind: "user_reported";
+    kind: "user_reported" | "owned_run";
     reportedModel?: string;
     reportedAt?: string;
+    sourceResponseId?: number;
+    sourceSwarmRunId?: number;
   }>(),
   status: mysqlEnum("status", ["pending", "running", "completed", "failed", "cancelled", "uncertain"])
     .default("pending").notNull(),

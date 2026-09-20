@@ -50,19 +50,56 @@ export function upperBoundCallsPerGeneration(steps: SnapshotStep[]): number {
   return hasGate ? base * 2 : base;
 }
 
+export interface CandidateCountingSpec {
+  stableCandidateId: string;
+  strategy: CandidateSpec["strategy"];
+  /** How many times this candidate's generation is repeated. An imported
+   *  output is already produced, so it is graded once. */
+  repeats: number;
+  /** LLM calls one generation of this candidate performs (0 when imported). */
+  stepsPerGeneration: number;
+}
+
+/** Generation repeats actually planned for a candidate. */
+export function repeatsForCandidate(candidate: Pick<CandidateSpec, "strategy">, generationRepeats: number): number {
+  return candidate.strategy === "imported_output" ? 1 : generationRepeats;
+}
+
+/** LLM calls ONE generation of one candidate performs. */
+export function stepsPerGenerationForCandidate(
+  candidate: Pick<CandidateSpec, "strategy">,
+  pipelineSteps: SnapshotStep[],
+): number {
+  if (candidate.strategy === "imported_output") return 0; // A01: nothing is regenerated
+  if (candidate.strategy === "solo_baseline") return 1;
+  return upperBoundCallsPerGeneration(pipelineSteps);
+}
+
+/** Contract §9: generation calls are the SUM of executed LLM steps over every
+ *  case × candidate × repeat — not cases × the widest candidate. A
+ *  homogeneous plan reduces to the spec's C × M × R × S. */
 export function computeCounts(input: {
   caseCount: number;
-  candidateCount: number;
-  generationRepeats: number;
-  judgeCount: number;
-  stepsPerGeneration: number;
   judgmentKind: "rubric" | "pairwise";
+  judgeCount: number;
+  candidates: CandidateCountingSpec[];
   pairedRepeatCount?: number;
   pairCount?: number;
   orientationCount?: number;
 }): CallCounts {
-  const { caseCount: C, candidateCount: M, generationRepeats: R, judgeCount: J, stepsPerGeneration: S } = input;
-  const generationCalls = C * M * R * S;
+  const { caseCount: C, judgeCount: J } = input;
+  const perCandidate = input.candidates.map((c) => ({
+    stableCandidateId: c.stableCandidateId,
+    strategy: c.strategy,
+    repeats: c.repeats,
+    stepsPerGeneration: c.stepsPerGeneration,
+    calls: C * c.repeats * c.stepsPerGeneration,
+  }));
+  const generationCalls = perCandidate.reduce((acc, c) => acc + c.calls, 0);
+  const M = Math.max(input.candidates.length, 1);
+  const R = Math.max(1, ...input.candidates.map((c) => c.repeats));
+  const S = Math.max(0, ...input.candidates.map((c) => c.stepsPerGeneration));
+
   let judgingCalls: number;
   if (input.judgmentKind === "pairwise") {
     const PR = input.pairedRepeatCount ?? 1;
@@ -75,6 +112,7 @@ export function computeCounts(input: {
   return {
     cases: C, candidates: M, generationRepeats: R, judges: J,
     stepsPerGeneration: S, generationCalls, judgingCalls,
+    generationPerCandidate: perCandidate,
     ...(input.judgmentKind === "pairwise"
       ? { pairedRepeatCount: input.pairedRepeatCount ?? 1, pairCount: input.pairCount ?? Math.max(M * (M - 1) / 2, 1), orientationCount: input.orientationCount ?? 1 }
       : {}),
@@ -97,18 +135,6 @@ export function expandDraftCandidates(
     strategy: "pipeline",
     decoding: {},
   }];
-}
-
-/** Steps one generation of a candidate performs. A solo baseline is a single
- *  LLM call; pipeline candidates run the snapshot. Plans mix both, so the
- *  plan-level count is the honest-HIGH maximum (spec §9 never under-quotes). */
-export function planStepsPerGeneration(
-  candidates: Array<Pick<CandidateSpec, "strategy">>,
-  pipelineSteps: SnapshotStep[],
-): number {
-  const pipelineCount = upperBoundCallsPerGeneration(pipelineSteps);
-  if (candidates.length === 0) return pipelineCount;
-  return Math.max(1, ...candidates.map((c) => (c.strategy === "solo_baseline" ? 1 : pipelineCount)));
 }
 
 /** Deterministic serialization → sha256. Any change to cases, candidates,
@@ -163,19 +189,33 @@ export function planPreflightErrors(plan: BenchmarkCallPlan, snapshotSteps: Snap
     if (c.strategy === "solo_baseline" && !c.baselinePrompt) {
       errors.push(`solo baseline candidate "${c.stableCandidateId}" has no prompt to run`);
     }
+    if (c.strategy === "imported_output") {
+      if (!c.importedResponseId) errors.push(`imported candidate "${c.stableCandidateId}" names no owned output to grade`);
+      if (c.overrideModel || c.overrideProviderId) errors.push(`imported candidate "${c.stableCandidateId}" is not executed, so it cannot override a model or provider`);
+    }
     if (c.decoding.temperature !== undefined && (c.decoding.temperature < 0 || c.decoding.temperature > 2)) {
       errors.push(`candidate "${c.stableCandidateId}" decoding temperature out of range`);
     }
   }
+  if (plan.executionMode !== "grade_only" && plan.candidates.some((c) => c.strategy === "imported_output")) {
+    errors.push("comparison modes must execute every condition; an imported output is user-reported provenance and is not a comparable execution condition (spec §4.2, §4.3)");
+  }
+  // Spec §7.1: code execution needs an isolated sandbox; without one the
+  // validator stays disabled. Silently accepting an "enabled" validator would
+  // make absent coverage look like passing coverage.
+  if (plan.validators?.some((v) => (v as { enabled?: boolean }).enabled !== false)) {
+    errors.push("deterministic validators require an isolated, resource-limited execution sandbox and none exists in this deployment — they must stay disabled and disclosed (spec §7.1)");
+  }
 
   switch (plan.executionMode) {
-    case "grade_only":
-      // A01: grading one workflow, so exactly one as-configured candidate.
-      if (plan.candidates.length !== 1) errors.push("grade_only must evaluate exactly one candidate (the workflow as configured)");
-      if (plan.candidates.some((c) => c.strategy !== "pipeline" || Boolean(c.overrideModel || c.overrideProviderId))) {
+    case "grade_only": {
+      // A01: grade the workflow as configured, or grade one existing output.
+      if (plan.candidates.length !== 1) errors.push("grade_only must evaluate exactly one candidate (the workflow as configured, or one existing output)");
+      if (plan.candidates.some((c) => !["pipeline", "imported_output"].includes(c.strategy) || Boolean(c.overrideModel || c.overrideProviderId))) {
         errors.push("grade_only must not override models/providers or add baseline candidates — use a comparison mode");
       }
       break;
+    }
     case "compare_models":
       if (plan.candidates.length < 2) errors.push("compare_models needs at least two candidates");
       if (plan.candidates.some((c) => c.strategy !== "pipeline" || !c.overrideModel)) {

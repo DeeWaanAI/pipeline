@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AS_CONFIGURED_CANDIDATE_ID, computeCounts, expandDraftCandidates, hashPlan,
-  planPreflightErrors, planStepsPerGeneration,
+  planPreflightErrors, repeatsForCandidate, stepsPerGenerationForCandidate,
 } from "./benchmarkCallPlan";
 import type { BenchmarkCallPlan, CandidateSpec, RubricSpec, SnapshotStep } from "./benchmarkTypes";
 
@@ -39,12 +39,16 @@ function plan(over: Partial<BenchmarkCallPlan> = {}): BenchmarkCallPlan {
     candidates: [candidate({ stableCandidateId: "x", overrideModel: "m-x" }), candidate({ stableCandidateId: "y", overrideModel: "m-y" })],
     judges: JUDGES,
     rubric: RUBRIC,
+    validators: [],
     generationRepeats: 1,
     judgmentKind: "rubric",
     limits: { maxConcurrency: 2, deadlineMs: 60_000, maxTokensPerCall: 1024 },
     counts: computeCounts({
-      caseCount: CASES.length, candidateCount: 2, generationRepeats: 1, judgeCount: JUDGES.length,
-      stepsPerGeneration: 5, judgmentKind: "rubric",
+      caseCount: CASES.length, judgeCount: JUDGES.length, judgmentKind: "rubric",
+      candidates: [
+        { stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+        { stableCandidateId: "y", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+      ],
     }),
     ...over,
   };
@@ -53,7 +57,11 @@ function plan(over: Partial<BenchmarkCallPlan> = {}): BenchmarkCallPlan {
 describe("call-plan arithmetic (spec §9, A08)", () => {
   it("counts 3 cases x 2 candidates x 1 repeat x 5 steps as 30 generation calls", () => {
     const counts = computeCounts({
-      caseCount: 3, candidateCount: 2, generationRepeats: 1, judgeCount: 3, stepsPerGeneration: 5, judgmentKind: "rubric",
+      caseCount: 3, judgeCount: 3, judgmentKind: "rubric",
+      candidates: [
+        { stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+        { stableCandidateId: "y", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+      ],
     });
     expect(counts.generationCalls).toBe(30);
     expect(counts.judgingCalls).toBe(18); // C x M x R x J
@@ -61,16 +69,36 @@ describe("call-plan arithmetic (spec §9, A08)", () => {
 
   it("counts one paired comparison per case with 3 judges and 1 orientation as 9 judging calls", () => {
     const counts = computeCounts({
-      caseCount: 3, candidateCount: 2, generationRepeats: 1, judgeCount: 3, stepsPerGeneration: 5,
-      judgmentKind: "pairwise", pairedRepeatCount: 1, pairCount: 1, orientationCount: 1,
+      caseCount: 3, judgeCount: 3, judgmentKind: "pairwise",
+      candidates: [
+        { stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+        { stableCandidateId: "y", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+      ],
+      pairedRepeatCount: 1, pairCount: 1, orientationCount: 1,
     });
     expect(counts.judgingCalls).toBe(9);
     expect(counts.generationCalls).toBe(30);
   });
 
-  it("quotes mixed solo/pipeline plans at the largest candidate (honest-high)", () => {
-    expect(planStepsPerGeneration([candidate({ strategy: "solo_baseline" })], FIVE_STEPS)).toBe(1);
-    expect(planStepsPerGeneration([candidate({ strategy: "solo_baseline" }), candidate()], FIVE_STEPS)).toBe(5);
+  it("sums generation calls per candidate rather than quoting every one at the widest", () => {
+    const counts = computeCounts({
+      caseCount: 3, judgeCount: 1, judgmentKind: "rubric",
+      candidates: [
+        { stableCandidateId: "pipe", strategy: "pipeline", repeats: 2, stepsPerGeneration: 5 },
+        { stableCandidateId: "solo", strategy: "solo_baseline", repeats: 2, stepsPerGeneration: 1 },
+        { stableCandidateId: "imported", strategy: "imported_output", repeats: 1, stepsPerGeneration: 0 },
+      ],
+    });
+    expect(counts.generationCalls).toBe(3 * 2 * 5 + 3 * 2 * 1 + 0); // 36, not 3×3×5
+    expect(counts.generationPerCandidate.map((c) => c.calls)).toEqual([30, 6, 0]);
+  });
+
+  it("grades an existing output with no generation call and no repeats (A01)", () => {
+    const imported = candidate({ strategy: "imported_output", importedResponseId: 7 });
+    expect(stepsPerGenerationForCandidate(imported, FIVE_STEPS)).toBe(0);
+    expect(repeatsForCandidate(imported, 4)).toBe(1);
+    expect(stepsPerGenerationForCandidate(candidate({ strategy: "solo_baseline" }), FIVE_STEPS)).toBe(1);
+    expect(stepsPerGenerationForCandidate(candidate(), FIVE_STEPS)).toBe(5);
   });
 });
 
@@ -119,7 +147,10 @@ describe("plan preflight (spec §5.1/§9)", () => {
     const gradeOnly = plan({
       executionMode: "grade_only",
       candidates: [candidate()],
-      counts: computeCounts({ caseCount: 3, candidateCount: 1, generationRepeats: 1, judgeCount: 3, stepsPerGeneration: 5, judgmentKind: "rubric" }),
+      counts: computeCounts({
+        caseCount: 3, judgeCount: 3, judgmentKind: "rubric",
+        candidates: [{ stableCandidateId: "only", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 }],
+      }),
     });
     expect(planPreflightErrors(gradeOnly, FIVE_STEPS)).toEqual([]);
     expect(planPreflightErrors({ ...gradeOnly, candidates: [candidate({ overrideModel: "other" })] }, FIVE_STEPS).join("\n")).toContain("must not override");

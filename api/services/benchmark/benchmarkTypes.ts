@@ -51,15 +51,35 @@ export interface JudgeSpec {
 
 export interface CandidateSpec {
   stableCandidateId: string;
-  strategy: "pipeline" | "solo_baseline";
+  /** `imported_output` grades an output the owner already has instead of
+   *  regenerating it — the grade-only default of spec §4.1 step 4 (A01). It
+   *  contributes ZERO generation calls and is user-reported provenance, not
+   *  platform-attested execution (spec §4.3). */
+  strategy: "pipeline" | "solo_baseline" | "imported_output";
   /** Snapshot the candidate executes (materialized at start for overrides). */
   baseVersionId: number;
   overrideModel?: string;
   overrideProviderId?: number;
   /** solo_baseline only. */
   baselinePrompt?: string;
+  /** imported_output only: an owned agent_responses row. */
+  importedResponseId?: number;
   decoding: { temperature?: number; maxTokens?: number };
 }
+
+/** Deterministic validators (spec §7.1 line 260): code execution needs an
+ *  isolated, resource-limited sandbox with no default network/filesystem
+ *  access. This deployment has none, so every validator stays DISABLED and the
+ *  plan says so out loud — absent coverage must never look like passing
+ *  coverage. Configuring one is a preflight error, not a silent no-op. */
+export interface ValidatorSpec {
+  kind: "schema" | "expected_value" | "owner_test";
+  enabled: false;
+  disabledReason: string;
+}
+
+export const VALIDATORS_DISABLED_REASON =
+  "no isolated execution sandbox is available in this deployment; deterministic validators stay disabled (spec §7.1)";
 
 export interface RubricDimensionSpec {
   dimension: string;
@@ -80,11 +100,20 @@ export interface CallCounts {
   candidates: number;
   generationRepeats: number;
   judges: number;
-  /** LLM steps actually executed per pipeline generation (sum over steps;
-   *  bounded loops counted at their max, branches at the widest path). */
+  /** Widest single generation across the planned candidates (honest-high
+   *  headline number; the per-candidate breakdown below is authoritative). */
   stepsPerGeneration: number;
   generationCalls: number;
   judgingCalls: number;
+  /** Contract §9: generation calls are a SUM over candidates, so the quote
+   *  shows what each condition contributes (the P5 cost table renders this). */
+  generationPerCandidate: Array<{
+    stableCandidateId: string;
+    strategy: CandidateSpec["strategy"];
+    repeats: number;
+    stepsPerGeneration: number;
+    calls: number;
+  }>;
   /** Pairwise-only fields; zero for independent rubric grading. */
   pairedRepeatCount?: number;
   pairCount?: number;
@@ -98,6 +127,9 @@ export interface BenchmarkCallPlan {
   candidates: CandidateSpec[];
   judges: JudgeSpec[];
   rubric: RubricSpec;
+  /** Deterministic validators: empty unless an isolated sandbox exists, and
+   *  never enabled when it doesn't (spec §7.1). */
+  validators: ValidatorSpec[];
   generationRepeats: number;
   judgmentKind: "rubric" | "pairwise";
   /** Pairwise: which generation repeats are paired. */
