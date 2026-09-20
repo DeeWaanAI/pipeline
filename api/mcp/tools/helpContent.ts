@@ -6,7 +6,7 @@
 
 export interface HelpCatalogEntry {
   name: string;
-  group: "Discover" | "Run" | "Research" | "Author" | "Evaluate" | "Marketplace" | "Account" | "Your data" | "Team" | "Diagnostics";
+  group: "Discover" | "Run" | "Research" | "Author" | "Evaluate" | "Marketplace" | "Publish" | "Account" | "Your data" | "Team" | "Diagnostics";
   summary: string;
   example?: string;
   scopes: string[];
@@ -41,7 +41,7 @@ export interface HelpContent {
 }
 
 const GROUP_ORDER: HelpCatalogEntry["group"][] = [
-  "Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Account", "Your data", "Team", "Diagnostics",
+  "Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Publish", "Account", "Your data", "Team", "Diagnostics",
 ];
 
 // ─── Tier marketing copy (internal upsell) ─────────────────────────
@@ -248,6 +248,38 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     name: "enroll_reviewer", group: "Marketplace", scopes: ["mcp:write"],
     summary: "Join the marketplace reviewer pool. Reviewers evaluate pipeline test outputs and earn points redeemable for subscription days.",
     example: "\"Enroll me as a reviewer.\"",
+  },
+  // ── Publish (v2 evidence) ───────────────────────────────────────
+  {
+    name: "preview_evidence", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
+    summary: "See EXACTLY what would become public before anything is: the tested version, every case and judgment, the rubric and weights, all attempts and costs, and the validators recorded as disabled. Returns the hash you must echo back to publish, plus any credential it would leak and any reason a seller publication would be refused.",
+    example: "\"Preview the evidence for benchmark 3 as seller evidence.\"",
+  },
+  {
+    name: "publish_evidence_version", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
+    summary: "Publish your listing's evidence AND the exact workflow version it was measured on, together. This is the only way a listing becomes published under the v2 rules: it requires your consent to the preview hash, refuses stale or mismatched versions (a new revision cannot inherit old scores), and never routes through the legacy certification states.",
+    example: "\"Publish benchmark 3's evidence for listing 1, version 4, hash abc123…\"",
+  },
+  {
+    name: "publish_community_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
+    summary: "Publish your own measured report about a workflow. It can reference a listing but never becomes that listing's required seller evidence, so independent and seller-reported proof stay distinguishable.",
+  },
+  {
+    name: "supersede_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
+    summary: "Replace published evidence with a new measurement: a NEW immutable row that records what it supersedes, with the original test date preserved. Nothing is edited in place.",
+  },
+  {
+    name: "withdraw_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
+    summary: "Withdraw a publication you authored, with a logged reason. Historical runs and financial records are untouched. If it was a listing's current evidence, the same transaction unpublishes the listing — a v2 listing is never left buyable without evidence.",
+  },
+  {
+    name: "listing_publication_state", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
+    summary: "Which version a listing sells, which evidence backs it, whether it is legacy or v2, and the revision number to send so you cannot clobber a concurrent change.",
+  },
+  {
+    name: "get_public_evidence", group: "Publish", scopes: ["mcp:read"],
+    summary: "Read any listing's published evidence: scores with their bounds and weights, judge agreement, attempts, costs and disclosure class. Public manifests only — never the seller's private prompts or benchmark rows.",
+    example: "\"Show me the evidence behind listing 7 before I buy it.\"",
   },
   // ── Account ─────────────────────────────────────────────────────
   {

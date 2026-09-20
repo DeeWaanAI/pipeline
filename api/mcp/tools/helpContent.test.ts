@@ -133,8 +133,22 @@ describe("buildHelp", () => {
       flags: { teamsync: true, mcp_sampling: true, batch_mode: true },
     }));
     const groups = help.sections.map((s) => s.group);
-    expect(groups).toEqual(["Discover", "Run", "Research", "Author", "Marketplace", "Account", "Your data", "Team", "Diagnostics"]);
+    // "Publish" appears even with v2Publication off because reading already
+    // published evidence is available to anyone — see the next test for the
+    // gated half of that section.
+    expect(groups).toEqual(["Discover", "Run", "Research", "Author", "Marketplace", "Publish", "Account", "Your data", "Team", "Diagnostics"]);
     for (const s of help.sections) expect(s.tools.length).toBeGreaterThan(0);
+  });
+
+  it("shows the v2 publisher tools only when v2Publication is enabled", () => {
+    const off = buildHelp(base({ flags: { v2Publication: false } }));
+    const publishTools = (help: typeof off) =>
+      help.sections.find((s) => s.group === "Publish")?.tools.map((t) => t.name) ?? [];
+    expect(publishTools(off)).toEqual(["get_public_evidence"]);
+
+    const on = buildHelp(base({ flags: { v2Publication: true } }));
+    expect(publishTools(on)).toContain("publish_evidence_version");
+    expect(publishTools(on)).toContain("preview_evidence");
   });
 
   it("shows locked tools in a separate section for upsell", () => {

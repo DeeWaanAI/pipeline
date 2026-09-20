@@ -55,6 +55,17 @@ export async function isFeatureEnabled(flagKey: string, userId?: number): Promis
 }
 
 /**
+ * Drop the in-process flag cache so the next check re-reads the table. The
+ * 60s TTL is fine for a UI toggle but makes "enable, then assert behaviour"
+ * undeterministic for callers that must know the gate applied — notably the
+ * integration drills for the v2 phase flags.
+ */
+export function resetFlagCache(): void {
+  cache = null;
+  cacheTime = 0;
+}
+
+/**
  * Pure flag-evaluation helper (extracted for unit testing).
  * Does NOT touch the database — caller must pass the resolved flag config.
  */

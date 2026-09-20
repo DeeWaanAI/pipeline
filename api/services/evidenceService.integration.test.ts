@@ -148,7 +148,47 @@ const publicationRow = async (id: number) => {
   return row;
 };
 
+/** The v2 flag gates every write. Inserted per-test (with the cache dropped)
+ *  so the "flag off" case is a real gate, not an ordering accident. */
+async function setPublicationFlag(enabled: boolean) {
+  const db = await connection();
+  const [existing] = await db.select({ id: schema.featureFlags.id }).from(schema.featureFlags)
+    .where(eq(schema.featureFlags.key, "v2Publication")).limit(1);
+  if (existing) {
+    await db.update(schema.featureFlags).set({ enabled }).where(eq(schema.featureFlags.id, existing.id));
+  } else {
+    await db.insert(schema.featureFlags).values({
+      key: "v2Publication", name: "V2 — Evidence Publication", description: "test", enabled, rolloutPercent: 0,
+    });
+  }
+  (await import("../plugins/featureFlags")).resetFlagCache();
+}
+
+/** A listing in `draft` plus the template lineage the boundary expects. */
+async function seedListing(f: Awaited<ReturnType<typeof seedFixture>>, sourceProjectId: number | null = f.projectId) {
+  const db = await connection();
+  const [t] = await db.insert(schema.pipelineTemplates).values({
+    userId: f.userId, name: `tpl-${Date.now()}`, steps: [{ name: "Draft", role: "builder", systemPrompt: "x" }],
+    sourceProjectId,
+  });
+  const templateId = Number((t as { insertId: number }).insertId);
+  const [l] = await db.insert(schema.marketplaceListings).values({
+    creatorId: f.userId, templateId, title: "Contract Redliner", price: "4.99", status: "draft",
+  });
+  const listingId = Number((l as { insertId: number }).insertId);
+  return { listingId, templateId };
+}
+
+const listingRow = async (id: number) => {
+  const db = await connection();
+  const [row] = await db.select().from(schema.marketplaceListings).where(eq(schema.marketplaceListings.id, id)).limit(1);
+  const [v2] = await db.select().from(schema.marketplaceListingV2).where(eq(schema.marketplaceListingV2.listingId, id)).limit(1);
+  return { listing: row, v2 };
+};
+
 describe("evidence publication (DB-backed)", () => {
+  beforeAll(async () => { await setPublicationFlag(true); });
+
   it("builds a manifest that satisfies the frozen public contract and repeats byte-for-byte", async () => {
     const f = await seedFixture();
     const { benchmarkId } = await completedBenchmark(f);
@@ -192,16 +232,41 @@ describe("evidence publication (DB-backed)", () => {
   it("publishes only after an explicit preview hash + consent, is idempotent, and never re-dates the test", async () => {
     const f = await seedFixture();
     const { benchmarkId, bench } = await completedBenchmark(f);
-    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v1" });
+    const { listingId } = await seedListing(f);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    const versionId = Number(preview.manifest.versionIdentity.workflowVersionId);
 
-    await expect(ev.publishEvidence({
-      userId: f.userId, benchmarkId, previewHash: "0".repeat(64), consentVersion: "consent-v1",
+    // A01/A10: consent is to a hash. The wrong hash never publishes anything.
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: "0".repeat(64), consentVersion: "consent-v1",
     })).rejects.toThrow(/preview_changed/);
+    expect((await listingRow(listingId)).listing.status).toBe("draft");
 
-    const published = await ev.publishEvidence({
-      userId: f.userId, benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    // Naming a version the evidence did not test is refused (A11). A SECOND,
+    // real version of the same project is used so the refusal is about the
+    // binding, not about the version existing.
+    const db = await connection();
+    const [otherVersion] = await db.insert(schema.pipelineVersions).values({
+      ownerId: f.userId, sourceProjectId: f.projectId, versionNumber: 987,
+      definition: JSON.stringify({ steps: [] }), definitionHash: "f".repeat(64),
+    });
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: Number((otherVersion as { insertId: number }).insertId),
+      benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    })).rejects.toThrow(/version_mismatch/);
+    // A version that is not yours at all is not even described as existing.
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: 999_999, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
+    })).rejects.toThrow(/not_found_or_not_authorized/);
+
+    const published = await ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
     });
     expect(published.reused).toBe(false);
+    expect(published.previousListingStatus).toBe("draft");
     const row = await publicationRow(published.publicationId);
     expect(row.state).toBe("published");
     expect(row.manifestHash).toBe(preview.previewHash);
@@ -209,12 +274,117 @@ describe("evidence publication (DB-backed)", () => {
     expect(new Date(row.testedAt).getTime()).toBe(new Date(bench.finishedAt!).getTime());
     expect(new Date(row.publishedAt!).getTime()).toBeGreaterThanOrEqual(new Date(row.testedAt).getTime());
 
-    const again = await ev.publishEvidence({
-      userId: f.userId, benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    // The listing now sells exactly that version under the v2 rules.
+    const after = await listingRow(listingId);
+    expect(after.listing.status).toBe("published");
+    expect(after.v2?.publicationMode).toBe("v2");
+    // No `certifying` transition was introduced for the v2 listing (§10.2).
+    expect(after.listing.status).not.toBe("certifying");
+    expect(after.v2?.currentWorkflowVersionId).toBe(versionId);
+    expect(after.v2?.currentEvidencePublicationId).toBe(published.publicationId);
+    expect(after.v2?.evidenceSummaryRevision).toBe(1);
+
+    const again = await ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
     });
     expect(again.publicationId).toBe(published.publicationId);
     expect(again.reused).toBe(true);
+
+    // A stale revision token cannot clobber the current pointer.
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1", expectedListingRevision: 0,
+    })).rejects.toThrow(/revision_conflict/);
   });
+
+  it("the v2Publication flag is a real gate: off means nothing can be made public", async () => {
+    const f = await seedFixture();
+    const { benchmarkId } = await completedBenchmark(f);
+    const { listingId } = await seedListing(f);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    const versionId = Number(preview.manifest.versionIdentity.workflowVersionId);
+
+    await setPublicationFlag(false);
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
+    })).rejects.toThrow(/publication_disabled/);
+    await expect(ev.publishCommunityEvidence({
+      userId: f.userId, benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    })).rejects.toThrow(/publication_disabled/);
+    await expect(ev.withdrawPublication({ userId: f.userId, publicationId: 1, reason: "test" }))
+      .rejects.toThrow(/publication_disabled/);
+    expect((await listingRow(listingId)).listing.status).toBe("draft");
+
+    await setPublicationFlag(true);
+    const ok = await ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
+    });
+    expect(ok.publicationId).toBeGreaterThan(0);
+  });
+
+  it("the legacy certification pipeline cannot touch a v2 listing's standing (plan §4)", async () => {
+    const f = await seedFixture();
+    const { benchmarkId } = await completedBenchmark(f);
+    const { listingId } = await seedListing(f);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    await ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: Number(preview.manifest.versionIdentity.workflowVersionId),
+      benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    });
+
+    const guard = await import("./marketplacePublication");
+    // Re-certifying, rejecting, requeueing or republishing through legacy flows: all refused.
+    for (const status of ["certifying", "rejected", "published", "approved", "draft", "generating"] as const) {
+      await expect(guard.setLegacyListingStatus(listingId, { status })).rejects.toThrow(/v2_publication_locked/);
+    }
+    // Delisting is the one legacy write a v2 listing still allows.
+    await guard.setLegacyListingStatus(listingId, { status: "unpublished" });
+    expect((await listingRow(listingId)).listing.status).toBe("unpublished");
+
+    // A legacy listing (no v2 row) is untouched by the guard.
+    const other = await seedListing(f);
+    await guard.setLegacyListingStatus(other.listingId, { status: "certifying" });
+    expect((await listingRow(other.listingId)).listing.status).toBe("certifying");
+    expect(await guard.getPublicationMode(await connection(), other.listingId)).toBe("legacy");
+  });
+
+  it("public reads expose the manifest only, and withdrawal unpublishes in the same transaction", async () => {
+    const f = await seedFixture();
+    const { benchmarkId } = await completedBenchmark(f);
+    const { listingId } = await seedListing(f);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    const published = await ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: Number(preview.manifest.versionIdentity.workflowVersionId),
+      benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    });
+
+    const manifest = await ev.getPublicEvidenceForListing(listingId);
+    expect(manifest?.publicationKind).toBe("seller");
+    expect(JSON.stringify(manifest)).not.toContain(SECRET_PROMPT.slice(0, 40));
+
+    const summaries = await ev.listPublicEvidenceForListing(listingId, { kind: "seller" });
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].state).toBe("published");
+    // Summaries carry no private payload at all — only published manifest fields.
+    expect(JSON.stringify(summaries)).not.toContain("systemPrompt");
+
+    const withdrawn = await ev.withdrawPublication({ userId: f.userId, publicationId: published.publicationId, reason: "no longer supported" });
+    expect(withdrawn.ok).toBe(true);
+    // A10: the listing may not stay buyable with no current evidence.
+    const after = await listingRow(listingId);
+    expect(after.listing.status).toBe("unpublished");
+    expect(after.v2?.currentEvidencePublicationId).toBeNull();
+    expect(await ev.getPublicEvidenceForListing(listingId)).toBeNull();
+    // The withdrawn row is still addressable by hash — history is not deleted.
+    const db = await connection();
+    const [row] = await db.select().from(schema.evidencePublications).where(eq(schema.evidencePublications.id, published.publicationId)).limit(1);
+    expect(row.state).toBe("withdrawn");
+    expect(await ev.getPublishedManifestByHash(published.manifestHash)).toBeNull();
+  });
+
 
   it("a stranger cannot publish someone else's benchmark, and cannot read its manifest", async () => {
     const owner = await seedFixture();
@@ -258,12 +428,13 @@ describe("evidence publication (DB-backed)", () => {
     await svc.executeBenchmark({ benchmarkId, leaseToken: lease! });
 
     // There is no manifest to disclose at all: without an executed version
-    // the §4.3 gate is a refusal, not an empty preview.
+    // the §4.3 gate is a refusal at the preview, so it cannot be published by
+    // either boundary — and there is no version to even name in a seller call.
     await expect(ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v1" }))
       .rejects.toThrow(/not_publishable/);
-    await expect(ev.publishEvidence({
+    await expect(ev.publishCommunityEvidence({
       userId: f.userId, benchmarkId, previewHash: "0".repeat(64), consentVersion: "consent-v1",
-    })).rejects.toThrow(/not_publishable/);
+    })).rejects.toThrow(/not_publishable|preview_changed/);
   });
 
   it("refuses to publish a manifest that would leak a credential, and offers the limited path instead", async () => {
@@ -280,11 +451,14 @@ describe("evidence publication (DB-backed)", () => {
     const lease = await svc.acquireBenchmark(benchmarkId);
     await svc.executeBenchmark({ benchmarkId, leaseToken: lease! });
 
-    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v1" });
+    const { listingId } = await seedListing(f);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
     expect(preview.secretFindings).toContain("api-key-shaped token");
-    await expect(ev.publishEvidence({
-      userId: f.userId, benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: Number(preview.manifest.versionIdentity.workflowVersionId),
+      benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
     })).rejects.toThrow(/api-key-shaped token/);
+    expect((await listingRow(listingId)).listing.status).toBe("draft");
 
     // Withholding the inputs is allowed, but the resulting limited report can
     // never BE the seller's qualifying evidence — refused with the §7.3 reason.
@@ -301,8 +475,8 @@ describe("evidence publication (DB-backed)", () => {
     expect(limited.disclosureClass).toBe("limited");
     expect(limited.secretFindings).toEqual([]);
     expect(limited.manifest.cases.every((c) => c.inputText === null)).toBe(true);
-    const community = await ev.publishEvidence({
-      userId: f.userId, benchmarkId, previewHash: limited.previewHash, consentVersion: "consent-v1", publicationKind: "community",
+    const community = await ev.publishCommunityEvidence({
+      userId: f.userId, benchmarkId, previewHash: limited.previewHash, consentVersion: "consent-v1",
       withholdInputs: true, withheldReason: "case text contains a customer token",
     });
     expect(community.publicationId).toBeGreaterThan(0);
@@ -314,15 +488,22 @@ describe("evidence publication (DB-backed)", () => {
   it("withdrawal and replacement are separate immutable rows; testedAt never moves", async () => {
     const f = await seedFixture();
     const { benchmarkId } = await completedBenchmark(f);
-    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v1" });
-    const first = await ev.publishEvidence({ userId: f.userId, benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1" });
+    const { listingId } = await seedListing(f);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    const versionId = Number(preview.manifest.versionIdentity.workflowVersionId);
+    const first = await ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
+    });
     const firstRow = await publicationRow(first.publicationId);
 
     // consentVersion is part of the disclosed document, so the replacement must
     // be previewed UNDER consent-v2 — otherwise the hash legitimately differs.
-    const v2Preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v2" });
+    const v2Preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v2" });
     const replaced = await ev.supersedePublication({
-      userId: f.userId, supersededPublicationId: first.publicationId, benchmarkId, previewHash: v2Preview.previewHash, consentVersion: "consent-v2",
+      userId: f.userId, supersededPublicationId: first.publicationId, benchmarkId, listingId,
+      workflowVersionId: versionId, previewHash: v2Preview.previewHash, consentVersion: "consent-v2",
+      expectedListingRevision: first.evidenceSummaryRevision,
     });
     expect(replaced.publicationId).not.toBe(first.publicationId);
     const oldRow = await publicationRow(first.publicationId);
@@ -334,9 +515,12 @@ describe("evidence publication (DB-backed)", () => {
     expect(newRow.consentVersion).toBe("consent-v2");
     // Same test, same test date — only the publication date is new.
     expect(new Date(newRow.testedAt).getTime()).toBe(new Date(firstRow.testedAt).getTime());
+    expect((await listingRow(listingId)).v2?.evidenceSummaryRevision).toBe(2);
 
     const withdrawn = await ev.withdrawPublication({ userId: f.userId, publicationId: replaced.publicationId, reason: "seller withdrew" });
     expect(withdrawn.ok).toBe(true);
     expect((await publicationRow(replaced.publicationId)).state).toBe("withdrawn");
+    // The listing the withdrawn manifest supported is no longer buyable.
+    expect((await listingRow(listingId)).listing.status).toBe("unpublished");
   });
 });

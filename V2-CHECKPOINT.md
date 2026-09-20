@@ -23,7 +23,7 @@
 
 ## Hard rules (violating any = stop)
 - Never modify `/Users/youssefhariri/Documents/app 25` (frozen prod copy). All work in `/Users/youssefhariri/Documents/app25_v2`.
-- Never connect to production DB/Redis (`hopper/acela.proxy.rlwy.net`). Local stack only: `docker compose -f docker-compose.v2.yml` (`v2-mysql`:3307, `v2-redis`:6380). Integration tests use throwaway DB `swarm_v2test` and revoke ONLY their own grant.
+- Never connect to production DB/Redis (`hopper/acela.proxy.rlwy.net`). Local stack only: `docker compose -f docker-compose.v2.yml` (`v2-mysql`:3307, `v2-redis`:6380). Integration tests use throwaway DBs and revoke ONLY their own grant. **Each integration test file needs its OWN database name** (`swarm_v2test` design-job, `swarm_v2test_bench`, `swarm_v2test_exec`, `swarm_v2test_evidence`) — vitest runs files in parallel, and two files sharing a schema will have one file's `afterAll` DROP pull the ground out from under the other (this produced 19 phantom failures once already).
 - Never delete archives/backups/snapshots. Additive migrations only (next number: check `db/migrations/`, was 027).
 - No pushes to the OLD repo, no Railway/DNS/domain mutations, no Stripe anything beyond test-mode config files.
 - Before EVERY commit: security scan (staged file list, secret patterns in `git diff --cached`), then commit AND `git push origin main` immediately.

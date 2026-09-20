@@ -4,6 +4,7 @@ import { eq, and, ne, desc, sql, count, inArray } from "drizzle-orm";
 import { getDb, getReadDb } from "../queries/connection";
 import {
   marketplaceListings,
+  marketplaceListingV2,
   testPrompts,
   testPromptIntermediate,
   listingReviews,
@@ -22,6 +23,10 @@ import { createOrUpdateFile } from "../services/giteeService";
 import { extractJson } from "../lib/extractJson";
 import { withTimeout } from "../lib/withTimeout";
 import { isFeatureEnabled } from "../plugins/featureFlags";
+import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
+import {
+  getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
+} from "../services/evidenceService";
 import { logger } from "../lib/logger";
 import { env, isAiTriageConfigured } from "../lib/env";
 import { can as entitlementCan, grant as entitlementGrant } from "../services/entitlements";
@@ -871,27 +876,21 @@ export async function submitBlindTaskReview(
     listingOutcome = decision;
 
     if (decision === "published") {
-      await getDb()
-        .update(marketplaceListings)
-        .set({
-          grade: String(avgScore.toFixed(2)),
-          reviewCount: allReviews.length,
-          kappaScore: String(kappaScore.toFixed(3)),
-          status: "published",
-          certifiedAt: new Date(),
-        })
-        .where(eq(marketplaceListings.id, task.listingId));
+      await setLegacyListingStatus(task.listingId, {
+        grade: String(avgScore.toFixed(2)),
+        reviewCount: allReviews.length,
+        kappaScore: String(kappaScore.toFixed(3)),
+        status: "published",
+        certifiedAt: new Date(),
+      });
     } else {
-      await getDb()
-        .update(marketplaceListings)
-        .set({
-          grade: String(avgScore.toFixed(2)),
-          reviewCount: allReviews.length,
-          kappaScore: String(kappaScore.toFixed(3)),
-          status: "rejected",
-          aiFeedback: `Certification failed after blind human review: weighted average ${avgScore.toFixed(2)} (need ≥ ${CERTIFY_MIN_AVG_SCORE}), pass ratio ${(passRatio * 100).toFixed(0)}% (need ≥ ${CERTIFY_MIN_PASS_RATIO * 100}%). Revise the pipeline and resubmit.`,
-        })
-        .where(eq(marketplaceListings.id, task.listingId));
+      await setLegacyListingStatus(task.listingId, {
+        grade: String(avgScore.toFixed(2)),
+        reviewCount: allReviews.length,
+        kappaScore: String(kappaScore.toFixed(3)),
+        status: "rejected",
+        aiFeedback: `Certification failed after blind human review: weighted average ${avgScore.toFixed(2)} (need ≥ ${CERTIFY_MIN_AVG_SCORE}), pass ratio ${(passRatio * 100).toFixed(0)}% (need ≥ ${CERTIFY_MIN_PASS_RATIO * 100}%). Revise the pipeline and resubmit.`,
+      });
     }
 
     // Outcome logging for calibration (spec 0.8).
@@ -1150,6 +1149,9 @@ export const marketplaceRouter = createRouter({
       if (listing.status !== "draft" && listing.status !== "rejected") {
         throw new Error("Can only submit draft or rejected listings");
       }
+      // Refuse BEFORE spending anything on test-data generation: a v2 listing's
+      // visibility is decided by its evidence, not by the legacy review flow.
+      await assertLegacyFlowAllowed(input.id, "legacy submitForReview");
 
       // Resubmission idempotency: clear prior review-cycle artifacts so a
       // re-submit regenerates from scratch instead of appending (duplicate
@@ -1166,14 +1168,11 @@ export const marketplaceRouter = createRouter({
       // Fail → `rejected` with findings stored in aiFeedback ([SECURITY]).
       const scan = await scanListingSecurity(input.id);
       if (!scan.ok) {
-        await getDb()
-          .update(marketplaceListings)
-          .set({
-            status: "rejected",
-            aiFeedback: `[SECURITY] ${scan.findings.join(" | ")}`,
-            aiReviewedAt: new Date(),
-          })
-          .where(eq(marketplaceListings.id, input.id));
+        await setLegacyListingStatus(input.id, {
+          status: "rejected",
+          aiFeedback: `[SECURITY] ${scan.findings.join(" | ")}`,
+          aiReviewedAt: new Date(),
+        });
         logger.warn("marketplace.security.rejected", { listingId: input.id, findingCount: scan.findings.length });
         return {
           message: `Listing rejected by automated security review. ${scan.findings[0] ?? ""}`.trim(),
@@ -1209,10 +1208,7 @@ export const marketplaceRouter = createRouter({
       );
 
       // Step 2: Set status to generating, get DB ids
-      await getDb()
-        .update(marketplaceListings)
-        .set({ status: "generating" })
-        .where(eq(marketplaceListings.id, input.id));
+      await setLegacyListingStatus(input.id, { status: "generating" });
 
       const insertedPrompts = await getDb()
         .select()
@@ -1286,9 +1282,7 @@ export const marketplaceRouter = createRouter({
           const creditFailures = promptStates.filter((s) => s.error === "Credit exhausted");
           if (creditFailures.length > 0) {
             logger.error("Marketplace CREDIT EXHAUSTED, reverting to draft", { failedPrompts: creditFailures.length });
-            await getDb().update(marketplaceListings)
-              .set({ status: "draft" })
-              .where(eq(marketplaceListings.id, input.id));
+            await setLegacyListingStatus(input.id, { status: "draft" });
             return; // STOP — user must add credit
           }
 
@@ -1304,9 +1298,7 @@ export const marketplaceRouter = createRouter({
               const ok = await runOnePrompt(state);
               if (!ok && state.error === "Credit exhausted") {
                 // Credit error mid-retry → pause everything
-                await getDb().update(marketplaceListings)
-                  .set({ status: "draft" })
-                  .where(eq(marketplaceListings.id, input.id));
+                await setLegacyListingStatus(input.id, { status: "draft" });
                 return;
               }
             }
@@ -1344,9 +1336,7 @@ export const marketplaceRouter = createRouter({
           // If >50% failed → revert to draft (not enough quality data)
           if (failureRate > 0.5) {
             logger.error("Marketplace too many failures, reverting to draft", { failures: finalFailures, total: totalCount, failureRatePct: (failureRate * 100).toFixed(0) });
-            await getDb().update(marketplaceListings)
-              .set({ status: "draft" })
-              .where(eq(marketplaceListings.id, input.id));
+            await setLegacyListingStatus(input.id, { status: "draft" });
             return;
           }
 
@@ -1368,43 +1358,46 @@ export const marketplaceRouter = createRouter({
           }
 
           if (triage && triage.score < AI_TRIAGE_FLOOR) {
-            await getDb()
-              .update(marketplaceListings)
-              .set({
-                status: "rejected",
-                aiGrade: String(triage.score.toFixed(2)),
-                aiFeedback: triage.feedback,
-                aiReviewedAt: new Date(),
-              })
-              .where(eq(marketplaceListings.id, input.id));
+            await setLegacyListingStatus(input.id, {
+              status: "rejected",
+              aiGrade: String(triage.score.toFixed(2)),
+              aiFeedback: triage.feedback,
+              aiReviewedAt: new Date(),
+            });
             logger.info("marketplace.triage.rejected", { listingId: input.id, score: triage.score, floor: AI_TRIAGE_FLOOR });
             return;
           }
 
           // ─── Step 4 (spec 0.1/0.5): enter `certifying` — VISIBLE, NOT buyable ──
-          await getDb()
-            .update(marketplaceListings)
-            .set({
-              status: "certifying",
-              ...(triage
-                ? {
-                    aiGrade: String(triage.score.toFixed(2)),
-                    aiFeedback: triage.feedback,
-                    aiReviewedAt: new Date(),
-                  }
-                : {}),
-            })
-            .where(eq(marketplaceListings.id, input.id));
+          await setLegacyListingStatus(input.id, {
+            status: "certifying",
+            ...(triage
+              ? {
+                  aiGrade: String(triage.score.toFixed(2)),
+                  aiFeedback: triage.feedback,
+                  aiReviewedAt: new Date(),
+                }
+              : {}),
+          });
 
           // Enqueue this listing's prompts into the blind review pool —
           // UNASSIGNED (pooled); reviewers claim one prompt at a time.
           await enqueueBlindReviewTasks(input.id);
           logger.info("marketplace.certifying", { listingId: input.id, triageScore: triage?.score ?? null });
         } catch (e) {
+          if (e instanceof V2PublicationLockedError) {
+            // The listing moved under the v2 boundary while generation ran. The
+            // v2 rules own its status from here on — there is nothing to revert.
+            logger.warn("Marketplace background generation stopped: listing is v2-published", { listingId: input.id });
+            return;
+          }
           logger.error("Marketplace background gen failed", { error: (e as Error).message });
-          await getDb().update(marketplaceListings)
-            .set({ status: "draft" })
-            .where(eq(marketplaceListings.id, input.id));
+          // This runs OUTSIDE the awaited request: a refusal here (the listing
+          // went v2 while generation was running) must not become an unhandled
+          // rejection. The listing keeps whatever status the v2 boundary set.
+          await setLegacyListingStatus(input.id, { status: "draft" }).catch((err) => {
+            logger.warn("Marketplace background revert to draft skipped", { listingId: input.id, error: (err as Error).message });
+          });
         }
       })();
       // ─── END FIRE AND FORGET ────────────────────────────────────
@@ -1615,10 +1608,7 @@ export const marketplaceRouter = createRouter({
       if (!listing) throw new Error("Listing not found");
       if (listing.status !== "approved") throw new Error("Listing must be approved before publishing");
 
-      await getDb()
-        .update(marketplaceListings)
-        .set({ status: "published" })
-        .where(eq(marketplaceListings.id, input.id));
+      await setLegacyListingStatus(input.id, { status: "published" }, { ownerId: ctx.user.id });
 
       return { message: "Listing published" };
     }),
@@ -1626,16 +1616,81 @@ export const marketplaceRouter = createRouter({
   unpublish: authedQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      await getDb()
-        .update(marketplaceListings)
-        .set({ status: "unpublished" })
-        .where(and(
-          eq(marketplaceListings.id, input.id),
-          eq(marketplaceListings.creatorId, ctx.user.id),
-        ));
+      await setLegacyListingStatus(input.id, { status: "unpublished" }, { ownerId: ctx.user.id });
 
       return { message: "Listing unpublished" };
     }),
+
+  // ── V2: the sole seller publication boundary (spec §10.1) ─────────
+  // Evidence and the version it describes are linked in one transaction, and
+  // the caller must name the workflow version they are actually selling —
+  // a new revision cannot inherit an older revision's scores (A11).
+  publishVersion: authedQuery
+    .input(z.object({
+      listingId: z.number().int().positive(),
+      workflowVersionId: z.number().int().positive(),
+      benchmarkId: z.number().int().positive(),
+      previewHash: z.string().length(64),
+      consentVersion: z.string().min(1).max(40),
+      expectedListingRevision: z.number().int().nonnegative().optional(),
+      withholdInputs: z.boolean().optional(),
+      withheldReason: z.string().min(3).max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) =>
+      publishVersion({
+        userId: ctx.user.id, listingId: input.listingId, workflowVersionId: input.workflowVersionId,
+        benchmarkId: input.benchmarkId, previewHash: input.previewHash, consentVersion: input.consentVersion,
+        expectedListingRevision: input.expectedListingRevision,
+        withholdInputs: input.withholdInputs, withheldReason: input.withheldReason,
+      }),
+    ),
+
+  /** Owner-scoped read of where a listing currently stands under the v2 rules:
+   *  which version is sold, which evidence backs it, and the revision token to
+   *  pass as `expectedListingRevision`. Never returns the private benchmark. */
+  publicationState: authedQuery
+    .input(z.object({ listingId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
+      const [listing] = await db.select({ id: marketplaceListings.id, status: marketplaceListings.status })
+        .from(marketplaceListings)
+        .where(and(eq(marketplaceListings.id, input.listingId), eq(marketplaceListings.creatorId, ctx.user.id)))
+        .limit(1);
+      if (!listing) throw new Error("not_found_or_not_authorized");
+      const [v2] = await db.select().from(marketplaceListingV2)
+        .where(eq(marketplaceListingV2.listingId, listing.id)).limit(1);
+      return {
+        listingId: listing.id,
+        listingStatus: listing.status,
+        publicationMode: v2?.publicationMode ?? "legacy",
+        currentWorkflowVersionId: v2?.currentWorkflowVersionId ?? null,
+        currentEvidencePublicationId: v2?.currentEvidencePublicationId ?? null,
+        evidenceSummaryRevision: v2?.evidenceSummaryRevision ?? 0,
+      };
+    }),
+
+  // ── Public evidence reads: manifest DTOs only, never private rows ─
+  getPublicEvidence: publicQuery
+    .input(z.object({ listingId: z.number().int().positive() }))
+    .query(async ({ input }) => ({ manifest: await getPublicEvidenceForListing(input.listingId) })),
+
+  listCommunityEvidence: publicQuery
+    .input(z.object({
+      listingId: z.number().int().positive(),
+      workflowVersionId: z.number().int().positive().optional(),
+      model: z.string().max(120).optional(),
+      includeWithdrawn: z.boolean().optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+    }))
+    .query(async ({ input }) => listPublicEvidenceForListing(input.listingId, {
+      kind: "community", workflowVersionId: input.workflowVersionId, model: input.model,
+      includeWithdrawn: input.includeWithdrawn, limit: input.limit,
+    })),
+
+  /** A manifest addressed by the hash a reader was given (§6.2 canonical URL). */
+  getEvidenceByHash: publicQuery
+    .input(z.object({ manifestHash: z.string().length(64) }))
+    .query(async ({ input }) => ({ manifest: await getPublishedManifestByHash(input.manifestHash) })),
 
   // ── Creator: Delete a listing ──────────────────────────────────
   // Reviewers keep their earned points. Only removes the listing.
@@ -1651,6 +1706,9 @@ export const marketplaceRouter = createRouter({
         ));
 
       if (!listing) throw new Error("Listing not found");
+      // A v2 listing carries public evidence whose FK is RESTRICT — deleting it
+      // would strand the manifest buyers were shown. Say so instead of 500ing.
+      await assertLegacyFlowAllowed(input.id, "delete");
 
       // Delete intermediates: first get all test prompt IDs for this listing
       const prompts = await getDb()
@@ -2256,10 +2314,7 @@ export const marketplaceRouter = createRouter({
         .where(eq(marketplaceListings.id, input.listingId));
 
       if (listing?.status === "pending_review") {
-        await getDb()
-          .update(marketplaceListings)
-          .set({ status: "reviewing" })
-          .where(eq(marketplaceListings.id, input.listingId));
+        await setLegacyListingStatus(input.listingId, { status: "reviewing" });
       }
 
       // Check how many prompts this reviewer has now reviewed
@@ -2384,22 +2439,16 @@ export const marketplaceRouter = createRouter({
               allReviews.filter((r) => parseFloat(String(r.weightedScore)) >= CERTIFY_MIN_AVG_SCORE).length / allReviews.length;
             const newStatus = avgScore >= CERTIFY_MIN_AVG_SCORE && passRatio >= CERTIFY_MIN_PASS_RATIO ? "approved" : "rejected";
 
-            await getDb()
-              .update(marketplaceListings)
-              .set({
-                grade: String(avgScore.toFixed(2)),
-                reviewCount: allReviews.length,
-                kappaScore: String(kappaScore.toFixed(3)),
-                status: newStatus,
-              })
-              .where(eq(marketplaceListings.id, input.listingId));
+            await setLegacyListingStatus(input.listingId, {
+              grade: String(avgScore.toFixed(2)),
+              reviewCount: allReviews.length,
+              kappaScore: String(kappaScore.toFixed(3)),
+              status: newStatus,
+            });
 
             // Auto-publish approved listings
             if (newStatus === "approved") {
-              await getDb()
-                .update(marketplaceListings)
-                .set({ status: "published" })
-                .where(eq(marketplaceListings.id, input.listingId));
+              await setLegacyListingStatus(input.listingId, { status: "published" });
               logger.info("submitReview auto-publish", { listingId: input.listingId });
             }
 
@@ -2581,15 +2630,12 @@ export const marketplaceRouter = createRouter({
         reviews.filter((r) => parseFloat(String(r.weightedScore)) >= CERTIFY_MIN_AVG_SCORE).length / reviews.length;
       const status = avgScore >= CERTIFY_MIN_AVG_SCORE && passRatio >= CERTIFY_MIN_PASS_RATIO ? "approved" : "rejected";
 
-      await getDb()
-        .update(marketplaceListings)
-        .set({
-          grade: String(avgScore.toFixed(2)),
-          reviewCount: reviews.length,
-          kappaScore: String(kappaScore.toFixed(3)),
-          status,
-        })
-        .where(eq(marketplaceListings.id, input.listingId));
+      await setLegacyListingStatus(input.listingId, {
+        grade: String(avgScore.toFixed(2)),
+        reviewCount: reviews.length,
+        kappaScore: String(kappaScore.toFixed(3)),
+        status,
+      });
 
       // Update assignment statuses
       await getDb()

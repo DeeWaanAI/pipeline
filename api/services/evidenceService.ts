@@ -17,14 +17,15 @@
 // - DB rows are never returned publicly; only the manifest DTO is.
 
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
   benchmarkCandidates, benchmarkCases, benchmarkJudgments, benchmarkRuns, benchmarks,
   callAttempts, evidencePublications, llmProviders, marketplaceListingV2, marketplaceListings,
-  pipelineVersions,
+  pipelineTemplates, pipelineVersions,
 } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
+import { isFeatureEnabled } from "../plugins/featureFlags";
 import { stableStringify } from "./benchmark/benchmarkCallPlan";
 import {
   PublicEvidenceManifestSchema, REVISION_NOT_EXPOSED,
@@ -449,90 +450,272 @@ function renderJudgeTemplate(rubric: RubricSpec): string {
 
 // ─── Publish / withdraw / replace ───────────────────────────────────
 
-export async function publishEvidence(opts: {
-  userId: number; benchmarkId: number; listingId?: number | null;
-  previewHash: string; consentVersion: string; publicationKind?: "seller" | "community";
-  withholdInputs?: boolean; withheldReason?: string;
-}): Promise<{ publicationId: number; manifestHash: string; reused: boolean }> {
-  const kind = opts.publicationKind ?? "seller";
+/** §13 G1: nothing may become public while the phase flag is off. The gate
+ *  lives in the service, not only in the routers, because MCP, tRPC and any
+ *  future worker all reach publication through here. */
+export async function assertPublicationEnabled(userId: number): Promise<void> {
+  let enabled = false;
+  try {
+    enabled = await isFeatureEnabled("v2Publication", userId);
+  } catch (err) {
+    logger.warn("v2Publication flag lookup failed — treating publication as disabled", {
+      error: (err as Error).message,
+    });
+  }
+  if (!enabled) {
+    throw new Error("publication_disabled: the v2 evidence publication flag is off for this account");
+  }
+}
+
+/** Every refusal that turns a preview into a publication, in one place so the
+ *  seller and community paths cannot drift apart. */
+function assertPublishable(preview: EvidencePreview, kind: "seller" | "community", consentVersion: string): void {
+  if (!consentVersion) throw new Error("publication_refused: an explicit consent version is required");
+  if (kind === "seller" && preview.eligibilityIssues.length) {
+    throw new Error(`publication_refused: ${preview.eligibilityIssues.join("; ")}`);
+  }
+  if (preview.secretFindings.length) {
+    throw new Error(
+      `publication_refused: the disclosed material contains ${preview.secretFindings.join(", ")} — ` +
+        (kind === "seller"
+          ? "redact it or publish a limited-disclosure community report instead"
+          : "redact it before publishing"),
+    );
+  }
+}
+
+interface PublishArgs {
+  userId: number;
+  benchmarkId: number;
+  listingId: number | null;
+  previewHash: string;
+  consentVersion: string;
+  kind: "seller" | "community";
+  withholdInputs?: boolean;
+  withheldReason?: string;
+  supersedesPublicationId?: number;
+  /** A11: the evidence may only be published for the version it actually
+   *  tested. Checked against the built manifest, not against a guess. */
+  requiredWorkflowVersionId?: number;
+  /** Optimistic concurrency on the listing's evidence pointer (§10.1). */
+  expectedListingRevision?: number | null;
+}
+
+interface PublishResult {
+  publicationId: number;
+  manifestHash: string;
+  reused: boolean;
+  evidenceSummaryRevision: number | null;
+  previousListingStatus: string | null;
+}
+
+/** Shared writer for every state change that makes a manifest public. Both
+ *  entry points above reach this, so the refusals cannot drift between them. */
+async function publishManifest(a: PublishArgs): Promise<PublishResult> {
   const preview = await buildEvidencePreview({
-    userId: opts.userId, benchmarkId: opts.benchmarkId, publicationKind: kind,
-    listingId: opts.listingId ?? null, consentVersion: opts.consentVersion,
-    withholdInputs: opts.withholdInputs, withheldReason: opts.withheldReason,
+    userId: a.userId, benchmarkId: a.benchmarkId, publicationKind: a.kind,
+    listingId: a.listingId, consentVersion: a.consentVersion,
+    withholdInputs: a.withholdInputs, withheldReason: a.withheldReason,
   });
-  if (preview.previewHash !== opts.previewHash) {
+  if (preview.previewHash !== a.previewHash) {
     // The user must have been shown the exact bytes that are about to become
     // public; a stale hash means something changed under them.
     throw new Error("preview_changed — re-preview the manifest and confirm the exact disclosure again");
   }
-  if (kind === "seller" && preview.eligibilityIssues.length) throw new Error(`publication_refused: ${preview.eligibilityIssues.join("; ")}`);
-  if (preview.secretFindings.length) throw new Error(`publication_refused: the disclosed material contains ${preview.secretFindings.join(", ")} — redact it or publish a limited-disclosure report instead`);
-  if (!opts.consentVersion) throw new Error("publication_refused: an explicit consent version is required");
+  assertPublishable(preview, a.kind, a.consentVersion);
+  const testedVersionId = Number(preview.manifest.versionIdentity.workflowVersionId);
+  if (a.requiredWorkflowVersionId !== undefined && testedVersionId !== a.requiredWorkflowVersionId) {
+    throw new Error(
+      `version_mismatch: this evidence tested workflow version ${testedVersionId}, not ${a.requiredWorkflowVersionId} — ` +
+        "a new revision cannot inherit another revision's scores (§10.2/A11)",
+    );
+  }
 
   const db = getDb();
   const publicationJson = JSON.stringify(preview.manifest);
   const [existing] = await db.select({ id: evidencePublications.id, hash: evidencePublications.manifestHash })
     .from(evidencePublications)
     .where(and(
-      eq(evidencePublications.authorId, opts.userId),
-      eq(evidencePublications.benchmarkId, opts.benchmarkId),
-      opts.listingId ? eq(evidencePublications.listingId, opts.listingId) : undefined,
+      eq(evidencePublications.authorId, a.userId),
+      eq(evidencePublications.benchmarkId, a.benchmarkId),
+      a.listingId ? eq(evidencePublications.listingId, a.listingId) : undefined,
       eq(evidencePublications.state, "published"),
     )).limit(1);
   if (existing && existing.hash === preview.previewHash) {
-    return { publicationId: existing.id, manifestHash: existing.hash, reused: true };
+    const [v2] = a.kind === "seller" && a.listingId
+      ? await db.select({ rev: marketplaceListingV2.evidenceSummaryRevision }).from(marketplaceListingV2)
+          .where(eq(marketplaceListingV2.listingId, a.listingId)).limit(1)
+      : [];
+    return {
+      publicationId: existing.id, manifestHash: existing.hash, reused: true,
+      evidenceSummaryRevision: v2?.rev ?? null, previousListingStatus: null,
+    };
   }
 
-  const inserted = await db.transaction(async (tx: Tx) => {
+  const created = await db.transaction(async (tx: Tx) => {
     const [res] = await tx.insert(evidencePublications).values({
-      authorId: opts.userId,
-      benchmarkId: opts.benchmarkId,
-      listingId: opts.listingId ?? null,
-      listingWorkflowVersionId: Number(preview.manifest.versionIdentity.workflowVersionId),
-      publicationKind: kind,
+      authorId: a.userId,
+      benchmarkId: a.benchmarkId,
+      listingId: a.listingId,
+      listingWorkflowVersionId: testedVersionId,
+      publicationKind: a.kind,
       provenance: preview.manifest.provenance,
       publicManifest: publicationJson,
       manifestHash: preview.previewHash,
       schemaVersion: preview.manifest.schemaVersion,
-      consentVersion: opts.consentVersion,
+      consentVersion: a.consentVersion,
       state: "published",
       publishedAt: new Date(),
       // testedAt comes from the benchmark itself and is NEVER "refreshed" here.
       testedAt: new Date(preview.manifest.testedAt),
+      supersedesPublicationId: a.supersedesPublicationId,
     });
     const publicationId = Number((res as { insertId: number }).insertId);
-
-    if (opts.listingId) {
-      await attachListing(tx, opts.listingId, opts.userId, publicationId, preview);
+    if (a.kind === "seller" && a.listingId) {
+      return { publicationId, ...await attachListing(tx, a.listingId, a.userId, publicationId, preview, a.expectedListingRevision) };
     }
-    return publicationId;
+    return { publicationId, evidenceSummaryRevision: null, previousListingStatus: null };
   });
 
-  logger.info("evidence publication created", { publicationId: inserted, benchmarkId: opts.benchmarkId, listingId: opts.listingId ?? null, kind });
-  return { publicationId: inserted, manifestHash: preview.previewHash, reused: false };
+  logger.info("evidence publication created", {
+    publicationId: created.publicationId, benchmarkId: a.benchmarkId, listingId: a.listingId, kind: a.kind,
+  });
+  return { ...created, manifestHash: preview.previewHash, reused: false };
+}
+
+/**
+ * §10.1 `marketplace.publishVersion` — the SOLE seller publication boundary.
+ * It links the immutable public evidence and the exact sellable version in one
+ * transaction, so a listing is never buyable on terms its current evidence does
+ * not describe. `expectedListingRevision` (when supplied) makes a stale view of
+ * the listing fail loudly instead of silently replacing someone else's update.
+ */
+export async function publishVersion(opts: {
+  userId: number;
+  listingId: number;
+  workflowVersionId: number;
+  benchmarkId: number;
+  previewHash: string;
+  consentVersion: string;
+  expectedListingRevision?: number | null;
+  withholdInputs?: boolean;
+  withheldReason?: string;
+  /** Set only by supersedePublication: the new row records what it replaces. */
+  supersedesPublicationId?: number;
+}): Promise<PublishResult> {
+  await assertPublicationEnabled(opts.userId);
+  const db = getDb();
+
+  const [listing] = await db.select({
+    id: marketplaceListings.id, creatorId: marketplaceListings.creatorId,
+    templateId: marketplaceListings.templateId, status: marketplaceListings.status,
+  }).from(marketplaceListings).where(eq(marketplaceListings.id, opts.listingId)).limit(1);
+  // Same message for "does not exist" and "not yours": no cross-tenant existence leak.
+  if (!listing || listing.creatorId !== opts.userId) throw new Error("not_found_or_not_authorized");
+
+  const [version] = await db.select({
+    id: pipelineVersions.id, ownerId: pipelineVersions.ownerId,
+    sourceProjectId: pipelineVersions.sourceProjectId, definitionHash: pipelineVersions.definitionHash,
+  }).from(pipelineVersions).where(eq(pipelineVersions.id, opts.workflowVersionId)).limit(1);
+  if (!version || version.ownerId !== opts.userId) throw new Error("not_found_or_not_authorized");
+
+  const [template] = await db.select({
+    sourceProjectId: pipelineTemplates.sourceProjectId,
+  }).from(pipelineTemplates).where(eq(pipelineTemplates.id, listing.templateId)).limit(1);
+  // Refuse only a CONTRADICTION, not an unknown: legacy templates predate
+  // versioning and may legitimately have no recorded source project.
+  if (
+    template?.sourceProjectId != null && version.sourceProjectId != null &&
+    template.sourceProjectId !== version.sourceProjectId
+  ) {
+    throw new Error(
+      "lineage_mismatch: this evidence was measured on a workflow version from a different project than the one this listing came from",
+    );
+  }
+
+  // Optimistic concurrency, checked BEFORE anything else can short-circuit the
+  // write (including the idempotent-reuse path below), so a stale view of the
+  // listing is always a refusal rather than a silent no-op.
+  const [sidecar] = await db.select({ rev: marketplaceListingV2.evidenceSummaryRevision })
+    .from(marketplaceListingV2).where(eq(marketplaceListingV2.listingId, opts.listingId)).limit(1);
+  if (
+    opts.expectedListingRevision !== undefined && opts.expectedListingRevision !== null &&
+    opts.expectedListingRevision !== (sidecar?.rev ?? 0)
+  ) {
+    throw new Error(
+      `revision_conflict: the listing's evidence summary is at revision ${sidecar?.rev ?? 0}, ` +
+        `not ${opts.expectedListingRevision} — re-read listing publication state and re-approve the exact disclosure`,
+    );
+  }
+
+  return publishManifest({
+    userId: opts.userId, benchmarkId: opts.benchmarkId, listingId: opts.listingId,
+    previewHash: opts.previewHash, consentVersion: opts.consentVersion, kind: "seller",
+    withholdInputs: opts.withholdInputs, withheldReason: opts.withheldReason,
+    requiredWorkflowVersionId: opts.workflowVersionId,
+    expectedListingRevision: opts.expectedListingRevision,
+    supersedesPublicationId: opts.supersedesPublicationId,
+  });
+}
+
+/** §10.1 `communityEvidence.publish` — an authorized tester's own measured
+ *  evidence. It may REFERENCE a listing but never becomes that listing's
+ *  required seller evidence, which is what keeps A09's two kinds distinct. */
+export async function publishCommunityEvidence(opts: {
+  userId: number; benchmarkId: number; listingId?: number | null;
+  previewHash: string; consentVersion: string; withholdInputs?: boolean; withheldReason?: string;
+}): Promise<PublishResult> {
+  await assertPublicationEnabled(opts.userId);
+  return publishManifest({
+    userId: opts.userId, benchmarkId: opts.benchmarkId, listingId: opts.listingId ?? null,
+    previewHash: opts.previewHash, consentVersion: opts.consentVersion, kind: "community",
+    withholdInputs: opts.withholdInputs, withheldReason: opts.withheldReason,
+  });
 }
 
 /** Seller publication also moves the listing's v2 pointers in the SAME
- *  transaction, so a listing is never left buyable without its evidence. */
-async function attachListing(tx: Tx, listingId: number, sellerId: number, publicationId: number, preview: EvidencePreview) {
-  const [listing] = await tx.select().from(marketplaceListings).where(and(eq(marketplaceListings.id, listingId), eq(marketplaceListings.creatorId, sellerId))).limit(1);
-  if (!listing) throw new Error("not_found_or_not_authorized");
-  const [v2] = await tx.select().from(marketplaceListingV2).where(eq(marketplaceListingV2.listingId, listingId)).limit(1);
+ *  transaction, so a listing is never left buyable without its evidence.
+ *  Locks the listing row FIRST — the same order `setLegacyListingStatus` uses,
+ *  so the v2 boundary and the legacy pipeline serialize instead of deadlocking. */
+async function attachListing(
+  tx: Tx, listingId: number, sellerId: number, publicationId: number,
+  preview: EvidencePreview, expectedRevision?: number | null,
+): Promise<{ evidenceSummaryRevision: number; previousListingStatus: string }> {
+  const [listing] = await tx.select().from(marketplaceListings)
+    .where(eq(marketplaceListings.id, listingId)).for("update").limit(1);
+  if (!listing || listing.creatorId !== sellerId) throw new Error("not_found_or_not_authorized");
+  const [v2] = await tx.select().from(marketplaceListingV2)
+    .where(eq(marketplaceListingV2.listingId, listingId)).limit(1);
+  const currentRevision = v2?.evidenceSummaryRevision ?? 0;
+  if (expectedRevision !== undefined && expectedRevision !== null && expectedRevision !== currentRevision) {
+    throw new Error(
+      `revision_conflict: the listing's evidence summary is at revision ${currentRevision}, ` +
+        `not ${expectedRevision} — re-read it and re-approve the exact disclosure`,
+    );
+  }
+  const revision = currentRevision + 1;
   const values = {
     listingId,
     publicationMode: "v2" as const,
     currentWorkflowVersionId: Number(preview.manifest.versionIdentity.workflowVersionId),
     currentEvidencePublicationId: publicationId,
+    evidenceSummaryRevision: revision,
   };
   if (v2) {
-    await tx.update(marketplaceListingV2).set({ ...values, evidenceSummaryRevision: (v2.evidenceSummaryRevision ?? 0) + 1 })
-      .where(eq(marketplaceListingV2.listingId, listingId));
+    await tx.update(marketplaceListingV2).set(values).where(eq(marketplaceListingV2.listingId, listingId));
   } else {
-    await tx.insert(marketplaceListingV2).values({ ...values, evidenceSummaryRevision: 1 });
+    await tx.insert(marketplaceListingV2).values(values);
   }
+  // §10.2: v2 listings use only draft/published/unpublished — no `certifying`
+  // transition is introduced, and publishing is what makes it buyable.
+  if (listing.status !== "published") {
+    await tx.update(marketplaceListings).set({ status: "published" }).where(eq(marketplaceListings.id, listingId));
+  }
+  return { evidenceSummaryRevision: revision, previousListingStatus: listing.status ?? "draft" };
 }
 
 export async function withdrawPublication(opts: { userId: number; publicationId: number; reason: string }): Promise<{ ok: boolean; message: string }> {
+  await assertPublicationEnabled(opts.userId);
   const db = getDb();
   const [row] = await db.select().from(evidencePublications)
     .where(and(eq(evidencePublications.id, opts.publicationId), eq(evidencePublications.authorId, opts.userId))).limit(1);
@@ -543,63 +726,66 @@ export async function withdrawPublication(opts: { userId: number; publicationId:
     await tx.update(evidencePublications).set({ state: "withdrawn", withdrawnAt: new Date(), withdrawalReason: opts.reason.slice(0, 2000) })
       .where(eq(evidencePublications.id, row.id));
     if (row.listingId) {
+      // Lock the listing row first: the same order every other status writer
+      // uses, so this cannot deadlock against a concurrent publication.
+      const [v2] = await tx.select({ rev: marketplaceListingV2.evidenceSummaryRevision, current: marketplaceListingV2.currentEvidencePublicationId })
+        .from(marketplaceListingV2).where(eq(marketplaceListingV2.listingId, row.listingId)).for("update").limit(1);
       // A listing may not stay buyable on v2 terms with no current evidence:
       // it is unpublished in the same transaction (§4.3/§10.1).
-      const [v2] = await tx.select().from(marketplaceListingV2).where(eq(marketplaceListingV2.listingId, row.listingId)).limit(1);
-      if (v2 && v2.currentEvidencePublicationId === row.id) {
-        await tx.update(marketplaceListingV2).set({ currentEvidencePublicationId: null, evidenceSummaryRevision: (v2.evidenceSummaryRevision ?? 0) + 1 })
-          .where(eq(marketplaceListingV2.listingId, row.listingId));
+      if (v2 && v2.current === row.id) {
         await tx.update(marketplaceListings).set({ status: "unpublished" }).where(eq(marketplaceListings.id, row.listingId));
+        await tx.update(marketplaceListingV2).set({ currentEvidencePublicationId: null, evidenceSummaryRevision: (v2.rev ?? 0) + 1 })
+          .where(eq(marketplaceListingV2.listingId, row.listingId));
       }
     }
     return { ok: true, message: "withdrawn; historical run data and financial records untouched" };
   });
 }
 
-/** §10.2: a replacement is a NEW publication with its own id and hash that
- *  links to what it supersedes. Withdrawal of the old one happens in the same
- *  transaction so the listing is never pointing at two live manifests. */
+/**
+ * §10.1: replace a SELLER publication through the same version boundary that
+ * created it — a replacement is a NEW publication with its own id and hash that
+ * links to what it supersedes.
+ *
+ * Deliberate order: the new evidence becomes current first (inside
+ * `publishVersion`'s transaction), then the old row is withdrawn. If the second
+ * step fails the listing is showing complete, current evidence with one
+ * stale-but-accurate extra published row; the reverse order would leave a v2
+ * listing buyable with no evidence at all, which §10.2 forbids.
+ */
 export async function supersedePublication(opts: {
-  userId: number; supersededPublicationId: number; benchmarkId: number; listingId?: number | null;
-  previewHash: string; consentVersion: string;
-}): Promise<{ publicationId: number; manifestHash: string }> {
+  userId: number; supersededPublicationId: number; benchmarkId: number; listingId: number;
+  workflowVersionId: number; previewHash: string; consentVersion: string;
+  expectedListingRevision?: number | null;
+}): Promise<PublishResult> {
+  await assertPublicationEnabled(opts.userId);
   const db = getDb();
   const [old] = await db.select().from(evidencePublications)
     .where(and(eq(evidencePublications.id, opts.supersededPublicationId), eq(evidencePublications.authorId, opts.userId))).limit(1);
   if (!old) throw new Error("not_found_or_not_authorized");
+  if (old.publicationKind !== "seller") {
+    throw new Error("use_community_boundary: community evidence is replaced through supersedeCommunityEvidence, not through the seller version boundary");
+  }
 
-  const preview = await buildEvidencePreview({
-    userId: opts.userId, benchmarkId: opts.benchmarkId,
-    publicationKind: old.publicationKind as "seller" | "community",
-    listingId: opts.listingId ?? old.listingId ?? null, consentVersion: opts.consentVersion,
+  const published = await publishVersion({
+    userId: opts.userId, listingId: opts.listingId, workflowVersionId: opts.workflowVersionId,
+    benchmarkId: opts.benchmarkId, previewHash: opts.previewHash, consentVersion: opts.consentVersion,
+    expectedListingRevision: opts.expectedListingRevision,
+    supersedesPublicationId: old.id,
   });
-  if (preview.previewHash !== opts.previewHash) throw new Error("preview_changed — re-preview and confirm the exact new disclosure");
-  if (old.publicationKind === "seller" && preview.eligibilityIssues.length) throw new Error(`publication_refused: ${preview.eligibilityIssues.join("; ")}`);
-  if (preview.secretFindings.length) throw new Error(`publication_refused: ${preview.secretFindings.join(", ")}`);
-
-  return db.transaction(async (tx: Tx) => {
-    const [res] = await tx.insert(evidencePublications).values({
-      authorId: opts.userId,
-      benchmarkId: opts.benchmarkId,
-      listingId: opts.listingId ?? old.listingId,
-      listingWorkflowVersionId: Number(preview.manifest.versionIdentity.workflowVersionId),
-      publicationKind: old.publicationKind,
-      provenance: preview.manifest.provenance,
-      publicManifest: JSON.stringify(preview.manifest),
-      manifestHash: preview.previewHash,
-      schemaVersion: preview.manifest.schemaVersion,
-      consentVersion: opts.consentVersion,
-      state: "published",
-      publishedAt: new Date(),
-      testedAt: new Date(preview.manifest.testedAt),
-      supersedesPublicationId: old.id,
+  if (old.state === "published" && published.publicationId !== old.id) {
+    await db.transaction(async (tx: Tx) => {
+      // Lock in the same order as the writer above (listing first) — the new
+      // publication is already current, so withdrawing the old one cannot leave
+      // the listing pointing at nothing.
+      await tx.select({ id: marketplaceListings.id }).from(marketplaceListings)
+        .where(eq(marketplaceListings.id, opts.listingId)).for("update").limit(1);
+      await tx.update(evidencePublications)
+        .set({ state: "withdrawn", withdrawnAt: new Date(), withdrawalReason: `superseded by publication ${published.publicationId}` })
+        .where(eq(evidencePublications.id, old.id));
     });
-    const publicationId = Number((res as { insertId: number }).insertId);
-    await tx.update(evidencePublications).set({ state: "withdrawn", withdrawnAt: new Date(), withdrawalReason: `superseded by publication ${publicationId}` })
-      .where(eq(evidencePublications.id, old.id));
-    if (opts.listingId ?? old.listingId) await attachListing(tx, Number(opts.listingId ?? old.listingId), opts.userId, publicationId, preview);
-    return { publicationId, manifestHash: preview.previewHash };
-  });
+  }
+  return published;
 }
 
 /** The ONLY public read path: a currently-published manifest, as the stored
@@ -612,10 +798,106 @@ export async function getPublicEvidenceForListing(listingId: number): Promise<Pu
     .where(and(eq(evidencePublications.id, v2.currentEvidencePublicationId), eq(evidencePublications.state, "published")))
     .limit(1);
   if (!row) return null;
-  const parsed = PublicEvidenceManifestSchema.safeParse(JSON.parse(String(row.publicManifest)));
+  return decodeManifest(row.publicManifest, row.id);
+}
+
+/** Manifests are stored as validated JSON; a row that no longer parses is a
+ *  server-side fault, never something to guess about or hand to a client raw. */
+function decodeManifest(raw: unknown, publicationId: number): PublicEvidenceManifest | null {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(String(raw));
+  } catch {
+    logger.error("stored evidence manifest is not valid JSON", { publicationId });
+    return null;
+  }
+  const parsed = PublicEvidenceManifestSchema.safeParse(parsedJson);
   if (!parsed.success) {
-    logger.error("stored evidence manifest no longer parses", { publicationId: row.id, issues: parsed.error.issues.length });
+    logger.error("stored evidence manifest no longer parses", { publicationId, issues: parsed.error.issues.length });
     return null;
   }
   return parsed.data;
+}
+
+/** The model a reader would name: what came back wins, because that is what
+ *  actually produced the output; otherwise what was asked for. */
+function testedModelLabel(m: PublicTestedModel): string {
+  return m.returnedModel ?? m.requestedModel;
+}
+
+/** What a browse screen needs to decide whether to open a manifest at all —
+ *  derived FROM the stored manifest so the two can never disagree (§6.2). */
+export interface PublicEvidenceSummary {
+  publicationId: number;
+  manifestHash: string;
+  publicationKind: "seller" | "community";
+  provenance: PublicEvidenceManifest["provenance"];
+  disclosureClass: "full" | "limited";
+  state: "published" | "withdrawn";
+  workflowVersionId: number;
+  workflowVersionNumber: number;
+  testedModels: string[];
+  caseCount: number;
+  testedAt: string;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+  supersedesPublicationId: number | null;
+}
+
+export async function listPublicEvidenceForListing(
+  listingId: number,
+  opts: { kind?: "seller" | "community"; workflowVersionId?: number; model?: string; includeWithdrawn?: boolean; limit?: number } = {},
+): Promise<PublicEvidenceSummary[]> {
+  const db = getDb();
+  const rows = await db.select({
+    id: evidencePublications.id, manifestHash: evidencePublications.manifestHash,
+    publicationKind: evidencePublications.publicationKind, state: evidencePublications.state,
+    publicManifest: evidencePublications.publicManifest, withdrawnAt: evidencePublications.withdrawnAt,
+    supersedesPublicationId: evidencePublications.supersedesPublicationId,
+  }).from(evidencePublications)
+    .where(and(
+      eq(evidencePublications.listingId, listingId),
+      opts.kind ? eq(evidencePublications.publicationKind, opts.kind) : undefined,
+      opts.includeWithdrawn ? undefined : eq(evidencePublications.state, "published"),
+    ))
+    .orderBy(desc(evidencePublications.id))
+    .limit(Math.min(Math.max(opts.limit ?? 20, 1), 100));
+
+  const summaries: PublicEvidenceSummary[] = [];
+  for (const row of rows) {
+    const manifest = decodeManifest(row.publicManifest, row.id);
+    if (!manifest) continue;
+    if (opts.workflowVersionId !== undefined && Number(manifest.versionIdentity.workflowVersionId) !== opts.workflowVersionId) continue;
+    if (opts.model && !manifest.testedModels.some((m) => testedModelLabel(m) === opts.model)) continue;
+    summaries.push({
+      publicationId: row.id,
+      manifestHash: row.manifestHash,
+      publicationKind: manifest.publicationKind,
+      provenance: manifest.provenance,
+      disclosureClass: manifest.disclosureClass,
+      state: row.state === "withdrawn" ? "withdrawn" : "published",
+      workflowVersionId: Number(manifest.versionIdentity.workflowVersionId),
+      workflowVersionNumber: manifest.versionIdentity.workflowVersionNumber,
+      testedModels: manifest.testedModels.map(testedModelLabel),
+      caseCount: manifest.cases.length,
+      testedAt: manifest.testedAt,
+      publishedAt: manifest.publishedAt,
+      withdrawnAt: row.withdrawnAt ? new Date(row.withdrawnAt).toISOString() : null,
+      supersedesPublicationId: row.supersedesPublicationId ?? null,
+    });
+  }
+  return summaries;
+}
+
+/** The canonical-URL read the public evidence page uses: a manifest addressed
+ *  by the hash a reader was given, not by an id they have to trust. */
+export async function getPublishedManifestByHash(manifestHash: string): Promise<PublicEvidenceManifest | null> {
+  const db = getDb();
+  const [row] = await db.select({
+    id: evidencePublications.id, publicManifest: evidencePublications.publicManifest, state: evidencePublications.state,
+  }).from(evidencePublications)
+    .where(and(eq(evidencePublications.manifestHash, manifestHash), eq(evidencePublications.state, "published")))
+    .limit(1);
+  if (!row) return null;
+  return decodeManifest(row.publicManifest, row.id);
 }

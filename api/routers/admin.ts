@@ -11,6 +11,7 @@ import { signScreenshotUrl } from "../lib/screenshotUrls";
 import { encryptClientSecret, maskSecret, normalizeDomain } from "../services/sso";
 import { logAdminAction } from "../services/adminAudit";
 import { adminDemotionError } from "../lib/adminGuards";
+import { setLegacyListingStatus } from "../services/marketplacePublication";
 import { adminAuditLog } from "@db/schema";
 
 export const adminRouter = createRouter({
@@ -428,9 +429,7 @@ export const adminRouter = createRouter({
       if (listing.status === "generating") {
         // Stuck/orphaned background generation → back to draft so the creator
         // can resubmit (resubmission is idempotent: prompts/pool are reset).
-        await db.update(marketplaceListings)
-          .set({ status: "draft" })
-          .where(eq(marketplaceListings.id, input.listingId));
+        await setLegacyListingStatus(input.listingId, { status: "draft" });
         logger.info("Admin: certification requeued to draft", { listingId: input.listingId });
         await logAdminAction({
           adminUserId: ctx.user.id, action: "certification.requeue",
@@ -463,9 +462,7 @@ export const adminRouter = createRouter({
       if (listing.status === "reviewing" || listing.status === "pending_review") {
         // Stuck/orphaned review pool (reviewer pool never filled) → back to
         // pending_review so the pool can be re-opened.
-        await db.update(marketplaceListings)
-          .set({ status: "pending_review" })
-          .where(eq(marketplaceListings.id, input.listingId));
+        await setLegacyListingStatus(input.listingId, { status: "pending_review" });
         logger.info("Admin: certification returned to pending_review", { listingId: input.listingId });
         await logAdminAction({
           adminUserId: ctx.user.id, action: "certification.requeue",

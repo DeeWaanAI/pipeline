@@ -42,6 +42,7 @@ import { exportPipeline, exportMyData, syncToGithub } from "./portability";
 import { exportRun } from "./exportRun";
 import { runBatch } from "./runBatch";
 import { batchStatus } from "./batchStatus";
+import { PUBLICATION_TOOLS } from "./publicationTools";
 import { resumeBatchTool } from "./resumeBatch";
 import { exportBatchResultsTool } from "./exportBatchResults";
 
@@ -59,6 +60,9 @@ export const TOOLS: McpTool[] = [
   // Offering redesign v2 — private evaluation (hidden unless v2Benchmarks
   // flag). Owner decision D9: this is the evaluation workbench.
   ...BENCHMARK_TOOLS,
+  // Offering redesign v2 — evidence publication (hidden unless v2Publication
+  // flag). The seller half of the D9 workbench: preview, consent, publish.
+  ...PUBLICATION_TOOLS,
   deewaanaiHelp,
   suggestLlmProviders,
   addProvider,
