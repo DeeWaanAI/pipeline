@@ -40,6 +40,15 @@ npm test 2>&1 | grep -E "Test Files|Tests "     # confirm baseline before new wo
 ```
 Nohup caffeinate protects against sleep, not battery: if the laptop died, just power it on and open any Qoder session in this workspace — the cron watchdog "v2-phase-watchdog" resumes automatically.
 
+**The MCP server cannot be tested through `npm run dev`.** The streamable HTTP transport needs the raw node request/response, and vite's dev adapter does not put them on `c.env` — `initialize` dies with an undefined `outgoing`. Serve the built app through `@hono/node-server` instead, in development mode (never `NODE_ENV=production`, which would activate the live payment/email credentials in `.env`):
+
+```
+npm run build
+screen -dmS v2app bash -lc 'cd /Users/youssefhariri/Documents/app25_v2 && V2_NODE_SERVE=true START_WORKER=true PORT=3100 node dist/boot.js > /tmp/v2app.log 2>&1'
+```
+
+`V2_NODE_SERVE` is the opt-in added at the boot listen block: it serves `dist/public` and listens, without production behavior. `screen` (not `nohup`) is required — a nohup'd child dies with the Qoder session, and a restart mid-OAuth looks exactly like a broken server. Verified working end to end on :3100: DCR → authorize → consent → code → token → `initialize 200`. Qoder's `mcpServers` entry therefore points at `http://localhost:3100/mcp`.
+
 ## Update discipline
 When finishing any increment: (1) commit+push, (2) tick the plan-doc checkboxes with evidence, (3) rewrite "current step" below, (4) when a phase completes set its row ✅ and the next ▶️. When ALL unblocked phases (P2b, P3, P5, P6-local) are done and verified, disable the cron task `v2-phase-watchdog` (qoder_cron remove/run list to find id) and write `V2-ALL-BLOCKED-PHASES-COMPLETE.md` with the acceptance-matrix summary.
 

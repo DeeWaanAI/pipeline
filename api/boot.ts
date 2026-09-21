@@ -428,7 +428,13 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 export default app;
 
-if (env.isProduction) {
+// Serving the built SPA and listening through @hono/node-server. Production does
+// this automatically. Locally it is opt-in via V2_NODE_SERVE because the
+// streamable MCP transport needs the raw node request/response objects — the
+// bindings vite's dev adapter supplies do not include them, so `/mcp` cannot
+// work under `npm run dev` at all (initialize 500s on an undefined `outgoing`).
+// Requires `npm run build` first: this path serves dist/public.
+if (env.isProduction || process.env.V2_NODE_SERVE === "true") {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
