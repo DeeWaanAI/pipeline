@@ -14,9 +14,12 @@ export default defineConfig({
     // documents all 404'd into index.html while the API looked fine. The OAuth
     // paths are listed individually on purpose: /oauth/consent is a REACT route
     // (src/pages/OAuthConsent.tsx), so a blanket `oauth/` exemption swallows the
-    // consent screen. Production routing is unaffected — boot.ts owns every
-    // path there.
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp$|mcp\/|oauth\/(authorize|token|register)$|\.well-known\/).*$/] }),
+    // consent screen. Note the `(\?|$)` guards: vite tests the path WITH its
+    // query string, and a real authorize request always carries one
+    // (client_id, redirect_uri, code_challenge…) — an end-of-string anchor there
+    // silently hands the browser the SPA, which bounces to "/" and the user
+    // never sees a consent prompt. Same trap for a bare /mcp?session id=…
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp(\?|$)|mcp\/|oauth\/(authorize|token|register)(\?|$)|\.well-known\/).*$/] }),
     inspectAttr(), react()],
   server: {
     port: 3000,
