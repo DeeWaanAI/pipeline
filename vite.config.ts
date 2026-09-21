@@ -10,10 +10,13 @@ export default defineConfig({
   plugins: [
     // Paths NOT listed here never reach the Hono app in dev: vite serves them
     // as the SPA instead. That silently made the MCP server untestable locally,
-    // because /mcp, /oauth/* and the RFC 8414 / 9728 discovery documents all
-    // 404'd into index.html while the API looked fine. Production routing is
-    // unaffected — boot.ts owns every path there.
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp$|mcp\/|oauth\/|\.well-known\/).*$/] }),
+    // because /mcp, the OAuth endpoints and the RFC 8414 / 9728 discovery
+    // documents all 404'd into index.html while the API looked fine. The OAuth
+    // paths are listed individually on purpose: /oauth/consent is a REACT route
+    // (src/pages/OAuthConsent.tsx), so a blanket `oauth/` exemption swallows the
+    // consent screen. Production routing is unaffected — boot.ts owns every
+    // path there.
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp$|mcp\/|oauth\/(authorize|token|register)$|\.well-known\/).*$/] }),
     inspectAttr(), react()],
   server: {
     port: 3000,
