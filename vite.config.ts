@@ -8,7 +8,12 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/).*$/] }),
+    // Paths NOT listed here never reach the Hono app in dev: vite serves them
+    // as the SPA instead. That silently made the MCP server untestable locally,
+    // because /mcp, /oauth/* and the RFC 8414 / 9728 discovery documents all
+    // 404'd into index.html while the API looked fine. Production routing is
+    // unaffected — boot.ts owns every path there.
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp$|mcp\/|oauth\/|\.well-known\/).*$/] }),
     inspectAttr(), react()],
   server: {
     port: 3000,

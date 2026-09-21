@@ -41,8 +41,10 @@ const AUTH_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes, single-use
 type OAuthApp = Hono<{ Bindings: HttpBindings }>;
 type Ctx = Context<{ Bindings: HttpBindings }>;
 
-/** Public origin of this server, honoring reverse-proxy headers. */
-function requestOrigin(c: Ctx): string {
+/** Public origin of this server, honoring reverse-proxy headers. Exported
+ *  because the 401 challenge must advertise the SAME origin the discovery
+ *  documents use — hardcoding `https://` there breaks a local http dev server. */
+export function requestOrigin(c: Ctx): string {
   const proto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
   const host =
     c.req.header("x-forwarded-host")?.split(",")[0]?.trim() ?? c.req.header("host");

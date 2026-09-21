@@ -20,7 +20,7 @@ import { getDb } from "../queries/connection";
 import { users, teamMembers, teamSeats } from "@db/schema";
 import { eq, and, isNotNull, sql } from "drizzle-orm";
 import { authenticate } from "./context";
-import { registerOAuthRoutes } from "./auth";
+import { registerOAuthRoutes, requestOrigin } from "./auth";
 import {
   handleMcpPost,
   handleMcpGet,
@@ -98,10 +98,13 @@ const mcpGate: MiddlewareHandler<{ Bindings: HttpBindings }> = async (c, next) =
 
   const auth = await authenticate(c);
   if (!auth) {
-    const host = c.req.header("host") ?? "localhost";
+    // Same origin the discovery documents publish (proxy headers in
+    // production, the request's own URL locally) — a client that follows a
+    // hardcoded `https://` challenge cannot reach a plain-http dev server.
+    const origin = requestOrigin(c) || `https://${c.req.header("host") ?? "localhost"}`;
     c.header(
       "WWW-Authenticate",
-      `Bearer resource_metadata="https://${host}/.well-known/oauth-protected-resource"`,
+      `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
     );
     return c.json(
       { error: "unauthorized", error_description: "A valid Bearer access token is required" },
