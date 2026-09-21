@@ -38,6 +38,13 @@ export interface ChatResponse {
   latencyMs: number;
 }
 
+export interface ModelRates {
+  /** USD per 1,000 tokens — the unit the ledger and quotes use. Provider
+   *  endpoints report per-1M; the adapter converts. */
+  in: number;
+  out: number;
+}
+
 export interface LLMProviderAdapter {
   readonly name: string;
   readonly slug: string;
@@ -46,4 +53,12 @@ export interface LLMProviderAdapter {
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResponse>;
   validateKey(): Promise<{ valid: boolean; error?: string }>;
   listModels(): Promise<string[]>;
+  /**
+   * Present only where the provider publishes rates on its own models
+   * endpoint (Together does; OpenAI and Anthropic do not). These are LIST
+   * prices: promotional, committed-use and cached-input discounts are not
+   * visible from here, so a quote built on them can over-estimate and must say
+   * so rather than claim accuracy.
+   */
+  listPricing?(): Promise<Record<string, ModelRates>>;
 }

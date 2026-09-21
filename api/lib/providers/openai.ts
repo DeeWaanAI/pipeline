@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatOptions, ChatResponse, LLMProviderAdapter } from "./base";
+import type { ChatMessage, ChatOptions, ChatResponse, LLMProviderAdapter, ModelRates } from "./base";
 
 interface ProviderConfig {
   name: string;
@@ -210,5 +210,41 @@ export function createOpenAIAdapter(
         return supportedModels;
       }
     },
+
+    /**
+     * Some OpenAI-compatible hosts publish rates on the same endpoint (Together
+     * does). Together's `pricing.input`/`pricing.output` are USD per 1M tokens;
+     * the app's ledger and quotes work in per-1K, so the conversion happens
+     * here once rather than at every call site. A host using a different unit
+     * would mis-scale by 1000×, which is why every quote labels the source and
+     * prints the numbers it used. A host that returns no `pricing` object
+     * yields {} — the caller then falls back and says so, because a missing
+     * price is not a free model.
+     */
+    async listPricing(): Promise<Record<string, ModelRates>> {
+      const response = await fetch(`${normalizedBaseUrl}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!response.ok) return {};
+      const payload = await response.json() as
+        { data?: Array<{ id: string; pricing?: Record<string, unknown> }> }
+        | Array<{ id: string; pricing?: Record<string, unknown> }>;
+      const entries = Array.isArray(payload) ? payload : payload.data ?? [];
+      const out: Record<string, ModelRates> = {};
+      for (const entry of entries) {
+        const rate = toModelRates(entry.pricing);
+        if (entry.id && rate) out[entry.id] = rate;
+      }
+      return out;
+    },
   };
+}
+
+/** per-1M-token USD input/output → per-1K, or null when either is absent. */
+export function toModelRates(pricing: Record<string, unknown> | undefined): ModelRates | null {
+  const input = Number(pricing?.input);
+  const output = Number(pricing?.output);
+  if (!Number.isFinite(input) || !Number.isFinite(output)) return null;
+  if (input <= 0 || output <= 0) return null;
+  return { in: input / 1000, out: output / 1000 };
 }

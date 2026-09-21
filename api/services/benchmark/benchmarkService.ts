@@ -25,6 +25,7 @@ import {
 import { getDb } from "../../queries/connection";
 import { logger } from "../../lib/logger";
 import { executeSwarmRun } from "../swarmService";
+import { resolveModelPricing, type PricingSource, type ResolvedPricing } from "./modelPricing";
 import {
   VALIDATORS_DISABLED_REASON,
   type BenchmarkCallPlan, type CallCounts, type CandidateSpec, type CaseSpec,
@@ -374,25 +375,29 @@ export interface QuoteResult {
   counts: BenchmarkCallPlan["counts"];
   estimatedGenerationCostUsd: number | null;
   estimatedJudgingCostUsd: number | null;
+  estimatedTotalCostUsd: number | null;
   pricingStatus: "priced" | "unknown";
+  /** Where the per-token rates came from. `provider_list` is the host's own
+   *  published rate at `pricingAsOf`; `price_vector` is the locally maintained
+   *  fallback. Both are estimates, and a list rate cannot see a discount. */
+  pricingBasis: ResolvedPricing["basis"];
+  pricingAsOf: string | null;
+  rates: Array<{ model: string; usdPer1KInput: number; usdPer1KOutput: number; source: PricingSource }>;
   warnings: string[];
   /** Non-empty means start will refuse; surfaced at quote time so the user
    *  fixes the plan before approving spend against it. */
   blockingErrors: string[];
 }
 
-function priceOf(model: string): { in: number; out: number } | null {
-  try {
-    const vec = JSON.parse(process.env.V2_PRICE_VECTOR_JSON || "{}") as Record<string, { in: number; out: number }>;
-    return vec[model] ?? null;
-  } catch { return null; }
-}
-
-function priceCalls(models: string[], calls: number, avgIn: number, avgOut: number): number | null {
-  if (models.length === 0 || calls === 0) return calls === 0 ? 0 : null;
-  const rates = models.map(priceOf);
+function priceCalls(
+  pricing: ResolvedPricing, models: string[], calls: number, avgIn: number, avgOut: number,
+): number | null {
+  if (calls === 0) return 0;
+  if (models.length === 0) return null;
+  const rates = models.map((m) => pricing.rates[m]);
   if (rates.some((r) => r == null)) return null;
-  const per = (rates as Array<{ in: number; out: number }>).reduce((acc, r) => acc + (avgIn / 1000) * r.in + (avgOut / 1000) * r.out, 0) / rates.length;
+  const per = (rates as Array<{ in: number; out: number }>)
+    .reduce((acc, r) => acc + (avgIn / 1000) * r.in + (avgOut / 1000) * r.out, 0) / rates.length;
   return Number((per * calls).toFixed(8));
 }
 
@@ -452,10 +457,26 @@ async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteRes
   ])];
   const judgeModels = plan.judges.map((j) => j.model);
   const warnings: string[] = [];
-  const genCost = priceCalls(pipelineModels, counts.generationCalls, 2000, 1200);
-  const judgeCost = priceCalls(judgeModels, counts.judgingCalls, 3000, 300);
-  if (genCost === null && counts.generationCalls > 0) warnings.push("generation cost UNKNOWN — no approved price-vector entry for one or more executor models (shown as unknown, never zero, spec §9)");
-  if (judgeCost === null && counts.judgingCalls > 0) warnings.push("judging cost UNKNOWN — no approved price-vector entry for one or more judge models");
+  // Ask the hosts that will actually serve these calls. Their published rates
+  // beat a table we maintain by hand, and the user is told which one was used.
+  const pricing = await resolveModelPricing({
+    providerIds: [
+      ...plan.judges.map((j) => j.providerId),
+      ...steps.map((s) => s.providerId),
+      ...executing.map((c) => c.overrideProviderId),
+    ].filter((v): v is number => typeof v === "number"),
+    models: [...pipelineModels, ...judgeModels],
+  });
+  const genCost = priceCalls(pricing, pipelineModels, counts.generationCalls, 2000, 1200);
+  const judgeCost = priceCalls(pricing, judgeModels, counts.judgingCalls, 3000, 300);
+  if (pricing.missing.length) {
+    warnings.push(`pricing source by model: ${Object.entries(pricing.sourceByModel).map(([m, s]) => `${m}=${s}`).join(", ") || "none"}; no rate retrievable for ${pricing.missing.join(", ")} — cost shown as UNKNOWN, never zero (spec §9)`);
+  } else if (Object.keys(pricing.rates).length) {
+    warnings.push(`rates used (USD per 1K tokens, ${pricing.basis} as of ${pricing.asOf}): ${Object.entries(pricing.rates).map(([m, r]) => `${m} ${r.in.toFixed(4)} in / ${r.out.toFixed(4)} out`).join(", ")}. Provider LIST prices — promotional, committed-use and cached-input discounts are not visible to us, so the bill may be lower.`);
+  }
+  if (genCost === null && counts.generationCalls > 0) warnings.push("generation cost UNKNOWN — no retrievable rate for one or more executor models");
+  if (judgeCost === null && counts.judgingCalls > 0) warnings.push("judging cost UNKNOWN — no retrievable rate for one or more judge models");
+  warnings.push("cost is estimated from per-call token ASSUMPTIONS (generation 2,000 in / 1,200 out; judging 3,000 in / 300 out), not from your actual outputs — a long pipeline answer or a wide rubric costs more than this quote");
   warnings.push("generation calls are an honest upper bound: if-gates counted at widest path, while-loops at max iterations (spec §9)");
   warnings.push(`deterministic validators: DISABLED — ${VALIDATORS_DISABLED_REASON}. Nothing here verifies executable output; the rubric judgment is the only assessment.`);
   if (plan.candidates.some((c) => c.strategy === "imported_output")) {
@@ -469,7 +490,13 @@ async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteRes
     counts,
     estimatedGenerationCostUsd: genCost,
     estimatedJudgingCostUsd: judgeCost,
+    estimatedTotalCostUsd: genCost === null || judgeCost === null ? null : Number((genCost + judgeCost).toFixed(8)),
     pricingStatus: genCost === null || judgeCost === null ? "unknown" : "priced",
+    pricingBasis: pricing.basis,
+    pricingAsOf: pricing.asOf,
+    rates: Object.entries(pricing.rates).map(([model, r]) => ({
+      model, usdPer1KInput: r.in, usdPer1KOutput: r.out, source: pricing.sourceByModel[model],
+    })),
     warnings: [...blocking.map((e) => `PLAN BLOCKED: ${e}`), ...warnings],
     blockingErrors: blocking,
   };

@@ -69,7 +69,7 @@ const createInputSchema = z.object({
 
 const quoteToolResult = (quote: Awaited<ReturnType<typeof quoteBenchmark>>) => ({
   ...quote,
-  howToReadThis: "planHash binds the approval: change anything (cases, candidates, judges, rubric, limits, repeats) and start is refused until you re-quote and re-approve. generationCalls counts provider LLM calls. blockingErrors must be empty before approval is possible. Unknown prices are shown as unknown, never zero.",
+  howToReadThis: "planHash binds the approval: change anything (cases, candidates, judges, rubric, limits, repeats) and start is refused until you re-quote and re-approve. generationCalls counts provider LLM calls. blockingErrors must be empty before approval is possible. Unknown prices are shown as unknown, never zero. rates[] tells you what the estimate used: source provider_list is the host's own published price as of pricingAsOf, price_vector is our fallback table — neither sees promotional, committed-use or cached-input discounts, so the real bill can be lower. The estimate assumes 2,000/1,200 tokens per generation and 3,000/300 per judging call; long answers cost more than quoted.",
 });
 
 export const createBenchmarkTool: McpTool = {
