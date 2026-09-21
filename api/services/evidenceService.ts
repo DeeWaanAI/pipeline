@@ -110,6 +110,21 @@ function contractRubric(rubric: RubricSpec) {
 
 // ─── Manifest construction ──────────────────────────────────────────
 
+/** Where the published cost figures actually came from. Derived from the ledger
+ *  rows rather than a fixed sentence: since migration 028 a row can be priced
+ *  from the serving provider's own list, and calling that "the platform price
+ *  vector" would misdescribe the evidence's own arithmetic (spec §9). */
+function pricingSourceOf(rows: Array<{ costBasis: string | null }>): string {
+  const bases = [...new Set(rows.map((r) => r.costBasis).filter((b): b is string => !!b))];
+  if (!bases.length) {
+    return "no rate was retrievable for any call in this plan — every cost figure below is UNKNOWN, which is not zero";
+  }
+  const label = (basis: string) => (basis === "provider_list"
+    ? "the serving provider's published list price"
+    : basis === "price_vector" ? "the platform price vector (owner-maintained rates)" : basis);
+  return `${bases.map(label).join(" and ")} — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative`;
+}
+
 export interface EvidencePreview {
   manifest: PublicEvidenceManifest;
   previewHash: string;
@@ -312,6 +327,8 @@ export async function buildEvidencePreview(opts: {
 
   const completedRuns = runs.filter((r) => r.status === "completed");
   const generationCost = attempts.filter((a) => a.operationKind === "generation" && a.estimatedCostUsd != null);
+  const pricedAttempts = attempts.filter((a) => a.estimatedCostUsd != null);
+  const vectorRows = pricedAttempts.filter((a) => a.costBasis === "price_vector" && a.priceVectorVersion);
   const costs: PublicCostDisclosure = {
     currency: String(bench.costCurrency ?? "USD"),
     generationCostPerCompletedRunUsd: generationCost.length && completedRuns.length
@@ -331,8 +348,13 @@ export async function buildEvidencePreview(opts: {
       completionTokens: attempts.reduce((acc, a) => acc + (a.completionTokens ?? 0), 0),
       cachedTokens: attempts.reduce((acc, a) => acc + (a.cachedTokens ?? 0), 0),
     },
-    priceVectorVersion: attempts.find((a) => a.priceVectorVersion)?.priceVectorVersion ?? "unrecorded",
-    pricingSource: "platform price vector (owner-maintained rates); estimates only, provider invoices are authoritative",
+    priceVectorVersion: vectorRows.length
+      ? vectorRows[0].priceVectorVersion ?? "unrecorded"
+      : pricedAttempts.length ? "not used (live provider list)" : "unrecorded",
+    // Derived from what each row actually says, never a fixed sentence: after
+    // 028 a row can be priced from the provider's own list, and calling that
+    // "the platform price vector" would misdescribe the evidence's own numbers.
+    pricingSource: pricingSourceOf(pricedAttempts),
     // Anchored to the run, NOT to the clock: a preview hash must be
     // reproducible, or the owner could never confirm the exact bytes they were
     // shown and publication would always look like a tampered preview.

@@ -1755,6 +1755,10 @@ export const callAttempts = mysqlTable("call_attempts", {
   completionTokens: int("completion_tokens"),
   cachedTokens: int("cached_tokens"),
   priceVectorVersion: varchar("price_vector_version", { length: 40 }),
+  // Where a priced row's rate came from. NULL = "this row is not priceable",
+  // which is NOT the same as zero (spec §9).
+  costBasis: varchar("cost_basis", { length: 16 }),
+  costPricingAsOf: timestamp("cost_pricing_as_of"),
   estimatedCostUsd: decimal("estimated_cost_usd", { precision: 18, scale: 8 }),
   costCompleteness: mysqlEnum("cost_completeness", ["complete", "partial", "unknown"]).default("unknown").notNull(),
   startedAt: timestamp("started_at"),

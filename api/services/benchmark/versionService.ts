@@ -219,3 +219,23 @@ export function stepResolutionsFromSnapshot(definition: VersionDefinition): Step
     .filter((s) => s.stepType !== "approval")
     .map((s) => ({ stepOrder: s.stepOrder, requestedModel: s.model }));
 }
+
+/**
+ * The snapshot's one (provider, model) pair, or null when it is not single-routed.
+ * A generation child is ledgered as ONE row carrying the summed usage of all its
+ * steps, so a dollar figure on that row is only true if every call in it was
+ * billed at the same rate — a mixed pipeline stays UNKNOWN rather than being
+ * priced at an average that matches no invoice (spec §9).
+ *
+ * Call-performing steps are every step but `approval` (`stepsToLlmCallCount`
+ * uses the same set), and a step with no model runs on the project default we
+ * cannot attribute here — either case makes the aggregate unpriceable.
+ */
+export function singleRouteOfSnapshot(definition: VersionDefinition): { providerRefId: number; model: string } | null {
+  const llmSteps = definition.steps.filter((s) => s.stepType !== "approval");
+  if (!llmSteps.length) return null;
+  const [first] = llmSteps;
+  if (typeof first.providerId !== "number" || !first.model) return null;
+  if (llmSteps.some((s) => s.providerId !== first.providerId || s.model !== first.model)) return null;
+  return { providerRefId: first.providerId, model: first.model };
+}

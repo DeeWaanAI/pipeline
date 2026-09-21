@@ -155,19 +155,3 @@ export function readPriceVector(): Record<string, { in: number; out: number }> {
     return {};
   }
 }
-
-export interface CostEstimate {
-  basis: "price_vector" | "unknown";
-  priceVectorVersion: string;
-  estimatedUsd: number | null;
-  note?: string;
-}
-
-export function estimateCostUsd(promptTokens: number, completionTokens: number, model: string): CostEstimate {
-  const rates = readPriceVector()[model];
-  if (!rates) {
-    return { basis: "unknown", priceVectorVersion: PRICE_VECTOR_VERSION, estimatedUsd: null, note: "no approved price vector entry for this model" };
-  }
-  const usd = (promptTokens / 1000) * rates.in + (completionTokens / 1000) * rates.out;
-  return { basis: "price_vector", priceVectorVersion: PRICE_VECTOR_VERSION, estimatedUsd: Math.round(usd * 1e8) / 1e8 };
-}

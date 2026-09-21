@@ -71,11 +71,43 @@ async function fetchProviderRates(providerId: number): Promise<Record<string, Mo
 
 /** Exact id match, then case-insensitive exact. Deliberately not fuzzy: an
  *  unmatched model must produce UNKNOWN rather than a sibling model's price. */
-function lookup(rates: Record<string, ModelRates>, model: string): ModelRates | undefined {
+export function lookupRate(rates: Record<string, ModelRates>, model: string): ModelRates | undefined {
   if (rates[model]) return rates[model];
   const lower = model.toLowerCase();
   const key = Object.keys(rates).find((k) => k.toLowerCase() === lower);
   return key ? rates[key] : undefined;
+}
+
+export interface AttemptRate {
+  rates: ModelRates;
+  basis: PricingSource;
+  /** When the provider's published numbers were read. Null for the local
+   *  vector, which is versioned (`priceVectorVersion`) rather than timestamped. */
+  asOf: Date | null;
+}
+
+/**
+ * One attempt's rate, from the same sources and in the same priority order as
+ * `resolveModelPricing`: ask the provider that served the call, then the local
+ * vector, then say unknown. Used by the ledger so actuals and the quote the user
+ * approved are built from the same numbers (spec §9) — a quote priced live and
+ * an actual priced from a stale vector is not a comparable pair.
+ *
+ * Returns null when nothing is known. Null must never be recorded as 0.
+ */
+export async function rateForAttempt(
+  providerRefId: number | null | undefined,
+  model: string | null | undefined,
+): Promise<AttemptRate | null> {
+  const m = (model ?? "").trim();
+  if (!m) return null;
+  if (typeof providerRefId === "number") {
+    const live = lookupRate(await fetchProviderRates(providerRefId), m);
+    if (live) return { rates: live, basis: "provider_list", asOf: new Date() };
+  }
+  const vector = lookupRate(readPriceVector(), m);
+  if (vector) return { rates: vector, basis: "price_vector", asOf: null };
+  return null;
 }
 
 export async function resolveModelPricing(opts: {
@@ -92,13 +124,13 @@ export async function resolveModelPricing(opts: {
   const sourceByModel: ResolvedPricing["sourceByModel"] = {};
   const missing: string[] = [];
   for (const model of models) {
-    const liveRate = lookup(live, model);
+    const liveRate = lookupRate(live, model);
     if (liveRate) {
       rates[model] = liveRate;
       sourceByModel[model] = "provider_list";
       continue;
     }
-    const fallback = vector[model];
+    const fallback = lookupRate(vector, model);
     if (fallback) {
       rates[model] = fallback;
       sourceByModel[model] = "price_vector";

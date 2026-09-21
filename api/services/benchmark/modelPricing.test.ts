@@ -4,7 +4,9 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { toModelRates } from "../../lib/providers/openai";
-import { resolveModelPricing } from "./modelPricing";
+import { rateForAttempt, resolveModelPricing } from "./modelPricing";
+import { singleRouteOfSnapshot } from "./versionService";
+import type { SnapshotStep, VersionDefinition } from "./benchmarkTypes";
 
 const originalVector = process.env.V2_PRICE_VECTOR_JSON;
 afterEach(() => {
@@ -43,5 +45,49 @@ describe("quote pricing sources", () => {
     expect(pricing.basis).toBe("unknown");
     expect(pricing.rates).toEqual({});
     expect(pricing.missing).toEqual(["model-x"]);
+  });
+});
+
+describe("per-attempt pricing (migration 028)", () => {
+  it("resolves an attempt's rate from the same sources, in the same order, as the quote", async () => {
+    process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({ "model-a": { in: 0.01, out: 0.03 } });
+    const rate = await rateForAttempt(null, "MODEL-A");
+    expect(rate?.basis).toBe("price_vector");
+    expect(rate?.rates).toEqual({ in: 0.01, out: 0.03 });
+    // The vector is a versioned artifact, not a momentary reading.
+    expect(rate?.asOf).toBeNull();
+  });
+
+  it("returns null for a model no source knows, so the ledger writes UNKNOWN rather than 0", async () => {
+    process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({ "model-a": { in: 0.01, out: 0.03 } });
+    expect(await rateForAttempt(null, "model-missing")).toBeNull();
+    expect(await rateForAttempt(null, "   ")).toBeNull();
+    expect(await rateForAttempt(null, null)).toBeNull();
+  });
+});
+
+describe("which aggregate generation row may be priced at all", () => {
+  const step = (over: Partial<SnapshotStep> & { stepOrder: number }): SnapshotStep => ({
+    name: `s${over.stepOrder}`, role: "builder", systemPrompt: "", stepType: "agent",
+    providerId: 7, model: "m", temperature: "0.7", maxTokens: 1024, ifConfig: null, whileConfig: null,
+    ...over,
+  });
+  const def = (steps: SnapshotStep[]): VersionDefinition => ({ schemaVersion: 1, steps, pipelineConfig: null, sourceAgentIds: [] });
+
+  it("prices a child whose every call used one provider and one model", () => {
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2 })])))
+      .toEqual({ providerRefId: 7, model: "m" });
+  });
+
+  it("refuses to average across models, providers or an unnamed default", () => {
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2, model: "other" })]))).toBeNull();
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2, providerId: 8 })]))).toBeNull();
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2, model: null })]))).toBeNull();
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2, providerId: null })]))).toBeNull();
+    // A gate assesses through the model too, so it counts as a call.
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2, stepType: "if" })]))).not.toBeNull();
+    // Approval makes no call, so it cannot break the route.
+    expect(singleRouteOfSnapshot(def([step({ stepOrder: 1 }), step({ stepOrder: 2, stepType: "approval", model: "different" })]))).not.toBeNull();
+    expect(singleRouteOfSnapshot(def([]))).toBeNull();
   });
 });

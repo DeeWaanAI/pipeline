@@ -133,7 +133,7 @@ function resetFakes() {
 
 /** Owner + provider + workflow. `gated` adds an if-step so A02 can prove the
  *  override reaches gate calls as well as agent steps. */
-async function seedFixture(opts: { gated?: boolean } = {}) {
+async function seedFixture(opts: { gated?: boolean; stepModel?: string } = {}) {
   const db = await connection();
   const stamp = `${Date.now()}-${Math.random()}`;
   const [u] = await db.insert(schema.users).values({ name: "Runner", email: `r-${stamp}@example.test`, tier: "pro_auto" });
@@ -145,7 +145,7 @@ async function seedFixture(opts: { gated?: boolean } = {}) {
   });
   const providerId = Number((prov as { insertId: number }).insertId);
   const plain = (stepOrder: number, name: string, role: string, stepType = "agent") => ({
-    projectId, stepOrder, stepType, name, role, systemPrompt: `${name} prompt`, isEnabled: true, providerId, model: "base-model",
+    projectId, stepOrder, stepType, name, role, systemPrompt: `${name} prompt`, isEnabled: true, providerId, model: opts.stepModel ?? "base-model",
   });
   await db.insert(schema.pipelineSteps).values(opts.gated
     ? [
@@ -315,6 +315,73 @@ describe("private evaluation execution (DB-backed)", () => {
     const flat = JSON.stringify(summary).toLowerCase();
     for (const forbidden of ["confidence interval", "significan", "equivalent quality", "certified", "statistically"]) {
       expect(flat).not.toContain(forbidden);
+    }
+  });
+
+  it("028: ledger actuals are priced from the rates the quote used; an unpriceable model stays UNKNOWN, never 0", async () => {
+    resetFakes();
+    const prevVector = process.env.V2_PRICE_VECTOR_JSON;
+    process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({
+      "base-model": { in: 0.2, out: 0.6 },
+      "judge-model": { in: 1, out: 2 },
+    });
+    const pricing = await import("./modelPricing");
+    const { benchmarkLedgerTotals } = await import("./benchmarkLedger");
+    pricing.resetPricingCache();
+    try {
+      const f = await seedFixture();
+      const { benchmarkId, quote } = await startAndExecute({
+        userId: f.userId, projectId: f.projectId,
+        cases: [{ inputText: "task one" }],
+        judges: [{ providerId: f.providerId, model: "judge-model" }],
+      });
+      // The seeded host is unreachable, so quote and ledger fall back together —
+      // which is exactly the point: they must never diverge on the SOURCE.
+      expect(quote.pricingBasis).toBe("price_vector");
+      expect(quote.estimatedTotalCostUsd).not.toBeNull();
+
+      // The fake returns one 120/30 response per generation child.
+      const [gen] = await attemptsOf(benchmarkId, "generation");
+      expect(Number(gen.estimatedCostUsd)).toBeCloseTo((120 / 1000) * 0.2 + (30 / 1000) * 0.6, 10);
+      expect(gen.costBasis).toBe("price_vector");
+      expect(gen.costCompleteness).toBe("complete");
+      expect(gen.costPricingAsOf).toBeNull(); // a vector is versioned, not timestamped
+      expect(gen.priceVectorVersion).toBe("pv-2026-09");
+      // Pricing read the candidate's route; the billing column keeps its meaning
+      // of "one credential", which a multi-step aggregate does not have.
+      expect(gen.providerRefId).toBeNull();
+
+      const [jud] = await attemptsOf(benchmarkId, "judgment");
+      expect(Number(jud.estimatedCostUsd)).toBeCloseTo((400 / 1000) * 1 + (60 / 1000) * 2, 10);
+      expect(jud.costBasis).toBe("price_vector");
+      expect(jud.costCompleteness).toBe("complete");
+      expect(jud.providerRefId).toBe(f.providerId);
+
+      const totals = await benchmarkLedgerTotals(benchmarkId);
+      expect(totals.costCompleteness).toBe("complete");
+      expect(Number(totals.knownCostUsd)).toBeCloseTo(0.042 + 0.52, 10);
+      expect(totals.pricingBases).toEqual(["price_vector"]);
+
+      // A model no source knows must produce UNKNOWN on its own row and drag the
+      // benchmark to `partial` — never a silently-absent or zero cost.
+      const f2 = await seedFixture({ stepModel: "model-nobody-lists" });
+      const { benchmarkId: id2 } = await startAndExecute({
+        userId: f2.userId, projectId: f2.projectId,
+        cases: [{ inputText: "task one" }],
+        judges: [{ providerId: f2.providerId, model: "judge-model" }],
+      });
+      const [gen2] = await attemptsOf(id2, "generation");
+      expect(gen2.estimatedCostUsd).toBeNull();
+      expect(gen2.costBasis).toBeNull();
+      expect(gen2.costCompleteness).toBe("unknown");
+      const t2 = await benchmarkLedgerTotals(id2);
+      expect(t2.costCompleteness).toBe("partial");
+      expect(Number(t2.knownCostUsd)).toBeCloseTo(0.52, 10); // judging still priced
+      expect(t2.pricingBases).toEqual(["price_vector"]);
+    } finally {
+      if (prevVector === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
+      else process.env.V2_PRICE_VECTOR_JSON = prevVector;
+      pricing.resetPricingCache();
     }
   });
 

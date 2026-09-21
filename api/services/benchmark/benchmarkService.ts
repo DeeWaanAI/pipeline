@@ -37,7 +37,7 @@ import {
 } from "./benchmarkCallPlan";
 import {
   captureVersionFromProject, createVersionRow, loadVersionDefinition, materializeOverrideVersion,
-  snapshotStepsFromProject, stepResolutionsFromSnapshot,
+  snapshotStepsFromProject, stepResolutionsFromSnapshot, singleRouteOfSnapshot,
 } from "./versionService";
 import {
   JUDGE_PROMPT_VERSION, buildPairwiseJudgePrompt, buildRubricJudgePrompt,
@@ -844,6 +844,7 @@ export async function executeBenchmark(opts: { benchmarkId: number; leaseToken: 
         operationKind: "generation", operationId: run.id, benchmarkId: b.id,
         purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
         providerRefId: null, requestedModel: cand.requestedModel ?? "workflow-steps",
+        pricingRoute: singleRouteOfSnapshot(definition),
         outcome: ok ? "success" : "failed",
         promptTokens: usage.promptTokens, completionTokens: usage.completionTokens,
         errorMessage: ok ? null : finalRun?.error ?? null,
