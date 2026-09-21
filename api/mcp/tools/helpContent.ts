@@ -249,6 +249,16 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Join the marketplace reviewer pool. Reviewers evaluate pipeline test outputs and earn points redeemable for subscription days.",
     example: "\"Enroll me as a reviewer.\"",
   },
+  {
+    name: "get_next_review_task", group: "Marketplace", scopes: ["mcp:write"],
+    summary: "Claim the next blind review task as an enrolled reviewer: one anonymized input/output pair plus the rubric, with the listing's identity never revealed. This is how the human half of certification is actually performed, so it must be discoverable from the guide.",
+    example: "\"Give me my next review task.\"",
+  },
+  {
+    name: "submit_review_task", group: "Marketplace", scopes: ["mcp:write"],
+    summary: "Return your 1–5 scores for a claimed blind task and earn reviewer points. When a listing reaches the reviewer quorum, certification is decided from the consensus — published or rejected, never left in review.",
+    example: "\"Score task 12: accuracy 4, completeness 4, clarity 5.\"",
+  },
   // ── Publish (v2 evidence) ───────────────────────────────────────
   {
     name: "preview_evidence", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",

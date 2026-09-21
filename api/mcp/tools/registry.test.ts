@@ -57,10 +57,15 @@ describe("MCP tool registry", () => {
     }
   });
 
-  it("no help entry advertises an unregistered tool", () => {
+  it("help and the registry agree in BOTH directions", () => {
     const registered = new Set(TOOLS.map((t) => t.name));
-    const stale = HELP_CATALOG.filter((e) => !registered.has(e.name)).map((e) => e.name);
-    expect(stale).toEqual([]);
+    const advertised = new Set(HELP_CATALOG.map((e) => e.name));
+    // The guide must not advertise a tool that no longer exists...
+    expect(HELP_CATALOG.filter((e) => !registered.has(e.name)).map((e) => e.name)).toEqual([]);
+    // ...and must not hide one that does: D9 makes MCP the primary interface, so
+    // a capability reachable only by guessing a tool name is a capability no
+    // caller has. This direction was unpinned until the reviewer pair exposed it.
+    expect(TOOLS.map((t) => t.name).filter((n) => !advertised.has(n))).toEqual([]);
   });
 });
 
