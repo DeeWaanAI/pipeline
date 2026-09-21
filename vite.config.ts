@@ -1,13 +1,46 @@
 import devServer from "@hono/vite-dev-server"
+import { getRequestListener } from "@hono/node-server"
+import type { IncomingMessage, ServerResponse } from "node:http"
+import type { Plugin } from "vite"
 import path from "path"
 const __dirname = import.meta.dirname
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { inspectAttr } from 'kimi-plugin-inspect-react'
 
+// The streamable-HTTP MCP transport hands the raw node request/response to the
+// MCP SDK, so it needs Hono's `c.env.incoming`/`c.env.outgoing`. @hono/node-server
+// passes those bindings as the SECOND argument of its fetch callback;
+// @hono/vite-dev-server declares `async (request) => …`, discards it, and calls
+// `app.fetch(request, {})` — which is why `/mcp` 500'd under `npm run dev` and
+// only worked behind a built, separately-served process. This middleware re-attaches
+// the bindings for `/mcp` alone, so development needs no build step and no second
+// server. Registered before devServer() so it wins the route.
+const MCP_ROUTE = /^\/mcp(\/|\?|$)/
+
+function mcpNodeBindings(): Plugin {
+  return {
+    name: "mcp-node-bindings",
+    configureServer(server) {
+      const listener = getRequestListener(async (request, bindings) => {
+        // Same specifier as devServer({entry}) so vite's SSR module graph returns
+        // the one already-loaded app instance — a second copy would start a
+        // second in-process pipeline worker.
+        const { default: app } = await server.ssrLoadModule("api/boot.ts")
+        return (app as { fetch: (r: Request, env: unknown) => Promise<Response> }).fetch(request, bindings)
+      }, { overrideGlobalObjects: false })
+      server.middlewares.use((req, res, next) => {
+        if (!MCP_ROUTE.test(req.url ?? "")) return next()
+        void listener(req as IncomingMessage, res as ServerResponse)
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    mcpNodeBindings(),
     // Paths NOT listed here never reach the Hono app in dev: vite serves them
     // as the SPA instead. That silently made the MCP server untestable locally,
     // because /mcp, the OAuth endpoints and the RFC 8414 / 9728 discovery

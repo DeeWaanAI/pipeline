@@ -5,10 +5,18 @@
 > **and readable** from a chat client. This page is that contract in one place — for a human
 > deciding what to build, and for the desktop client driving the tools.
 >
-> Source of truth is the code, not this file. Everything below is generated from
-> `api/mcp/tools/index.ts` joined with `api/mcp/tools/helpContent.ts`, and
-> `api/mcp/tools/registry.test.ts` pins that the two agree in both directions. If a tool is
-> missing here, it was added without a help entry and the test should be failing.
+> Source of truth is the code, not this file. Every tool section below is rendered from
+> `api/mcp/tools/index.ts` joined with `api/mcp/tools/helpContent.ts`;
+> `api/mcp/tools/registry.test.ts` pins the two together in both directions. To refresh it after
+> adding or changing a tool:
+>
+> ```bash
+> MCP_TOOLS_WIKI=1 npx vitest run api/mcp/tools/wikiDump.test.ts
+> ```
+>
+> If a tool is missing here, it was added without a help entry and the test suite should be
+> failing. Prose between the generated blocks is hand-written; the generator owns this file
+> (`scripts/mcp-tools-wiki.mjs`), so edit it there or the next run will overwrite the edit.
 
 ## 69 tools, 11 groups
 
@@ -78,25 +86,31 @@ consent gate by calling the service directly.
 caller can actually see; the registry test keeps it from advertising an unregistered tool or hiding
 a live one.
 
-### Running it against a local server
+### Running it locally
 
-`/mcp` cannot be served by `npm run dev`. Vite's dev-server adapter hands Hono a Web-standard
-request only, without the raw node `incoming`/`outgoing` bindings the streamable-HTTP transport
-needs, so `/mcp` under `vite` is unreachable rather than broken. The node server has to serve it:
+`npm run dev` serves `/mcp`. That is not what it used to do, and the reason matters if you are
+debugging a transport failure: the streamable-HTTP handler gives the MCP SDK the raw node
+request/response, so it needs Hono's `c.env.incoming`/`c.env.outgoing`. `@hono/node-server`
+supplies those bindings as the **second** argument of its fetch callback, but
+`@hono/vite-dev-server` declares `async (request) => …`, drops that argument, and calls
+`app.fetch(request, {})` — so `initialize` 500'd on an undefined `outgoing` and the only way to
+test MCP locally was to build and run the node server separately. `vite.config.ts` now mounts a
+`mcp-node-bindings` middleware in front of the dev adapter that re-attaches the bindings for
+`/mcp` and nothing else. The in-process pipeline/design/benchmark workers start on boot too
+(`START_WORKER` only disables them when set to exactly `false`), so one command is the whole stack:
 
 ```bash
-npm run build
-nohup env V2_NODE_SERVE=true START_WORKER=true PORT=3100 node dist/boot.js > /tmp/v2app.log 2>&1 &
+docker compose -f docker-compose.v2.yml up -d   # mysql 3307, redis 6380
+npm run dev                                     # http://localhost:3000/mcp
 ```
 
-- `V2_NODE_SERVE=true` opts into `@hono/node-server` `serve()` outside production (`api/boot.ts`).
-- `START_WORKER=true` or queued benchmarks never execute — the queue drain is a separate entry point.
-- Start it from a real terminal, not from an agent session: anything an agent launches dies with
-  the agent, which makes a long benchmark look like a server bug.
+- `V2_NODE_SERVE=true node dist/boot.js` still exists for checking the **production** boot path,
+  which is also the only path that serves the built `dist/public` SPA. It is no longer how you
+  reach the MCP server in development.
 - `vite.config.ts` exempts `/mcp`, `/oauth/authorize*`, `/oauth/token`, `/oauth/register` and
   `.well-known/*` from the SPA fallback by **prefix, not exact path** — anchoring those patterns is
   what previously swallowed `/oauth/consent` (a React route) or stranded `/oauth/authorize/confirm`.
-- A healthy unauthenticated probe is `curl -i localhost:3100/mcp` answering **401 with a
+- A healthy unauthenticated probe is `curl -i localhost:3000/mcp` answering **401 with a
   `WWW-Authenticate` challenge**. A `200` returning HTML means the SPA fallback ate the route.
 
 Two hazards that cost real money or real data: `scripts/mcp-call.mjs` and
