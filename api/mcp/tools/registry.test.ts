@@ -3,6 +3,9 @@
 // and must never hide a capability the caller actually has). Pure: no DB.
 
 import { describe, expect, it } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { TOOLS } from "./index";
 import { BENCHMARK_TOOLS } from "./benchmarkTools";
 import { HELP_CATALOG, buildHelp } from "./helpContent";
@@ -10,6 +13,29 @@ import { HELP_CATALOG, buildHelp } from "./helpContent";
 const ALL_SCOPES = ["mcp:read", "mcp:write", "mcp:run", "team:read", "team:write"];
 
 describe("MCP tool registry", () => {
+  it("lists every tool through the SDK, including feature-gated schemas", async () => {
+    const server = new McpServer({ name: "registry-test", version: "1" });
+    const client = new Client({ name: "registry-client", version: "1" });
+    for (const tool of TOOLS) {
+      server.registerTool(tool.name, {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: tool.annotations,
+      }, async () => ({ content: [] }));
+    }
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const result = await client.listTools();
+      expect(result.tools.map((tool) => tool.name).sort()).toEqual(TOOLS.map((tool) => tool.name).sort());
+      for (const tool of result.tools) expect(tool.inputSchema.type).toBe("object");
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("registers unique, well-formed tools", () => {
     const names = TOOLS.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);

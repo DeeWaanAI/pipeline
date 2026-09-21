@@ -29,7 +29,7 @@ export const retestSuggestionsTool: McpTool = {
 const respondInputSchema = z.object({
   suggestionId: z.number().int().positive(),
   action: z.enum(["dismiss", "snooze", "plan_retest"]),
-  until: z.coerce.date().optional().describe("Only for snooze"),
+  until: z.iso.datetime({ offset: true }).optional().describe("Only for snooze: ISO 8601 timestamp with timezone"),
 });
 
 export const respondRetestSuggestionTool: McpTool = {
@@ -42,7 +42,9 @@ export const respondRetestSuggestionTool: McpTool = {
   annotations: { readOnlyHint: false },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = respondInputSchema.parse(args);
-    return respondToSuggestion(ctx.userId, input.suggestionId, input.action, { until: input.until });
+    return respondToSuggestion(ctx.userId, input.suggestionId, input.action, {
+      until: input.until === undefined ? undefined : new Date(input.until),
+    });
   },
 };
 
