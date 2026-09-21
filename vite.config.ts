@@ -12,14 +12,12 @@ export default defineConfig({
     // as the SPA instead. That silently made the MCP server untestable locally,
     // because /mcp, the OAuth endpoints and the RFC 8414 / 9728 discovery
     // documents all 404'd into index.html while the API looked fine. The OAuth
-    // paths are listed individually on purpose: /oauth/consent is a REACT route
-    // (src/pages/OAuthConsent.tsx), so a blanket `oauth/` exemption swallows the
-    // consent screen. Note the `(\?|$)` guards: vite tests the path WITH its
-    // query string, and a real authorize request always carries one
-    // (client_id, redirect_uri, code_challenge…) — an end-of-string anchor there
-    // silently hands the browser the SPA, which bounces to "/" and the user
-    // never sees a consent prompt. Same trap for a bare /mcp?session id=…
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp(\?|$)|mcp\/|oauth\/(authorize|token|register)(\?|$)|\.well-known\/).*$/] }),
+    // paths are listed by prefix, deliberately UNANCHORED: the consent page posts
+    // to /oauth/authorize/confirm, so an end-of-string anchor leaves that request
+    // with the SPA (404) and the user sees "Authorization failed" after clicking
+    // Allow. /oauth/consent itself must NOT match — it is a REACT route
+    // (src/pages/OAuthConsent.tsx).
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|feedback-screenshots\/|mcp(\?|$)|mcp\/|oauth\/(authorize|token|register)|\.well-known\/).*$/] }),
     inspectAttr(), react()],
   server: {
     port: 3000,
