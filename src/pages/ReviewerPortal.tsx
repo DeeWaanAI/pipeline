@@ -229,7 +229,9 @@ function BlindReviewSection() {
 // Sub-component: Points redemption UI
 function PointsRedemption({ profile }: { profile: { pointsBalance: number | null; subscriptionDays: number | null } }) {
   const { t } = useTranslation("pages");
-  const [tier, setTier] = useState<"master" | "sage">("master");
+  // Redeem rate. The wire values are the api's marketplace.redeemPoints enum;
+  // they buy the same subscription days and carry no plan meaning.
+  const [rate, setRate] = useState<"master" | "sage">("master");
   const [days, setDays] = useState(1);
 
   const redeemMutation = trpc.marketplace.redeemPoints.useMutation({
@@ -243,7 +245,7 @@ function PointsRedemption({ profile }: { profile: { pointsBalance: number | null
   });
 
   const balance = profile.pointsBalance ?? 0;
-  const costPerDay = tier === "sage" ? 120 : 72;
+  const costPerDay = rate === "sage" ? 120 : 72;
   const totalCost = costPerDay * days;
   const canAfford = balance >= totalCost;
 
@@ -255,31 +257,31 @@ function PointsRedemption({ profile }: { profile: { pointsBalance: number | null
       </h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-        {/* Tier selector */}
+        {/* Rate selector */}
         <button
-          onClick={() => setTier("master")}
+          onClick={() => setRate("master")}
           className={`p-3 rounded-lg border text-left transition-colors ${
-            tier === "master"
+            rate === "master"
               ? "border-blue-500 bg-blue-500/10"
               : "border-neutral-700 hover:border-neutral-600"
           }`}
         >
-          <div className="text-sm font-medium text-neutral-200">{t("pages:reviewer.portal.redemption.masterTier")}</div>
-          <div className="text-xs text-neutral-500">{t("pages:reviewer.portal.redemption.masterCost")}</div>
-          <div className="text-xs text-blue-400 mt-1">{t("pages:reviewer.portal.redemption.masterValue")}</div>
+          <div className="text-sm font-medium text-neutral-200">{t("pages:reviewer.portal.redemption.basicLabel")}</div>
+          <div className="text-xs text-neutral-500">{t("pages:reviewer.portal.redemption.basicCost")}</div>
+          <div className="text-xs text-blue-400 mt-1">{t("pages:reviewer.portal.redemption.basicValue")}</div>
         </button>
 
         <button
-          onClick={() => setTier("sage")}
+          onClick={() => setRate("sage")}
           className={`p-3 rounded-lg border text-left transition-colors ${
-            tier === "sage"
+            rate === "sage"
               ? "border-amber-500 bg-amber-500/10"
               : "border-neutral-700 hover:border-neutral-600"
           }`}
         >
-          <div className="text-sm font-medium text-neutral-200">{t("pages:reviewer.portal.redemption.sageTier")}</div>
-          <div className="text-xs text-neutral-500">{t("pages:reviewer.portal.redemption.sageCost")}</div>
-          <div className="text-xs text-amber-400 mt-1">{t("pages:reviewer.portal.redemption.sageValue")}</div>
+          <div className="text-sm font-medium text-neutral-200">{t("pages:reviewer.portal.redemption.enhancedLabel")}</div>
+          <div className="text-xs text-neutral-500">{t("pages:reviewer.portal.redemption.enhancedCost")}</div>
+          <div className="text-xs text-amber-400 mt-1">{t("pages:reviewer.portal.redemption.enhancedValue")}</div>
         </button>
 
         {/* Days selector */}
@@ -314,7 +316,7 @@ function PointsRedemption({ profile }: { profile: { pointsBalance: number | null
           <span className="text-amber-400 font-medium">{balance} {t("pages:reviewer.portal.redemption.pts")}</span>
         </div>
         <button
-          onClick={() => redeemMutation.mutate({ tier, days })}
+          onClick={() => redeemMutation.mutate({ tier: rate, days })}
           disabled={!canAfford || redeemMutation.isPending}
           className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
             canAfford

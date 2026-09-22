@@ -6,19 +6,15 @@
     "audit": "审计日志",
     "projects": "项目",
     "myAgents": "我的智能体",
-    "myTeams": "我的团队",
     "myPipelines": "我的流水线",
     "myData": "我的数据",
     "testFixtures": "测试固件",
     "marketplace": "市场",
     "review": "审核",
     "admin": "管理",
-    "teamDashboard": "团队面板",
-    "teamConnect": "团队连接",
     "groups": {
       "studio": "工作室",
       "market": "市场",
-      "teams": "团队",
       "account": "账户"
     },
     "newProject": "新建项目",
@@ -44,8 +40,7 @@
     "loading": "加载中...",
     "saving": "保存中...",
     "back": "返回",
-    "reset": "重置",
-    "upgrade": "升级"
+    "reset": "重置"
   },
   "status": {
     "saved": "已保存",

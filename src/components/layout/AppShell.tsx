@@ -2,7 +2,6 @@ import { Link, useLocation } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { TierBadge } from "@/components/TierBadge";
 import {
   LayoutDashboard,
   Settings,
@@ -18,8 +17,6 @@ import {
   Store,
   ClipboardCheck,
   Database,
-  Users,
-  Plug,
   Shield,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -50,13 +47,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       items: [
         { path: "/marketplace", icon: Store, label: t("nav.marketplace", "Marketplace") },
         { path: "/reviewer/portal", icon: ClipboardCheck, label: t("nav.review", "Review") },
-      ],
-    },
-    {
-      label: t("nav.groups.teams", "Teams"),
-      items: [
-        { path: "/team", icon: Users, label: t("nav.teamDashboard", "Team Dashboard") },
-        { path: "/team/connect", icon: Plug, label: t("nav.teamConnect", "Team Connect") },
       ],
     },
     {
@@ -174,12 +164,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="flex-1 min-w-0">
                 <p className="truncate text-neutral-300 text-xs">{user.name ?? t("nav.userFallback", "User")}</p>
               </div>
-              <TierBadge size="sm" />
-            </div>
-          )}
-          {user && !sidebarOpen && (
-            <div className="flex justify-center py-1">
-              <TierBadge size="sm" />
             </div>
           )}
           {user && (

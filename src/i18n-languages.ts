@@ -20,7 +20,6 @@ import enConnect from "./locales/en/connect.json";
 import enMcp from "./locales/en/mcp.json";
 import enCertification from "./locales/en/certification.json";
 import enPricing from "./locales/en/pricing.json";
-import enTeamsync from "./locales/en/teamsync.json";
 
 import zhCommon from "./locales/zh/common.json";
 import zhLogin from "./locales/zh/login.json";
@@ -35,7 +34,6 @@ import zhConnect from "./locales/zh/connect.json";
 import zhMcp from "./locales/zh/mcp.json";
 import zhCertification from "./locales/zh/certification.json";
 import zhPricing from "./locales/zh/pricing.json";
-import zhTeamsync from "./locales/zh/teamsync.json";
 
 export interface LanguageConfig {
   /** ISO 639-1 language code */
@@ -64,7 +62,6 @@ export const LANGUAGES: LanguageConfig[] = [
       mcp: enMcp,
       certification: enCertification,
       pricing: enPricing,
-      teamsync: enTeamsync,
     },
   },
   {
@@ -84,7 +81,6 @@ export const LANGUAGES: LanguageConfig[] = [
       mcp: zhMcp,
       certification: zhCertification,
       pricing: zhPricing,
-      teamsync: zhTeamsync,
     },
   },
   // To add a new language (e.g. Japanese):

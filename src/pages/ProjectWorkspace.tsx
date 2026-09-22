@@ -4,13 +4,12 @@ import { useTranslation } from "react-i18next";
 import { trpc, trpcClient } from "@/providers/trpc";
 import { AppShell } from "@/components/layout/AppShell";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
-import { useCapabilities } from "@/hooks/useCapabilities";
 import ProjectFilesPanel from "@/components/project/ProjectFilesPanel";
 import {
   Send, Bot, Loader2, CheckCircle2, AlertCircle,
   ChevronRight, User, Sparkles, Settings,
   Octagon, ThumbsUp, ThumbsDown, MessageSquarePlus,
-  Wand2, Zap, Lock, Workflow, ChevronDown, Check,
+  Wand2, Zap, Workflow, ChevronDown, Check,
   Paperclip, X, FileText, Image, FolderOpen, Bug, FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -88,9 +87,6 @@ export default function ProjectWorkspace() {
   const { t } = useTranslation("pages");
   const { id } = useParams<{ id: string }>();
   const projectId = parseInt(id ?? "0");
-  const { has } = useCapabilities();
-  const isProAuto = has("pipeline:autodesign");
-  const isMaster = has("pipeline:custom");
 
   const { data: project, isLoading: projectLoading } = trpc.project.getById.useQuery({ id: projectId });
   const { data: pipelineConfig } = trpc.swarm.getPipeline.useQuery({ projectId }, { enabled: projectId > 0 });
@@ -238,9 +234,6 @@ export default function ProjectWorkspace() {
   const cancelMutation = trpc.swarm.cancelRun.useMutation();
   const approveMutation = trpc.swarm.approveStep.useMutation();
   const autoDesignMutation = trpc.swarm.autoDesign.useMutation();
-  const setTierMutation = trpc.localAuth.devTierSwitch.useMutation({
-    onSuccess: () => { window.location.reload(); },
-  });
   const utils = trpc.useUtils();
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -293,7 +286,7 @@ export default function ProjectWorkspace() {
   // ─── Server-side chat persistence (issue #9) ───────────────────
   // On load: merge server-saved messages into the store if localStorage is empty
   // for this project (e.g., after DB wipe + redeploy, or on a new device).
-  // On unload: push current messages to server so they survive upgrades.
+  // On unload: push current messages to server so they survive a reload.
   useEffect(() => {
     if (!userPrefs?.savedMessages || !projectId) return;
     const key = String(projectId);
@@ -778,38 +771,20 @@ ${t("pages:workspace.chat.promptSavedHint")}`,
                         )}
                         <div className="border-t border-neutral-800 my-1" />
                         {/* Auto Design */}
-                        {isProAuto ? (
-                          <button
-                            onClick={() => { setShowPipelineMenu(false); setShowAutoDesign(true); }}
-                            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-amber-400 hover:bg-neutral-800"
-                          >
-                            <Wand2 className="w-3 h-3" /> {t("pages:workspace.pipelineMenu.autoDesignNew")}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => { setShowPipelineMenu(false); setTierMutation.mutate({ tier: "pro_auto" }); }}
-                            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-800"
-                          >
-                            <Lock className="w-3 h-3" /> {t("pages:workspace.pipelineMenu.autoDesignSage")}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => { setShowPipelineMenu(false); setShowAutoDesign(true); }}
+                          className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-amber-400 hover:bg-neutral-800"
+                        >
+                          <Wand2 className="w-3 h-3" /> {t("pages:workspace.pipelineMenu.autoDesignNew")}
+                        </button>
                         {/* Pipeline Editor */}
-                        {isMaster ? (
-                          <Link
-                            to="/pipelines"
-                            onClick={() => setShowPipelineMenu(false)}
-                            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-blue-400 hover:bg-neutral-800"
-                          >
-                            <Settings className="w-3 h-3" /> {t("pages:workspace.pipelineMenu.pipelineEditor")}
-                          </Link>
-                        ) : (
-                          <button
-                            onClick={() => { setShowPipelineMenu(false); setTierMutation.mutate({ tier: "pro_designer" }); }}
-                            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-800"
-                          >
-                            <Lock className="w-3 h-3" /> {t("pages:workspace.pipelineMenu.editorMaster")}
-                          </button>
-                        )}
+                        <Link
+                          to="/pipelines"
+                          onClick={() => setShowPipelineMenu(false)}
+                          className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-blue-400 hover:bg-neutral-800"
+                        >
+                          <Settings className="w-3 h-3" /> {t("pages:workspace.pipelineMenu.pipelineEditor")}
+                        </Link>
                         <div className="border-t border-neutral-800 my-1" />
                         <Link
                           to="/pipelines"
@@ -888,19 +863,9 @@ ${t("pages:workspace.chat.promptSavedHint")}`,
               </Button>
 
               {/* Auto Design button */}
-              {isProAuto ? (
-                <Button variant="ghost" size="sm" onClick={() => setShowAutoDesign(true)} className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 h-7 text-xs">
-                  <Wand2 className="w-3.5 h-3.5 mr-1" />{t("pages:workspace.toolbar.autoDesign")}
-                </Button>
-              ) : (
-                <Button variant="ghost" size="sm" onClick={() => {
-                  if (confirm(t("pages:workspace.toolbar.autoDesignRequiresTier"))) {
-                    setTierMutation.mutate({ tier: "pro_auto" });
-                  }
-                }} className="text-neutral-500 hover:text-neutral-300 h-7 text-xs">
-                  <Lock className="w-3.5 h-3.5 mr-1" />{t("pages:workspace.toolbar.autoDesign")}
-                </Button>
-              )}
+              <Button variant="ghost" size="sm" onClick={() => setShowAutoDesign(true)} className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 h-7 text-xs">
+                <Wand2 className="w-3.5 h-3.5 mr-1" />{t("pages:workspace.toolbar.autoDesign")}
+              </Button>
               {(isRunning || awaitingApproval) && (
                 <Button variant="ghost" size="sm" onClick={handleStop} className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 text-xs">
                   <Octagon className="w-3.5 h-3.5 mr-1" />{t("pages:workspace.toolbar.stop")}

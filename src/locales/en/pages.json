@@ -143,14 +143,12 @@
         "user": "User",
         "email": "Email",
         "role": "Role",
-        "tier": "Tier",
         "projects": "Projects",
         "runs": "Runs",
         "lastSignIn": "Last Sign In"
       },
       "noResults": "No users found.",
-      "roleUpdated": "User role updated",
-      "tierUpdated": "User tier updated"
+      "roleUpdated": "User role updated"
     },
     "stats": {
       "usersGroup": "Users",
@@ -159,9 +157,6 @@
       "systemGroup": "System",
       "totalUsers": "Total Users",
       "active7d": "Active (7d)",
-      "standardTier": "Standard Tier",
-      "proDesigner": "Pro Designer",
-      "proAuto": "Pro Auto",
       "totalRuns": "Total Runs",
       "completed": "Completed",
       "failed": "Failed",
@@ -254,6 +249,7 @@
       "vouchers": "Vouchers",
       "generateVoucher": "Generate voucher",
       "tier": "Tier",
+      "tierLegacy": "Legacy field. The plan ladder was retired on 2026-09-22, so a redeemed voucher no longer unlocks anything — the value is recorded for the existing rows, and what a voucher should grant under one flat subscription is still an open decision.",
       "durationDays": "Duration (days)",
       "maxUses": "Max uses",
       "label": "Label",
@@ -263,8 +259,6 @@
     }
   },
   "pipeline": {
-    "tierRequired": "{{tier}} Required",
-    "tierRequiredMsg": "Pipeline Editor requires Master or Sage tier.",
     "backToPipelines": "Back to My Pipelines",
     "namePlaceholder": "Pipeline name",
     "descriptionPlaceholder": "Description",
@@ -306,84 +300,6 @@
     "ifDesc": "Route to different agents based on output keyword",
     "whileDesc": "Repeat a section until quality is met (max 3x)",
     "humanReviewDesc": "Pause pipeline for human approval"
-  },
-  "team": {
-    "loginRequired": "Please log in to access the team dashboard.",
-    "joinTeam": "Join Team",
-    "inviteCodePlaceholder": "Invite code",
-    "joinButton": "Join",
-    "yourTeams": "Your Teams",
-    "noTeams": "No teams yet. Create one to start.",
-    "title": "Team Dashboard",
-    "createTeam": "Create Team",
-    "createTeamHeading": "Create New Team",
-    "teamNamePlaceholder": "Team name",
-    "cancel": "Cancel",
-    "create": "Create",
-    "members": {
-      "unknown": "Unknown"
-    },
-    "yourRole": "Your role:",
-    "invite": "Invite:",
-    "tabs": {
-      "space": "Team Space",
-      "overview": "Overview",
-      "feedback": "Feedback",
-      "members": "Members"
-    },
-    "empty": {
-      "noTeam": "No team selected",
-      "noTeamDesc": "Create a team or join one to get started",
-      "joinExisting": "Join an existing team",
-      "pasteCode": "Paste invite code",
-      "or": "-- or --",
-      "createNew": "Create New Team"
-    },
-    "overview": {
-      "members": "Members",
-      "feedback": "Feedback",
-      "openFeedback": "Open Feedback",
-      "resolved": "Resolved",
-      "feedbackByType": "Feedback by Type"
-    },
-    "feedback": {
-      "loadFailed": "Failed to load feedback",
-      "none": "No feedback yet.",
-      "noneDesc": "Submit feedback from any page using the floating button.",
-      "anonymous": "Anonymous",
-      "statusUpdated": "Feedback status updated",
-      "updateFailed": "Failed to update status: {{error}}",
-      "screenshotAlt": "Screenshot",
-      "screenshotFullAlt": "Screenshot full size"
-    },
-    "statuses": {
-      "new": "New",
-      "triaged": "Triaged",
-      "inProgress": "In Progress",
-      "resolved": "Resolved",
-      "verified": "Verified",
-      "closed": "Closed"
-    },
-    "space": {
-      "sharedProjects": "Shared Projects",
-      "noProjects": "No projects shared yet.",
-      "addProject": "Add Project to Team",
-      "sharedPipelines": "Shared Pipelines",
-      "shareProjectHint": "Share a project to make its pipelines available here.",
-      "projectsSuffix": "projects",
-      "stepsSuffix": "steps",
-      "importTo": "Import to",
-      "sharedAgents": "Shared Agents",
-      "shareAgentsHint": "Share a project to make its custom agents available here.",
-      "by": "By:"
-    },
-    "toasts": {
-      "created": "Team \"{{name}}\" created!",
-      "joined": "Joined team \"{{name}}\"!",
-      "projectShared": "Project shared with team!",
-      "pipelineImported": "Imported \"{{name}}\" to your project",
-      "agentImported": "Imported agent \"{{name}}\" to your project"
-    }
   },
   "marketplace": {
     "badges": {
@@ -448,7 +364,7 @@
       "gradePending": "Pending",
       "kappaPending": "Pending",
       "certifyingNotice": "This pipeline is still being certified and cannot be purchased yet.",
-      "becomeReviewerCta": "Help certify this \u2014 become a reviewer"
+      "becomeReviewerCta": "Help certify this — become a reviewer"
     },
     "creator": {
       "title": "Creator Dashboard",
@@ -556,12 +472,12 @@
   "reviewer": {
     "portal": {
       "title": "Reviewer Portal",
-      "subtitle": "Review pipelines, earn trust score, unlock Sage tier",
+      "subtitle": "Review pipelines and earn a trust score",
       "backToMarketplace": "Back to Marketplace",
       "enrollAsReviewer": "Enroll as Reviewer",
       "benefits": {
-        "earnSageDays": "Earn Sage Days",
-        "earnSageDesc": "Complete quality reviews to earn free Sage tier access. 5 reviews = 1 day.",
+        "earnSageDays": "Earn Review Days",
+        "earnSageDesc": "Complete quality reviews to earn subscription days. 5 reviews = 1 day.",
         "buildReputation": "Build Reputation",
         "buildReputationDesc": "Top reviewers appear on the public leaderboard. Build your profile.",
         "shapeQuality": "Shape Quality",
@@ -578,12 +494,12 @@
       },
       "redemption": {
         "title": "Redeem Points for Subscription Days",
-        "masterTier": "Master Tier",
-        "sageTier": "Sage Tier",
-        "masterCost": "72 pts / day",
-        "sageCost": "120 pts / day",
-        "masterValue": "$30/month value",
-        "sageValue": "$50/month value",
+        "basicLabel": "Basic Days",
+        "basicCost": "72 pts / day",
+        "basicValue": "$30/month value",
+        "enhancedLabel": "Enhanced Days",
+        "enhancedCost": "120 pts / day",
+        "enhancedValue": "$50/month value",
         "days": "Days",
         "cost": "Cost:",
         "pts": "pts",
@@ -600,7 +516,7 @@
       },
       "blindTask": {
         "title": "Blind Review Tasks",
-        "description": "Score real pipeline outputs without knowing which pipeline produced them \u2014 this keeps reviews unbiased.",
+        "description": "Score real pipeline outputs without knowing which pipeline produced them — this keeps reviews unbiased.",
         "pullTask": "Review next task",
         "pulling": "Loading task...",
         "noTask": "No review tasks available right now. Check back later.",
@@ -676,7 +592,7 @@
     "toolbar": {
       "pipelineLabel": "Pipeline",
       "agentsCount": "{{count}} agents",
-      "testModeOn": "Test mode ON \u2014 outputs saved to test_data/",
+      "testModeOn": "Test mode ON — outputs saved to test_data/",
       "testModeOff": "Enable test mode",
       "test": "Test",
       "pipelineMode": "Run full multi-step pipeline",
@@ -686,7 +602,6 @@
       "project": "Project",
       "audit": "Audit",
       "autoDesign": "Auto Design",
-      "autoDesignRequiresTier": "Auto Design requires Pro Auto tier. Upgrade now?",
       "stop": "Stop",
       "customPipeline": "Custom",
       "standardPipeline": "Standard",
@@ -696,9 +611,7 @@
       "standardPipeline": "Standard Pipeline",
       "myPipelines": "My Pipelines",
       "autoDesignNew": "Auto Design New",
-      "autoDesignSage": "Auto Design (Sage)",
       "pipelineEditor": "Pipeline Editor",
-      "editorMaster": "Editor (Master)",
       "managePipelines": "Manage Pipelines"
     },
     "approval": {
@@ -805,7 +718,7 @@
         "conversationHistory": "Store conversation history",
         "conversationHistoryDesc": "For reproducing reported issues"
       },
-      "footer": "All data is stored securely. You can change these settings anytime in Settings \u2192 Privacy.",
+      "footer": "All data is stored securely. You can change these settings anytime in Settings → Privacy.",
       "skipForNow": "Skip for Now",
       "allowSelected": "Allow Selected"
     },
@@ -912,15 +825,6 @@
     "namePlaceholder": "Pipeline name (e.g., Recipe Course)",
     "createAndDesign": "Create & Design Pipeline",
     "creating": "Creating...",
-    "upgradeTitle": "Upgrade to {{tier}}",
-    "upgradeDesc": "Custom pipeline creation is available for {{designer}} and {{sage}} subscribers.",
-    "currentTier": "Your current tier:",
-    "tierInfo": {
-      "sageDesc": "Auto Design, Custom Pipelines, and conditional logic available",
-      "masterDesc": "Custom Pipelines available. Upgrade to Sage for Auto Design.",
-      "standardDesc": "Standard pipeline only. Upgrade to unlock custom pipelines.",
-      "yourTier": "Your tier:"
-    },
     "card": {
       "autoDesignBadge": "Auto",
       "steps_one": "{{count}} step",
@@ -940,10 +844,8 @@
     },
     "empty": {
       "title": "No pipelines yet",
-      "sageDesc": "Auto-designed pipelines will appear here. Or create custom ones from any chat.",
-      "masterDesc": "Create custom pipelines from your chats. They'll be saved here for reuse.",
-      "standardDesc": "Upgrade to Master or Sage to create and save custom pipelines.",
-      "createFirst": "Create Your First Pipeline"
+      "createFirst": "Create Your First Pipeline",
+      "desc": "Create custom pipelines and they will be saved here for reuse."
     },
     "toasts": {
       "created": "Pipeline created",
@@ -963,7 +865,7 @@
       "testing": "Testing...",
       "connected": "Connected",
       "invalidToken": "Invalid token",
-      "tokenHelp": "Create a token at gitee.com \u2192 Settings \u2192 Private Token"
+      "tokenHelp": "Create a token at gitee.com → Settings → Private Token"
     },
     "github": {
       "title": "GitHub Integration",
@@ -975,7 +877,7 @@
       "testing": "Testing...",
       "connected": "Connected",
       "invalidToken": "Invalid token",
-      "tokenHelp": "Create a token at github.com \u2192 Settings \u2192 Developer settings \u2192 Personal access tokens"
+      "tokenHelp": "Create a token at github.com → Settings → Developer settings → Personal access tokens"
     },
     "provider": {
       "providerPlatform": "Provider Platform",
@@ -1016,7 +918,7 @@
       "title": "Data Management",
       "description": "Download a full backup of your data or restore from a previous backup. All data stays on your machine.",
       "fullBackup": "Full Backup",
-      "fullBackupDesc": "Download all your data \u2014 projects, agents, pipelines, preferences, and test fixtures \u2014 as a JSON file.",
+      "fullBackupDesc": "Download all your data — projects, agents, pipelines, preferences, and test fixtures — as a JSON file.",
       "downloadBackup": "Download Backup",
       "preparing": "Preparing...",
       "downloadSuccess": "Backup downloaded ({{size}} KB)",
@@ -1030,14 +932,6 @@
       "restoreFailed": "Restore failed: {{error}}",
       "invalidBackup": "Invalid backup file. Expected a Swarm Studio full backup.",
       "restoreConfirm": "Restore backup from {{date}}?\n\nThis will merge agents, templates, and preferences with your current data. Existing items won't be overwritten."
-    },
-    "dev": {
-      "title": "Development Tools",
-      "description": "Quick tier switching for testing. Only available in development mode.",
-      "standard": "Standard",
-      "proDesigner": "Pro Designer",
-      "proAuto": "Pro Auto",
-      "currentTier": "Current tier:"
     }
   }
 }

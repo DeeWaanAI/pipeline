@@ -1,42 +1,26 @@
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { useAuth } from "@/hooks/useAuth";
 import { useSeo } from "@/hooks/useSeo";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
 import { Hexagon, Check, ArrowLeft, Loader2, Store } from "lucide-react";
 
-const PLAN_IDS = ["solo", "team_seat"] as const;
+// One flat per-account subscription (owner decision 2026-09-22): no plan
+// levels and no seats, so `solo` is the only offering.
 const FEATURE_KEYS = ["feature1", "feature2", "feature3", "feature4"] as const;
+const MODEL_KEYS = ["monthly", "trial", "byok", "noPerRun"] as const;
 
 export default function PricingPage() {
   const { t } = useTranslation("pricing");
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
 
   const { data, isLoading } = trpc.billing.listPlans.useQuery();
-  const checkout = trpc.billing.createCheckout.useMutation({
-    onSuccess: ({ url }) => {
-      window.location.href = url;
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const plan = data?.plans.find((p) => p.id === "solo");
 
   useSeo({
     title: `${t("title")} | AI Swarm Studio`,
     description: t("subtitle"),
     path: "/pricing",
   });
-
-  const handleSubscribe = (planId: (typeof PLAN_IDS)[number]) => {
-    if (!isAuthenticated) {
-      navigate("/");
-      return;
-    }
-    checkout.mutate({ planId });
-  };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -67,54 +51,44 @@ export default function PricingPage() {
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
-          <div className="mt-10 grid gap-5 sm:grid-cols-2">
-            {PLAN_IDS.map((planId) => {
-              const plan = data?.plans.find((p) => p.id === planId);
-              const available = plan?.available ?? false;
-              return (
-                <div
-                  key={planId}
-                  className="flex flex-col rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">{t(`plans.${planId}.name`)}</h2>
-                    {plan?.perSeat && (
-                      <Badge
-                        variant="outline"
-                        className="border-blue-500/30 bg-blue-500/10 text-blue-400"
-                      >
-                        {t("perSeat")}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-neutral-500">{t(`plans.${planId}.tagline`)}</p>
+          <div className="mt-10 grid gap-5 lg:grid-cols-2">
+            {/* The single offering */}
+            <div className="flex flex-col rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6">
+              <h2 className="text-xl font-semibold">{plan?.name ?? t("plans.solo.name")}</h2>
+              <p className="mt-1 text-sm text-neutral-500">{t("plans.solo.tagline")}</p>
+              <p className="mt-4 text-sm font-medium text-neutral-200">{t("flatMonthly")}</p>
 
-                  <ul className="mt-5 flex-1 space-y-2.5">
-                    {FEATURE_KEYS.map((key) => (
-                      <li key={key} className="flex items-start gap-2 text-sm text-neutral-300">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
-                        {t(`plans.${planId}.${key}`)}
-                      </li>
-                    ))}
-                  </ul>
+              <ul className="mt-5 flex-1 space-y-2.5">
+                {FEATURE_KEYS.map((key) => (
+                  <li key={key} className="flex items-start gap-2 text-sm text-neutral-300">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
+                    {t(`plans.solo.${key}`)}
+                  </li>
+                ))}
+              </ul>
 
-                  <Button
-                    className="mt-6 w-full bg-blue-600 text-white hover:bg-blue-700"
-                    disabled={!available || checkout.isPending}
-                    onClick={() => handleSubscribe(planId)}
-                  >
-                    {checkout.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    {!available
-                      ? t("comingSoon")
-                      : isAuthenticated
-                        ? t("subscribe")
-                        : t("loginToSubscribe")}
-                  </Button>
-                </div>
-              );
-            })}
+              {/* Honest state of billing: no gateway is wired up yet, so this
+                  page must not offer a checkout. */}
+              <Button className="mt-6 w-full" variant="outline" disabled>
+                {t("checkoutDisabled")}
+              </Button>
+            </div>
+
+            {/* How billing actually works */}
+            <div className="flex flex-col rounded-2xl border border-neutral-800 bg-neutral-900/30 p-6">
+              <h2 className="text-lg font-medium">{t("model.title")}</h2>
+              <ul className="mt-4 flex-1 space-y-3">
+                {MODEL_KEYS.map((key) => (
+                  <li key={key} className="flex items-start gap-2 text-sm text-neutral-300">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                    <span>
+                      <span className="font-medium text-neutral-200">{t(`model.${key}.title`)}</span>
+                      <span className="block text-neutral-500">{t(`model.${key}.body`)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         )}
 

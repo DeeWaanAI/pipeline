@@ -20,11 +20,9 @@ const ReviewerPortal = lazy(() => import("./pages/ReviewerPortal"));
 const ReviewerReview = lazy(() => import("./pages/ReviewerReview"));
 const MyData = lazy(() => import("./pages/MyData"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const TeamDashboard = lazy(() => import("./pages/TeamDashboard"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const TestFixtures = lazy(() => import("./pages/TestFixtures"));
 const Connect = lazy(() => import("./pages/Connect"));
-const TeamConnect = lazy(() => import("./pages/TeamConnect"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const CertificationReport = lazy(() => import("./pages/CertificationReport"));
 const Pricing = lazy(() => import("./pages/Pricing"));
@@ -50,8 +48,6 @@ export default function App() {
           <Route path="/reviewer/review/:listingId" element={<ReviewerReview />} />
           <Route path="/my-data" element={<MyData />} />
           <Route path="/test-fixtures" element={<TestFixtures />} />
-          <Route path="/team" element={<TeamDashboard />} />
-          <Route path="/team/connect" element={<TeamConnect />} />
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/connect" element={<Connect />} />
           <Route path="/oauth/consent" element={<OAuthConsent />} />

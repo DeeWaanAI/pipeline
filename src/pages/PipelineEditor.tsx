@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router";
-import { useCapabilities } from "@/hooks/useCapabilities";
-import { TIERS } from "@/lib/tiers";
 import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +9,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import {
   Workflow, ArrowLeft, Save, Plus, Trash2, Copy,
-  Bot, GitBranch, RefreshCw, UserCheck, Lock, Zap, Loader2,
+  Bot, GitBranch, RefreshCw, UserCheck, Zap, Loader2,
 } from "lucide-react";
 
 interface EditableStep {
@@ -48,13 +46,10 @@ export default function PipelineEditor() {
   const { t } = useTranslation(["pages", "common"]);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { has } = useCapabilities();
   const utils = trpc.useUtils();
   const templateId = parseInt(id ?? "0");
 
   const isNew = templateId === 0;
-  const isMaster = has("pipeline:custom");
-  const isSage = has("pipeline:autodesign");
 
   const { data: template, isLoading } = trpc.template.getById.useQuery(
     { id: templateId },
@@ -182,17 +177,6 @@ export default function PipelineEditor() {
     return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 text-blue-400 animate-spin" /></div>;
   }
 
-  if (!isMaster) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <Lock className="w-12 h-12 text-amber-400" />
-        <h2 className="text-xl font-bold text-neutral-200">{t("pages:pipeline.tierRequired", { tier: TIERS.pro_designer.label })}</h2>
-        <p className="text-sm text-neutral-500">{t("pages:pipeline.tierRequiredMsg")}</p>
-        <Link to="/pipelines" className="text-sm text-blue-400 hover:underline">{t("pages:pipeline.backToPipelines")}</Link>
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen flex flex-col bg-neutral-950">
       {/* Header */}
@@ -248,11 +232,9 @@ export default function PipelineEditor() {
           <button onClick={() => addStep("critic", "while")} className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-purple-400 hover:bg-neutral-800 transition-colors text-left">
             <RefreshCw className="w-3 h-3" /> {t("pages:pipeline.whileLoop")}
           </button>
-          {isSage && (
-            <button onClick={() => addStep("custom", "approval")} className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-green-400 hover:bg-neutral-800 transition-colors text-left">
-              <UserCheck className="w-3 h-3" /> {t("pages:pipeline.humanReview")}
-            </button>
-          )}
+          <button onClick={() => addStep("custom", "approval")} className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-green-400 hover:bg-neutral-800 transition-colors text-left">
+            <UserCheck className="w-3 h-3" /> {t("pages:pipeline.humanReview")}
+          </button>
 
           {agentsData?.userAgents && agentsData.userAgents.length > 0 && (
             <>

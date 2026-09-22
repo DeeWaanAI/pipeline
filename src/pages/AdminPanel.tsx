@@ -46,7 +46,6 @@ type FeedbackStatus = "new" | "triaged" | "in_progress" | "resolved" | "verified
 type FeedbackSeverity = "critical" | "major" | "minor" | "cosmetic";
 type FeedbackType = "bug" | "suggestion" | "praise" | "confusion";
 type UserRole = "user" | "admin";
-type UserTier = "standard" | "pro_designer" | "pro_auto";
 
 type TabKey = "feedback" | "users" | "stats" | "flags" | "certification" | "audit" | "beta";
 
@@ -628,13 +627,6 @@ function UsersTab() {
     },
     onError: (err) => toast.error(err.message),
   });
-  const setTier = trpc.admin.setUserTier.useMutation({
-    onSuccess: () => {
-      toast.success(t("pages:admin.users.tierUpdated"));
-      utils.admin.listUsers.invalidate();
-    },
-    onError: (err) => toast.error(err.message),
-  });
 
   return (
     <div className="space-y-4">
@@ -669,7 +661,6 @@ function UsersTab() {
                   <th className="text-left px-4 py-3 font-medium">{t("pages:admin.users.headers.user")}</th>
                   <th className="text-left px-4 py-3 font-medium">{t("pages:admin.users.headers.email")}</th>
                   <th className="text-left px-4 py-3 font-medium">{t("pages:admin.users.headers.role")}</th>
-                  <th className="text-left px-4 py-3 font-medium">{t("pages:admin.users.headers.tier")}</th>
                   <th className="text-right px-4 py-3 font-medium">{t("pages:admin.users.headers.projects")}</th>
                   <th className="text-right px-4 py-3 font-medium">{t("pages:admin.users.headers.runs")}</th>
                   <th className="text-right px-4 py-3 font-medium">{t("pages:admin.users.headers.lastSignIn")}</th>
@@ -698,17 +689,6 @@ function UsersTab() {
                       >
                         <option value="user">user</option>
                         <option value="admin">admin</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={u.tier}
-                        onChange={(e) => setTier.mutate({ userId: u.id, tier: e.target.value as UserTier })}
-                        className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-[11px] text-neutral-200 focus:outline-none focus:border-blue-500"
-                      >
-                        <option value="standard">standard</option>
-                        <option value="pro_designer">pro_designer</option>
-                        <option value="pro_auto">pro_auto</option>
                       </select>
                     </td>
                     <td className="px-4 py-3 text-right text-neutral-400">{u.projectCount}</td>
@@ -764,8 +744,6 @@ function StatsTab() {
     );
   }
 
-  const tierData = data.users.byTier as Record<string, number> | null;
-
   const statGroups = [
     {
       title: t("pages:admin.stats.usersGroup"),
@@ -773,9 +751,6 @@ function StatsTab() {
       stats: [
         { label: t("pages:admin.stats.totalUsers"), value: data.users.total },
         { label: t("pages:admin.stats.active7d"), value: data.users.active7d },
-        { label: t("pages:admin.stats.standardTier"), value: tierData?.standard ?? 0 },
-        { label: t("pages:admin.stats.proDesigner"), value: tierData?.pro_designer ?? 0 },
-        { label: t("pages:admin.stats.proAuto"), value: tierData?.pro_auto ?? 0 },
       ],
     },
     {
@@ -1296,6 +1271,7 @@ function BetaTab() {
       {/* Vouchers section */}
       <div className="border-t border-neutral-800 pt-6 space-y-4">
         <h3 className="text-sm font-semibold text-neutral-200">{t("pages:admin.beta.vouchers")}</h3>
+        <p className="text-[11px] text-amber-400/80">{t("pages:admin.beta.tierLegacy")}</p>
 
         {/* Generate form */}
         <div className="flex flex-wrap items-end gap-3 bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">

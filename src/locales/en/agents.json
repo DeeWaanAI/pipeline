@@ -48,18 +48,6 @@
     "required": "Name, slug, and system prompt are required",
     "duplicateSlug": "An agent with this slug already exists"
   },
-  "tiers": {
-    "sage": "Sage",
-    "master": "Master",
-    "artist": "Artist"
-  },
-  "tierBadge": {
-    "reset": "Reset",
-    "upgrade": "Upgrade",
-    "cycleHint": "Click to cycle tier: Artist → Master → Sage (demo only)"
-  },
-  "upgradeRequired": "Creating custom agents requires {{tier}} tier. Upgrade?",
-  "upgradeRequiredAlert": "{{tier}} tier required. Click Upgrade in the tier badge.",
   "conditional": {
     "title": "Conditional Agents",
     "description": "These special agents control pipeline flow — branching, looping, and human review. Add them via the Pipeline Configurator in your project.",

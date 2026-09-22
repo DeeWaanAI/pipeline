@@ -14,10 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useCapabilities } from "@/hooks/useCapabilities";
 import {
   Loader2, ChevronUp, ChevronDown, Trash2, Plus,
-  Cpu, Lock, Zap, Brain, Save, RotateCcw, Sparkles, Workflow,
+  Cpu, Brain, Save, RotateCcw, Sparkles, Workflow,
   GitBranch, RefreshCw, UserCheck,
 } from "lucide-react";
 
@@ -44,18 +43,12 @@ interface Props { projectId: number; }
 export default function PipelineConfigurator({ projectId }: Props) {
   const { t } = useTranslation(["pipeline", "common"]);
   const { toast } = useToast();
-  const { has } = useCapabilities();
-  const isPro = has("pipeline:custom");
   const utils = trpc.useUtils();
 
   const { data: config, isLoading } = trpc.project.getPipelineConfig.useQuery({ projectId });
-  const { data: agentsData } = trpc.customAgent.list.useQuery(undefined, { enabled: isPro });
-  const { data: providers } = trpc.pipeline.availableProviders.useQuery(undefined, { enabled: isPro });
+  const { data: agentsData } = trpc.customAgent.list.useQuery();
+  const { data: providers } = trpc.pipeline.availableProviders.useQuery();
 
-  const updateConfig = trpc.project.updatePipelineConfig.useMutation({
-    onSuccess: () => { utils.project.getPipelineConfig.invalidate({ projectId }); toast({ title: t("pages:pipeline.save.success") }); },
-    onError: (err) => toast({ title: err.message, variant: "destructive" }),
-  });
   const saveAsTemplate = trpc.template.createFromPipeline.useMutation({
     onSuccess: (data) => { toast({ title: `Saved as "${data.name}"` }); utils.template.list.invalidate(); },
     onError: (err) => toast({ title: err.message, variant: "destructive" }),
@@ -120,7 +113,6 @@ export default function PipelineConfigurator({ projectId }: Props) {
   const saveMem = (mode: MemMode) => { setMemoryMode(mode); localStorage.setItem(`memory-mode-${projectId}`, mode); toast({ title: t("pages:pipeline.memory.saved", { mode }) }); };
 
   const moveStep = (idx: number, dir: -1 | 1) => {
-    if (!isPro) return;
     const ni = idx + dir;
     if (ni < 0 || ni >= steps.length) return;
     const next = [...steps];
@@ -135,7 +127,6 @@ export default function PipelineConfigurator({ projectId }: Props) {
   };
 
   const removeStep = (idx: number) => {
-    if (!isPro) return;
     if (!confirm(t("pages:pipeline.remove.confirm"))) return;
     const next = steps.filter((_, i) => i !== idx);
     next.forEach((s, i) => { s.stepOrder = i + 1; });
@@ -213,26 +204,10 @@ export default function PipelineConfigurator({ projectId }: Props) {
       whileConfig: s.whileConfig ?? undefined,
     }));
 
-    if (isPro) {
-      const enabledSteps = steps.filter((s) => s.isEnabled);
-      const pids = enabledSteps.map((s) => s.providerId).filter((p): p is number => p != null);
-      if (new Set(pids).size > 3) { toast({ title: t("pages:pipeline.errors.maxLLMs"), variant: "destructive" }); return; }
-      savePipeline.mutate({ projectId, steps: payload });
-    } else {
-      // Standard: only toggle + prompt edits (send steps with IDs)
-      updateConfig.mutate({
-        projectId,
-        steps: steps.map((s) => ({
-          id: s.id,
-          isEnabled: s.isEnabled,
-          systemPrompt: s.systemPrompt,
-          providerId: s.providerId,
-          model: s.model,
-          temperature: s.temperature ?? undefined,
-          maxTokens: s.maxTokens ?? undefined,
-        })),
-      });
-    }
+    const enabledSteps = steps.filter((s) => s.isEnabled);
+    const pids = enabledSteps.map((s) => s.providerId).filter((p): p is number => p != null);
+    if (new Set(pids).size > 3) { toast({ title: t("pages:pipeline.errors.maxLLMs"), variant: "destructive" }); return; }
+    savePipeline.mutate({ projectId, steps: payload });
   };
 
   const handleReset = () => {
@@ -249,13 +224,6 @@ export default function PipelineConfigurator({ projectId }: Props) {
   const provModels = (pid: number | null) => providers?.find((p) => p.id === pid)?.models ?? [];
   const usedLLMs = new Set(steps.filter((s) => s.isEnabled).map((s) => s.providerId).filter(Boolean));
 
-  // ─── Free user upgrade prompt ───
-  const showUpgrade = () => {
-    if (confirm("This feature requires Master tier. Upgrade now? (Demo: click OK to upgrade)")) {
-      window.location.reload();
-    }
-  };
-
   if (isLoading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
 
   return (
@@ -267,8 +235,7 @@ export default function PipelineConfigurator({ projectId }: Props) {
           <p className="text-xs text-neutral-500 mt-0.5">{t("pages:pipeline.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
-          {isPro && <Badge variant="outline" className="text-xs">{usedLLMs.size}/3 LLMs</Badge>}
-          {isPro ? <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/30 text-xs"><Zap className="w-3 h-3 mr-1" />{t("pages:pipeline.tier.pro")}</Badge> : <Badge variant="outline" className="text-neutral-400 border-neutral-700 text-xs"><Lock className="w-3 h-3 mr-1" />{t("pages:pipeline.tier.standard")}</Badge>}
+          <Badge variant="outline" className="text-xs">{usedLLMs.size}/3 LLMs</Badge>
         </div>
       </div>
 
@@ -288,18 +255,8 @@ export default function PipelineConfigurator({ projectId }: Props) {
         <p className="text-xs text-neutral-600 mt-2">{t(`pipeline:memory.hint.${memoryMode}`)}</p>
       </CardContent></Card>
 
-      {/* Steps — read-only overlay for free users */}
-      <div className={`relative ${!isPro ? "pointer-events-none opacity-60" : ""}`}>
-        {!isPro && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center" onClick={showUpgrade}>
-            <div className="bg-neutral-900/90 border border-blue-500/30 rounded-lg px-4 py-3 flex items-center gap-2 cursor-pointer hover:bg-neutral-900 transition-colors">
-              <Lock className="w-4 h-4 text-blue-400" />
-              <span className="text-sm text-blue-300">Upgrade to Master to customize pipeline</span>
-              <Zap className="w-4 h-4 text-blue-400" />
-            </div>
-          </div>
-        )}
-
+      {/* Steps */}
+      <div className="relative">
         <div className="space-y-2">
           {steps.map((step, idx) => (
             <Card key={`${step.id}-${idx}`} className={`bg-neutral-900 border-neutral-800 ${!step.isEnabled ? "opacity-50" : ""}`}>
@@ -308,7 +265,7 @@ export default function PipelineConfigurator({ projectId }: Props) {
                   {/* Order + Reorder */}
                   <div className="flex flex-col items-center gap-0.5 pt-1">
                     <span className="text-xs font-mono text-neutral-600 w-5 text-center">{String(idx + 1).padStart(2, "0")}</span>
-                    {isPro && <><button onClick={() => moveStep(idx, -1)} disabled={idx === 0} className="text-neutral-600 hover:text-neutral-300 disabled:opacity-20"><ChevronUp className="w-3.5 h-3.5" /></button><button onClick={() => moveStep(idx, 1)} disabled={idx === steps.length - 1} className="text-neutral-600 hover:text-neutral-300 disabled:opacity-20"><ChevronDown className="w-3.5 h-3.5" /></button></>}
+                    <button onClick={() => moveStep(idx, -1)} disabled={idx === 0} className="text-neutral-600 hover:text-neutral-300 disabled:opacity-20"><ChevronUp className="w-3.5 h-3.5" /></button><button onClick={() => moveStep(idx, 1)} disabled={idx === steps.length - 1} className="text-neutral-600 hover:text-neutral-300 disabled:opacity-20"><ChevronDown className="w-3.5 h-3.5" /></button>
                   </div>
                   {/* Content */}
                   <div className="flex-1 min-w-0">
@@ -331,7 +288,7 @@ export default function PipelineConfigurator({ projectId }: Props) {
                         <input type="checkbox" checked={step.isEnabled} onChange={() => toggleStep(idx)} className="w-3.5 h-3.5 rounded border-neutral-600 bg-neutral-800 text-blue-600" />
                         <span className="text-xs text-neutral-500">{step.isEnabled ? t("pages:pipeline.enabled") : t("pages:pipeline.disabled")}</span>
                       </label>
-                      {isPro && <button onClick={() => removeStep(idx)} className="text-neutral-600 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>}
+                      <button onClick={() => removeStep(idx)} className="text-neutral-600 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
 
                     {/* Prompt - editable */}
@@ -349,8 +306,8 @@ export default function PipelineConfigurator({ projectId }: Props) {
                       </button>
                     )}
 
-                    {/* Pro: Provider + Model + Params */}
-                    {isPro && editIdx === idx && (
+                    {/* Provider + Model + Params */}
+                    {editIdx === idx && (
                       <div className="space-y-2 mt-2">
                         <div className="grid grid-cols-2 gap-2">
                           <div>
@@ -465,13 +422,13 @@ export default function PipelineConfigurator({ projectId }: Props) {
           ))}
         </div>
 
-        {isPro && <Button variant="outline" className="w-full border-dashed border-neutral-700 text-neutral-400 hover:text-neutral-200 mt-2" onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-1.5" />{t("pages:pipeline.addStep")}</Button>}
+        <Button variant="outline" className="w-full border-dashed border-neutral-700 text-neutral-400 hover:text-neutral-200 mt-2" onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-1.5" />{t("pages:pipeline.addStep")}</Button>
 
         {/* Save / Reset */}
         <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-neutral-800">
-          {isPro && <Button variant="ghost" size="sm" className="text-neutral-500" onClick={handleReset}><RotateCcw className="w-3.5 h-3.5 mr-1.5" />{t("pages:pipeline.reset.label")}</Button>}
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={handleSave} disabled={updateConfig.isPending || savePipeline.isPending}>
-            {updateConfig.isPending || savePipeline.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}{t("common:actions.save")}
+          <Button variant="ghost" size="sm" className="text-neutral-500" onClick={handleReset}><RotateCcw className="w-3.5 h-3.5 mr-1.5" />{t("pages:pipeline.reset.label")}</Button>
+          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={handleSave} disabled={savePipeline.isPending}>
+            {savePipeline.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}{t("common:actions.save")}
           </Button>
           <Button
             size="sm" variant="outline"

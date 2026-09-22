@@ -1,29 +1,36 @@
 {
   "title": "Pricing",
   "subtitle": "One platform for your pipelines — in the studio and inside the AI apps you already use.",
-  "month": "/ month",
-  "perSeat": "per seat",
-  "subscribe": "Subscribe",
-  "loginToSubscribe": "Log in to subscribe",
-  "comingSoon": "Coming soon",
-  "currentPlan": "Current plan",
-  "billingNote": "Secure checkout by Stripe. Cancel anytime.",
+  "flatMonthly": "One flat monthly fee per account",
+  "checkoutDisabled": "Checkout opens when billing goes live",
+  "billingNote": "The payment gateway is not connected yet, so this page cannot take payment. Nothing is charged and no subscription is created today.",
+  "model": {
+    "title": "How billing works",
+    "monthly": {
+      "title": "One flat monthly subscription",
+      "body": "A single per-account fee covers every feature — no seat counts and no plan levels."
+    },
+    "trial": {
+      "title": "7-day trial from signup",
+      "body": "Every account starts on a 7-day trial counted from the moment it signs up."
+    },
+    "byok": {
+      "title": "Bring your own model keys",
+      "body": "Add your own LLM provider keys in Settings and pay those providers directly."
+    },
+    "noPerRun": {
+      "title": "No per-run fees",
+      "body": "We never meter a run: each provider call is billed by your own provider."
+    }
+  },
   "plans": {
     "solo": {
-      "name": "Solo",
-      "tagline": "For individual builders",
+      "name": "DeeWaanAI",
+      "tagline": "Everything, for one account",
       "feature1": "Custom pipeline designer",
       "feature2": "Up to 3 LLM providers per pipeline",
       "feature3": "Auto-design pipeline generation",
       "feature4": "Companion MCP: run pipelines from Claude, ChatGPT, Qwen Code & Kimi"
-    },
-    "team_seat": {
-      "name": "Team Seat",
-      "tagline": "For mixed-app teams",
-      "feature1": "Everything in Solo",
-      "feature2": "Shared team memory & project context",
-      "feature3": "Cross-app run handoffs & approvals",
-      "feature4": "Team skills pool & feedback loop"
     }
   },
   "marketplace": {

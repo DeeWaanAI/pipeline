@@ -23,11 +23,6 @@
   "save": {
     "success": "Pipeline saved"
   },
-  "tier": {
-    "pro": "Pro Designer",
-    "standard": "Standard"
-  },
-  "upgradeHint": "Upgrade to Pro Designer to customize your pipeline: reorder agents, add steps, assign different LLMs per step.",
   "memory": {
     "title": "Memory Mode",
     "description": "Controls how much context is preserved between conversations",
@@ -45,6 +40,6 @@
   },
   "errors": {
     "noSteps": "Pipeline must have at least one step",
-    "maxLLMs": "Pro Designer allows up to 3 different LLMs per pipeline"
+    "maxLLMs": "A pipeline can use up to 3 different LLMs"
   }
 }

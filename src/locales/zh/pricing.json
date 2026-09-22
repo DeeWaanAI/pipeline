@@ -1,29 +1,36 @@
 {
   "title": "价格方案",
   "subtitle": "一个平台管理你的流水线——既在工作室中，也在你日常使用的 AI 应用里。",
-  "month": "/ 月",
-  "perSeat": "每席位",
-  "subscribe": "订阅",
-  "loginToSubscribe": "登录后订阅",
-  "comingSoon": "即将推出",
-  "currentPlan": "当前方案",
-  "billingNote": "Stripe 安全支付，随时取消。",
+  "flatMonthly": "每个账户统一的月度费用",
+  "checkoutDisabled": "支付开通后即可结算",
+  "billingNote": "支付网关尚未接入，本页面目前无法收款：不会产生任何扣费，也不会创建订阅。",
+  "model": {
+    "title": "计费方式",
+    "monthly": {
+      "title": "统一的月度订阅",
+      "body": "一个账户一份费用即可使用全部功能——没有席位概念，也没有版本分级。"
+    },
+    "trial": {
+      "title": "注册即享 7 天试用",
+      "body": "每个账户从注册之时起自动开始 7 天试用。"
+    },
+    "byok": {
+      "title": "自带模型密钥",
+      "body": "在设置中添加你自己的 LLM 服务商密钥，费用直接支付给该服务商。"
+    },
+    "noPerRun": {
+      "title": "无按次费用",
+      "body": "我们不对运行次数计费：每次模型调用由你的服务商结算。"
+    }
+  },
   "plans": {
     "solo": {
-      "name": "个人版",
-      "tagline": "适合独立开发者",
+      "name": "DeeWaanAI",
+      "tagline": "一个账户，功能全含",
       "feature1": "自定义流水线设计器",
       "feature2": "每条流水线最多接入 3 个 LLM 提供商",
       "feature3": "自动生成流水线设计",
       "feature4": "Companion MCP：在 Claude、ChatGPT、Qwen Code 和 Kimi 中运行流水线"
-    },
-    "team_seat": {
-      "name": "团队席位",
-      "tagline": "适合跨应用协作的团队",
-      "feature1": "包含个人版全部功能",
-      "feature2": "团队共享记忆与项目上下文",
-      "feature3": "跨应用运行交接与审批",
-      "feature4": "团队技能池与反馈闭环"
     }
   },
   "marketplace": {

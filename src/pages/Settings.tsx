@@ -875,7 +875,7 @@ function DataBackupSection() {
 
 export default function SettingsPage() {
   const { t } = useTranslation(["settings", "common", "pages"]);
-  const { user, refresh } = useAuth();
+  const { user } = useAuth();
   const { data: providers, isLoading } = trpc.llm.listProviders.useQuery(undefined, { enabled: !!user });
   const { data: defaultProvider, refetch: refetchDefault } = trpc.llm.getDefaultProvider.useQuery();
   const setDefaultMutation = trpc.llm.setDefaultProvider.useMutation({
@@ -886,21 +886,6 @@ export default function SettingsPage() {
     onError: (err) => toast.error(err.message),
   });
   const [showAdd, setShowAdd] = useState(false);
-  const isProduction = import.meta.env.PROD;
-
-  const devTierSwitchMutation = trpc.localAuth.devTierSwitch.useMutation({
-    onSuccess: () => {
-      refresh();
-      toast.success("Tier switched successfully");
-    },
-    onError: (err) => {
-      toast.error(`Failed to switch tier: ${err.message}`);
-    },
-  });
-
-  const switchTier = (tier: "standard" | "pro_designer" | "pro_auto") => {
-    devTierSwitchMutation.mutate({ tier });
-  };
 
   return (
     <AppShell>
@@ -995,59 +980,6 @@ export default function SettingsPage() {
         </div>
         <Separator className="bg-neutral-800 my-6" />
 
-        {/* Development Tools - only in dev mode */}
-        {!isProduction && (
-          <>
-            <Card className="bg-neutral-900 border-neutral-800 border-dashed border-amber-500/30">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-neutral-200 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-400" />
-                  {t("pages:settingsExtra.dev.title")}
-                </CardTitle>
-                <CardDescription className="text-xs text-neutral-500">
-                  {t("pages:settingsExtra.dev.description")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => switchTier("standard")}
-                    disabled={devTierSwitchMutation.isPending}
-                    className="border-neutral-600 text-neutral-300 hover:bg-neutral-800"
-                  >
-                    {t("pages:settingsExtra.dev.standard")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => switchTier("pro_designer")}
-                    disabled={devTierSwitchMutation.isPending}
-                    className="border-neutral-600 text-neutral-300 hover:bg-neutral-800"
-                  >
-                    {t("pages:settingsExtra.dev.proDesigner")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => switchTier("pro_auto")}
-                    disabled={devTierSwitchMutation.isPending}
-                    className="border-neutral-600 text-neutral-300 hover:bg-neutral-800"
-                  >
-                    {t("pages:settingsExtra.dev.proAuto")}
-                  </Button>
-                </div>
-                {user?.tier && (
-                  <p className="text-xs text-neutral-500 mt-3">
-                    {t("pages:settingsExtra.dev.currentTier")} <span className="font-mono text-blue-400">{user.tier}</span>
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-            <Separator className="bg-neutral-800 my-6" />
-          </>
-        )}
 
         <div>
           <h2 className="text-lg font-semibold text-neutral-200 flex items-center gap-2 mb-4">

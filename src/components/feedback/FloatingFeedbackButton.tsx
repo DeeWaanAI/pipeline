@@ -19,10 +19,9 @@ import { toast } from "sonner";
 
 interface Props {
   projectId?: number;
-  teamId?: number;
 }
 
-export default function FloatingFeedbackButton({ projectId: propProjectId, teamId: propTeamId }: Props) {
+export default function FloatingFeedbackButton({ projectId: propProjectId }: Props) {
   const { t } = useTranslation("pages");
   const location = useLocation();
 
@@ -33,7 +32,6 @@ export default function FloatingFeedbackButton({ projectId: propProjectId, teamI
   }, [location.pathname]);
 
   const projectId = propProjectId ?? urlProjectId;
-  const teamId = propTeamId;
 
   const [isOpen, setIsOpen] = useState(false);
   const [type, setType] = useState<"bug" | "suggestion" | "praise" | "confusion">("bug");
@@ -46,15 +44,11 @@ export default function FloatingFeedbackButton({ projectId: propProjectId, teamI
   const utils = trpc.useUtils();
 
   const submitMutation = trpc.feedback.submit.useMutation({
-    onSuccess: (result) => {
+    onSuccess: () => {
       toast.success(t("pages:workspace.feedback.floating.sent"));
-      // Invalidate feedback queries so Team Dashboard refreshes
+      // Invalidate feedback queries so the lists refresh
       utils.feedback.list.invalidate();
       utils.feedback.stats.invalidate();
-      if (result.teamId) {
-        utils.feedback.list.invalidate({ teamId: result.teamId });
-        utils.feedback.stats.invalidate({ teamId: result.teamId });
-      }
       resetForm();
       setIsOpen(false);
     },
@@ -137,7 +131,6 @@ export default function FloatingFeedbackButton({ projectId: propProjectId, teamI
     } catch { /* ignore */ }
 
     submitMutation.mutate({
-      teamId,
       projectId,
       targetType: "ui",
       feedbackType: type,
