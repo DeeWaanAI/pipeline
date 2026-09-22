@@ -319,7 +319,7 @@ export const projectRouter = createRouter({
         .filter((p): p is number => p !== undefined && p !== null);
       const uniqueProviders = new Set(providerIds);
       if (uniqueProviders.size > 3) {
-        throw new Error("Pro Designer allows up to 3 different LLMs per pipeline");
+        throw new Error("A pipeline can use at most 3 different LLM providers — point the extra steps at one you already use.");
       }
 
       for (const step of input.steps) {

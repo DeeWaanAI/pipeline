@@ -4,7 +4,7 @@ import { getDb } from "../queries/connection";
 import { customAgents } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
-// Pre-built agent templates for Pro Designer
+// Pre-built agent templates, available to every account
 const DEFAULT_TEMPLATES = [
   {
     name: "Builder",

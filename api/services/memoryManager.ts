@@ -3,7 +3,8 @@
  *
  * Keyword-based retrieval (no embeddings, no vector DB).
  * Fast (<10ms), offline-capable, good enough for 80% of cases.
- * Pro Designer tier will upgrade to sentence-transformers embeddings.
+ * Sentence-transformer embeddings remain a possible later upgrade; nothing is
+ * gated on a plan to get them.
  */
 
 export interface Episode {

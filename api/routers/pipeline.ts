@@ -145,7 +145,7 @@ export const pipelineRouter = createRouter({
         .filter((p): p is number => p !== undefined && p !== null);
       const uniqueProviders = new Set(providerIds);
       if (uniqueProviders.size > 3) {
-        throw new Error("Pro Designer allows up to 3 different LLMs per pipeline");
+        throw new Error("A pipeline can use at most 3 different LLM providers — point the extra steps at one you already use.");
       }
 
       // Batch resolve all agents upfront (eliminates N+1 queries)
