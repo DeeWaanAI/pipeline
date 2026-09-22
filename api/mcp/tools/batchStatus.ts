@@ -16,6 +16,7 @@ export const batchStatus: McpTool = {
     "Get the current status of a batch run: overall progress, per-run statuses, and total tokens used. Poll this after calling run_batch.",
   inputSchema,
   requiredScopes: ["mcp:read"],
+  featureFlag: "batch_mode",
   annotations: { readOnlyHint: true, destructiveHint: false },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = inputSchema.parse(args);

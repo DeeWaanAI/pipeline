@@ -296,10 +296,10 @@ _5 tools._ Batch execution and evidence export — the multi-run half of the wor
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
 | [`export_run`](#export_run) | Export one run's full granular history (every step, prompt, token count, and response) as portable JSON. | `mcp:read` | — |
-| [`run_batch`](#run_batch) | Start a batch of 1–100 pipeline runs in parallel | `mcp:run` | — |
-| [`batch_status`](#batch_status) | Check a batch's progress: queued/running/completed/failed counts and member runs. | `mcp:read` | — |
-| [`resume_batch`](#resume_batch) | Resume a paused or partially-failed batch from where it stopped. | `mcp:run` | — |
-| [`export_batch_results`](#export_batch_results) | Export all of a batch's run results as CSV for analysis. | `mcp:read` | — |
+| [`run_batch`](#run_batch) | Start a batch of 1–100 pipeline runs in parallel | `mcp:run` | `batch_mode` |
+| [`batch_status`](#batch_status) | Check a batch's progress: queued/running/completed/failed counts and member runs. | `mcp:read` | `batch_mode` |
+| [`resume_batch`](#resume_batch) | Resume a paused or partially-failed batch from where it stopped. | `mcp:run` | `batch_mode` |
+| [`export_batch_results`](#export_batch_results) | Export all of a batch's run results as CSV for analysis. | `mcp:read` | `batch_mode` |
 
 ### `export_run`
 
@@ -316,7 +316,7 @@ Export the full granular execution history of one of your pipeline runs as porta
 
 Start a research-mode batch run on a project. Creates a batch with 1–100 inputs, enqueues all member runs for the pipeline worker, and returns immediately — poll batch_status for progress. Supports optional chaining to a target project after completion.
 
-**Scopes `mcp:run` · not read-only — it writes, spends or changes state**
+**Scopes `mcp:run` · flag `batch_mode` (batch research runs; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -333,7 +333,7 @@ Start a research-mode batch run on a project. Creates a batch with 1–100 input
 
 Get the current status of a batch run: overall progress, per-run statuses, and total tokens used. Poll this after calling run_batch.
 
-**Scopes `mcp:read` · annotated read-only**
+**Scopes `mcp:read` · flag `batch_mode` (batch research runs; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -344,7 +344,7 @@ Get the current status of a batch run: overall progress, per-run statuses, and t
 
 Resume a batch run that was paused due to credit exhaustion or provider outage. Re-enqueues all non-terminal member runs.
 
-**Scopes `mcp:run` · not read-only — it writes, spends or changes state**
+**Scopes `mcp:run` · flag `batch_mode` (batch research runs; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -355,7 +355,7 @@ Resume a batch run that was paused due to credit exhaustion or provider outage. 
 
 Export the results of a completed batch run as CSV. Returns a CSV string with columns: run_id, input_preview, status, final_response, total_tokens_used, total_latency_ms.
 
-**Scopes `mcp:read` · annotated read-only**
+**Scopes `mcp:read` · flag `batch_mode` (batch research runs; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -828,7 +828,7 @@ _15 tools._ Evidence publication and protected marketplace execution (v2 P3): wh
 | [`withdraw_evidence`](#withdraw_evidence) | Withdraw a publication you authored, with a logged reason | `mcp:write` | `v2Publication` |
 | [`listing_publication_state`](#listing_publication_state) | Which version a listing sells, which evidence backs it, whether it is legacy or v2, and the revision number to send so you cannot clobber a concurrent change. | `mcp:read` | `v2Publication` |
 | [`get_public_evidence`](#get_public_evidence) | Read evidence by listing, publication id or manifest hash, including standalone community reports | `mcp:read` | — |
-| [`preview_external_evidence`](#preview_external_evidence) | Preview a user-declared community report about a public v2 listing without writing anything: the exact disclosure, its consent hash, and any credential it would leak | `mcp:read` | — |
+| [`preview_external_evidence`](#preview_external_evidence) | Preview a user-declared community report about a public v2 listing without writing anything: the exact disclosure, its consent hash, and any credential it would leak | `mcp:read` | `v2Publication` |
 | [`report_external_evidence`](#report_external_evidence) | Publish the exact previewed external report after the user consents to its hash | `mcp:write` | `v2Publication` |
 | [`get_external_evidence`](#get_external_evidence) | Read one user-declared community report by id: declared inputs/outputs/model/date, the conspicuous not-verified notice, and when it was submitted (which is NOT when anything was tested). | `mcp:read` | — |
 | [`list_external_evidence`](#list_external_evidence) | List a listing's community reports, newest first, separately labelled from seller evidence | `mcp:read` | — |
@@ -958,7 +958,7 @@ Preview an external community report without writing or running anything. All de
 
 > Say something like: "Preview my report: I ran listing 7 on these five inputs and got these outputs."
 
-**Scopes `mcp:read` · annotated read-only**
+**Scopes `mcp:read` · flag `v2Publication` (evidence publication; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |

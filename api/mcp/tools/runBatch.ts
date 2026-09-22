@@ -27,6 +27,7 @@ export const runBatch: McpTool = {
     "Start a research-mode batch run on a project. Creates a batch with 1–100 inputs, enqueues all member runs for the pipeline worker, and returns immediately — poll batch_status for progress. Supports optional chaining to a target project after completion.",
   inputSchema,
   requiredScopes: ["mcp:run"],
+  featureFlag: "batch_mode",
   annotations: { readOnlyHint: false, destructiveHint: true },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = inputSchema.parse(args);

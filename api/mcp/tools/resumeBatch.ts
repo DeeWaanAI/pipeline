@@ -16,6 +16,7 @@ export const resumeBatchTool: McpTool = {
     "Resume a batch run that was paused due to credit exhaustion or provider outage. Re-enqueues all non-terminal member runs.",
   inputSchema,
   requiredScopes: ["mcp:run"],
+  featureFlag: "batch_mode",
   annotations: { readOnlyHint: false, destructiveHint: false },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = inputSchema.parse(args);

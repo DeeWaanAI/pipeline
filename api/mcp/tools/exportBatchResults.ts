@@ -16,6 +16,7 @@ export const exportBatchResultsTool: McpTool = {
     "Export the results of a completed batch run as CSV. Returns a CSV string with columns: run_id, input_preview, status, final_response, total_tokens_used, total_latency_ms.",
   inputSchema,
   requiredScopes: ["mcp:read"],
+  featureFlag: "batch_mode",
   annotations: { readOnlyHint: true, destructiveHint: false },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = inputSchema.parse(args);

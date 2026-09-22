@@ -9,6 +9,9 @@ export const previewExternalEvidenceTool: McpTool = {
   description: "Preview an external community report without writing or running anything. All declared inputs, outputs, model, date and rubric remain user-reported and not independently verified. Only public v2 listings and their current sold version are accepted. No attachments or fetched URLs. Returns the exact disclosure, consent version, hash and secret findings.",
   inputSchema: previewExternalInputSchema,
   requiredScopes: ["mcp:read"],
+  // Stays in lockstep with `report_external_evidence`: a consent preview for a
+  // publication the flag forbids would just dead-end the user.
+  featureFlag: "v2Publication",
   annotations: { readOnlyHint: true },
   handler: async (args, ctx) => ({
     ...await previewExternal(ctx.userId, args),

@@ -57,6 +57,20 @@ describe("MCP tool registry", () => {
     }
   });
 
+  it("a flag the guide shows as locked is a flag the server actually enforces", () => {
+    // The mirror of the test above, and the half that was missing when
+    // `run_batch` & friends were listed in tools/list for every account while
+    // the guide hid them behind `batch_mode`: the guide's `flag` field is a
+    // promise that the server gates the tool, so an entry that carries a flag
+    // the tool does not declare is a lie in the other direction.
+    const byName = new Map(TOOLS.map((t) => [t.name, t]));
+    for (const entry of HELP_CATALOG.filter((e) => e.flag)) {
+      const tool = byName.get(entry.name);
+      expect(tool, `${entry.name} is in the guide but not registered`).toBeDefined();
+      expect(tool?.featureFlag, `${entry.name} is advertised as gated on ${entry.flag} but the server never checks that flag`).toBe(entry.flag);
+    }
+  });
+
   it("help and the registry agree in BOTH directions", () => {
     const registered = new Set(TOOLS.map((t) => t.name));
     const advertised = new Set(HELP_CATALOG.map((e) => e.name));

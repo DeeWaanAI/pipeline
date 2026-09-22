@@ -189,6 +189,28 @@ Session total ≈ **$0.055** against the $20 cap; no single benchmark over $0.08
 
 **Still open after this increment:** F3/F4 are code- and test-complete but **not yet re-observed from a live desktop seat** — `mcp_call get_settings` in *this* session returns `MCP error -32603: MCP tool invocation did not complete` while `curl` to `/mcp` answers 401 as expected, and the session's tool surface is stale (pre-edit descriptions), so the block is the client binding here, not the server. Findings 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14–19, 21–25 remain unfixed, as do #18, #21, #22, #24, #26, #28, #30, #32. Payment work (#29) is deferred by the owner pending a gateway decision.
 
+## FIX INCREMENT 2 (same day) — desktop findings 6 and 7: the guide's locks are now real
+
+**Finding 7 (paid capability live while its flag is off):** `run_batch`, `batch_status`, `resume_batch`,
+`export_batch_results` now declare `featureFlag: "batch_mode"`, so `api/mcp/server.ts:151` hides them
+from `tools/list` **and** refuses `tools/call` as an unknown tool while the flag is off — the same
+enforcement `api/routers/swarm.ts` already applied to all six web entry points. `batch_mode` defaults
+OFF (`api/plugins/featureFlags.ts:108`), so 1–100 paid pipeline runs are no longer reachable from chat
+by a rollout-restricted account.
+
+**Finding 6 (four live tools invisible in the guide) and its root cause:** the guide filtered these
+four out on `flag: "batch_mode"` while the tool objects carried no flag, and `registry.test.ts` could
+not see it because it only pinned *names* both ways, never the flag. The pin is now symmetric: "a flag
+the guide shows as locked is a flag the server actually enforces" fails for any help entry whose
+`flag` is not the registered tool's `featureFlag`. **It caught a second instance on its first run**,
+in code written minutes earlier: `preview_external_evidence` was advertised as gated while
+`report_external_evidence` was the only half that actually was — fixed by gating the preview on
+`v2Publication` too, since a consent preview for a forbidden publication is a dead end. Reads
+(`get_`/`list_external_evidence`) and `withdraw_external_evidence` stay deliberately ungated: content
+already public must remain readable and retractable after a rollback.
+
+Gates: 102 MCP tests pass (7 files), `npm run check` ✅, wiki regenerated (74 tools, 83174 bytes).
+
 ## Watchdog status
 The cron task `v2-phase-watchdog` is DISABLED (failure circuit, 3× `session-failed`) and its
 executionScope cwd was `app 25` — the frozen prod folder — while its instructions target this
