@@ -240,6 +240,40 @@ benchmark now reports what it has already spent instead of `null`/stale zero.
 Gates: `npm run check` ✅ · 455 tests pass, 4 failures = the documented
 `providerThrottle` baseline only · wiki regenerated (74 tools).
 
+## D9 FINDINGS LEDGER as of 2026-09-22 20:30 (what a re-test should and should not re-check)
+
+| # | Finding | State |
+|---|---|---|
+| 1 | unknown cost prints `$0.00000000` | **FIXED** — `costDisclosure()`, 5 unit tests |
+| 2 | no cheap progress+cost poll; status drags the whole plan | **FIXED** — `planRef` + `includePlan`, list carries progress/cost/score |
+| 3 | `compare_models` actuals never price (19/19 NULL, judge rows too) | **OPEN** — cause still unexplained for the judgment rows; see the pass notes. Blocks trusting any compare_models cost |
+| 4 | `withholdInputs` does not withhold what rationales recite; consent screen buries the hash | **PARTLY** — consent preview now renders losslessly first; the rationale-leakage half is OPEN and needs a redaction rule |
+| 5 | a model can grade itself, approvable and publishable, no warning | **IN FLIGHT** — task #24 (D12 vendor-disjoint panel) is the structural fix |
+| 6 | 4 live tools invisible in the guide | **FIXED** — flag parity pinned in both directions |
+| 7 | those tools ignore the flag that hides them | **FIXED** — `batch_mode` now enforced by `server.ts` |
+| 8 | `planHash` echoed by only one of three calls | OPEN |
+| 9 | a replayed `start_benchmark` replies exactly like a real start | OPEN |
+| 10 | quote warning contradicts its fixed 300-token judging assumption | OPEN (calibration belongs to P4; the sentence/figure mismatch does not) |
+| 11 | sub-cent per-1K rates render as `0.0001` | OPEN |
+| 12 | publish dead-ends into "save a template in Project Settings"; no MCP tool makes a template | OPEN |
+| 13 | community publication reply confirms nothing and is unaddressable | **FIXED** — reply names the id to read back and to withdraw; reads by `publicationId`/`manifestHash` landed with #20 |
+| 14 | §7.3 refusal is the house style; two replies are outliers | addressed with 13/15/16; the tier refusal outlier is being removed by #28 |
+| 15 | `get_listing_status` invents a review stage | **FIXED** — says "not yet in review" + a `next` line |
+| 16 | `listing_publication_state` cannot tell "not yet" from "legacy" | **FIXED** — `stage`, and `null` ≠ revision 0 |
+| 17 | same stored object in two shapes (numbers vs strings, duplicate anchors) | OPEN |
+| 18 | `attempts[]` mixes `case-1/...` refs with untraceable `judgment#9` | OPEN |
+| 19 | `resume_benchmark` refusals mislead; a resume quote re-forecasts the whole plan | OPEN |
+| 20 | auto-design unreachable for the named test account; two entry points refuse differently | **SUPERSEDED by #28** — the ladder is going away, so the gate itself is being deleted |
+| 21 | `benchmark_status` `runs.failed:0` beside `perCandidate[0].runs.failed:1` | OPEN |
+| 22 | `aggregateAvailability` described as "evidence availability" | OPEN (renderer now labels it; wording in the list tool improved with #2) |
+| 23 | `model_retest_suggestions` returns a bare `[]` with no reason | OPEN |
+| 24 | a resume's `state:"queued"` proved nothing about execution (child never ran) | **OPEN and unrepaired** — the worker half was never diagnosed. Any benchmark 5-style `queued` row is still sitting in the local DB |
+| 25 | capability gates are per-tool memory, not structure; the publish gate advertised is not enforced | **IN FLIGHT** — #28 deletes the ladder; #32 owns the real publish gate (original-creator lineage) |
+
+Plus the two pass-blocking usability items from the fix list: **F3 fixed** (provider-verified
+default), **F4 fixed** (readable results). Neither has been re-observed from a real chat seat —
+see FIX INCREMENT 1's note on this session's `-32603` MCP binding.
+
 ## Watchdog status
 The cron task `v2-phase-watchdog` is DISABLED (failure circuit, 3× `session-failed`) and its
 executionScope cwd was `app 25` — the frozen prod folder — while its instructions target this
