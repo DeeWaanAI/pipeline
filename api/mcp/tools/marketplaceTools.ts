@@ -250,6 +250,14 @@ export const getListingStatus: McpTool = {
       },
       canPublish: listing.status === "approved" || listing.status === "published",
       published: listing.status === "published",
+      // A draft with zero reviews used to be reported as "Review in progress:
+      // 0% complete", which is a stage that has not begun, not one that stalled
+      // (D9 finding 15) — the next turn was enrolling reviewers nobody needed.
+      next: listing.status === "published" ? "Nothing further: it is live."
+        : listing.status === "rejected" ? "Address the AI feedback above, then submit_for_review again."
+        : listing.status === "approved" ? "Publish it when you are ready."
+        : done === 0 ? `No review has started (status '${listing.status}').`
+        : `${uniqueReviewers.length}/${MIN_UNIQUE_REVIEWERS} reviewers and ${done}/${totalNeeded} reviews exist — more reviewer throughput is what is missing, not a new submission.`,
       message: listing.status === "published"
         ? listing.aiGrade
           ? `AI-verified and published. Grade: ${listing.aiGrade}. Human reviews: ${pct}% complete.`
@@ -258,9 +266,11 @@ export const getListingStatus: McpTool = {
           ? `AI review rejected this listing. Grade: ${listing.aiGrade}. Feedback: ${listing.aiFeedback?.substring(0, 200)}...`
           : listing.status === "approved"
             ? "Certified and ready to publish."
-            : pct < 100
-              ? `Review in progress: ${pct}% complete (${done}/${totalNeeded} reviews).`
-              : "Review complete — awaiting final grade calculation.",
+            : done === 0
+              ? `Not yet in review: status '${listing.status}', 0 of ${totalNeeded} reviews, ${uniqueReviewers.length} reviewers. Nothing is waiting on anyone.`
+              : pct < 100
+                ? `Review in progress: ${pct}% complete (${done}/${totalNeeded} reviews).`
+                : "Review complete — awaiting final grade calculation.",
     };
   },
 };

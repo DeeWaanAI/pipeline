@@ -107,11 +107,20 @@ export const publishCommunityEvidenceTool: McpTool = {
   annotations: { readOnlyHint: false },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = communityInputSchema.parse(args);
-    return publishCommunityEvidence({
+    const result = await publishCommunityEvidence({
       userId: ctx.userId, benchmarkId: input.benchmarkId, listingId: input.listingId ?? null,
       previewHash: input.previewHash, consentVersion: input.consentVersion,
       withholdInputs: input.withholdInputs, withheldReason: input.withheldReason,
     });
+    return {
+      ...result,
+      isPublic: true,
+      listingReferenced: input.listingId ?? null,
+      meaning: result.reused
+        ? `Community report ${result.publicationId} was already published with exactly this content — no new row was created.`
+        : `Community report ${result.publicationId} is now public${input.listingId ? ` and references listing ${input.listingId}` : ""}. Read it back with get_public_evidence using publicationId ${result.publicationId} or this manifestHash; withdraw it with withdraw_evidence. It is labelled community — it is NOT that listing's required seller evidence and does not change the listing's status.`
+          + " A `null` in this reply means 'not applicable', which is different from 0.",
+    };
   },
 };
 
@@ -161,7 +170,7 @@ export const supersedeEvidenceTool: McpTool = {
 export const listingPublicationStateTool: McpTool = {
   name: "listing_publication_state",
   description:
-    "Where one of your listings stands under the v2 rules: legacy or v2 publication mode, which workflow version is sold, which publication is current, and the evidenceSummaryRevision to pass as expectedListingRevision. Owner-scoped: another user's listing is reported as not found.",
+    "Where one of your listings stands under the v2 rules: a `stage` that separates 'nothing published yet' from 'recorded as legacy and not managed here' from 'v2 evidence is current', which workflow version is sold, which publication is current, and the evidenceSummaryRevision to pass as expectedListingRevision. `null` means there is no v2 record for it at all, which is not the same as revision 0. Owner-scoped: another user's listing is reported as not found.",
   inputSchema: listingInputSchema,
   requiredScopes: ["mcp:read"],
   featureFlag: "v2Publication",
@@ -177,14 +186,28 @@ export const listingPublicationStateTool: McpTool = {
     if (!listing) throw new Error("not_found_or_not_authorized");
     const [v2] = await db.select().from(marketplaceListingV2)
       .where(eq(marketplaceListingV2.listingId, listing.id)).limit(1);
+    const stage = !v2
+      ? "no_v2_record" as const
+      : v2.currentEvidencePublicationId
+        ? "v2_evidence_current" as const
+        : v2.publicationMode === "v2"
+          ? "awaiting_first_publication" as const
+          : "legacy_recorded" as const;
     return {
       listingId: listing.id,
       title: listing.title,
       listingStatus: listing.status,
       publicationMode: v2?.publicationMode ?? "legacy",
+      stage,
       currentWorkflowVersionId: v2?.currentWorkflowVersionId ?? null,
       currentEvidencePublicationId: v2?.currentEvidencePublicationId ?? null,
-      evidenceSummaryRevision: v2?.evidenceSummaryRevision ?? 0,
+      evidenceSummaryRevision: v2?.evidenceSummaryRevision ?? null,
+      meaning: {
+        no_v2_record: "This listing predates the v2 publication rules (legacy). It is bought and reviewed the old way; nothing here manages its evidence, and `evidenceSummaryRevision: null` means there is no v2 row at all — not revision 0.",
+        legacy_recorded: "The listing is v2-capable but still in the legacy mode: nothing has been published through the v2 boundary yet. preview_evidence then publish_evidence_version is what moves it forward — being here is not an error to fix.",
+        awaiting_first_publication: "v2 mode is set and no evidence is linked yet. Publish the seller evidence with publish_evidence_version; a v2 listing is never left buyable without it.",
+        v2_evidence_current: `Publication ${v2?.currentEvidencePublicationId ?? "?"} is this listing's current evidence, measured on workflow version ${v2?.currentWorkflowVersionId ?? "?"}.`,
+      }[stage],
     };
   },
 };
