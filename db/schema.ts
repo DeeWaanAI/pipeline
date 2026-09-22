@@ -1997,6 +1997,13 @@ export const modelCatalog = mysqlTable("model_catalog", {
   provider: varchar("provider", { length: 80 }).notNull(),
   modelId: varchar("model_id", { length: 120 }).notNull(),
   family: varchar("family", { length: 80 }),
+  /** D12: the model's DEVELOPER (e.g. "deepseek", "meta", "zhipu"), NOT the
+   *  hosting provider whose key served the call — one host serves many
+   *  vendors' models. Admin-reviewed like every other catalog field. NULL =
+   *  vendor unknown: an unknown vendor counts as disjoint from nothing, so it
+   *  can never satisfy the evidence-panel gate (and never collides with
+   *  another model either). Migration 031. */
+  vendor: varchar("vendor", { length: 80 }),
   successorOfModelId: varchar("successor_of_model_id", { length: 120 }), // explicit lineage
   availabilitySource: mysqlEnum("availability_source", ["admin_reviewed", "feed_import"]).default("admin_reviewed").notNull(),
   sourceUrl: varchar("source_url", { length: 512 }),

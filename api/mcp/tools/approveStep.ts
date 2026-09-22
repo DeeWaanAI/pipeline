@@ -3,10 +3,10 @@
 // mutation in api/routers/swarm.ts.
 
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
-import { approvalAssignments, swarmRuns } from "@db/schema";
+import { swarmRuns } from "@db/schema";
 import { enqueueSwarmRun } from "../../workers/swarmWorker";
 import { logger } from "../../lib/logger";
 import { canAccessProject } from "./_shared";
@@ -56,27 +56,10 @@ export const approveStep: McpTool = {
       .set({ executionState: execState })
       .where(eq(swarmRuns.id, input.runId));
 
-    // TeamSync: if this run was handed off to the deciding user via
-    // team_handoff, mark their pending assignment completed. Best-effort —
-    // a failure here must not block the decision.
-    try {
-      const completed = await db.update(approvalAssignments)
-        .set({ status: "completed", completedAt: new Date() })
-        .where(and(
-          eq(approvalAssignments.swarmRunId, input.runId),
-          eq(approvalAssignments.assigneeUserId, ctx.userId),
-          eq(approvalAssignments.status, "pending"),
-        ));
-      if (completed[0].affectedRows > 0) {
-        logger.info("[mcp:approve_step] handoff assignment completed", {
-          runId: input.runId, count: completed[0].affectedRows, userId: ctx.userId,
-        });
-      }
-    } catch (err) {
-      logger.warn("[mcp:approve_step] assignment completion failed", {
-        runId: input.runId, error: (err as Error).message, requestId: ctx.requestId,
-      });
-    }
+    // TeamSync hand-off bookkeeping was removed with ticket #26: `team_handoff`
+    // was the only writer of pending approvalAssignments rows, so there is
+    // nothing left to mark complete here. The run's own execution state above
+    // is what the worker resumes from.
 
     // Re-enqueue so the worker resumes with the recorded decision. The
     // per-run claim makes duplicate enqueues safe (second job no-ops).

@@ -18,7 +18,7 @@
 > failing. Prose between the generated blocks is hand-written; the generator owns this file
 > (`scripts/mcp-tools-wiki.mjs`), so edit it there or the next run will overwrite the edit.
 
-## 74 tools, 11 groups
+## 65 tools, 10 groups
 
 | Group | What it is for |
 | --- | --- |
@@ -31,7 +31,6 @@
 | [Publish](#publish) | Evidence publication and protected marketplace execution (v2 P3): what becomes public, exactly which version was tested, and what it is like to run a purchased workflow under your own credentials. |
 | [Account](#account) | Your own tenancy: providers and keys, default model, tier, notifications. |
 | [Your data](#your-data) | Persistent project memory that survives across conversations. |
-| [Team](#team) | Multi-user shared context, runs, handoffs, skills. Behind the `teamsync` flag — and see the scope note below before planning around them. |
 | [Diagnostics](#diagnostics) | Connectivity probes, one per direction of the transport. |
 
 ## Connecting
@@ -368,9 +367,9 @@ _7 tools._ Build and edit pipelines, including the auto-designer that writes the
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
-| [`create_pipeline`](#create_pipeline) | Create a pipeline step by step: agents run in sequence; paid tiers add if/while quality gates that loop back until the output passes. | `mcp:write` | — |
+| [`create_pipeline`](#create_pipeline) | Create a pipeline step by step: agents run in sequence, and if/while quality gates loop back until the output passes — every step type is open to every account. | `mcp:write` | — |
 | [`update_pipeline`](#update_pipeline) | Edit a pipeline you own: rename, reorder steps, change prompts or gate settings. | `mcp:write` | — |
-| [`design_pipeline`](#design_pipeline) | Auto-designer: state the objective in plain language and the platform generates the optimal pipeline (agents, prompts, quality gates, approvals) as a new project plus a reusable template. | `mcp:write` | `pipeline:autodesign` |
+| [`design_pipeline`](#design_pipeline) | Auto-designer: state the objective in plain language and the platform generates the optimal pipeline (agents, prompts, quality gates, approvals) as a new project plus a reusable template | `mcp:write` | — |
 | [`start_design_job`](#start_design_job) | Durable auto-design: queues the designer as a background job on your configured provider (no live session needed) and returns a job id | `mcp:write` | `v2DesignJobs` |
 | [`design_job_status`](#design_job_status) | Poll a design job: queued → running → succeeded/failed/cancelled, with the retained candidate and per-attempt records. | `mcp:read` | `v2DesignJobs` |
 | [`cancel_design_job`](#cancel_design_job) | Cancel a queued or running design job | `mcp:write` | `v2DesignJobs` |
@@ -378,7 +377,7 @@ _7 tools._ Build and edit pipelines, including the auto-designer that writes the
 
 ### `create_pipeline`
 
-Create a new pipeline project: name, optional description/model/execution settings, and optionally a full ordered step chain (agents run sequentially; if/while control-flow steps require the custom-pipeline tier). Returns the new project id for run_pipeline.
+Create a new pipeline project: name, optional description/model/execution settings, and optionally a full ordered step chain (agents run sequentially; if/while control-flow steps loop or branch until the output passes and are open to every account). Returns the new project id for run_pipeline.
 
 > Say something like: "Create a pipeline that drafts a post, critiques it, and refines it until it passes."
 
@@ -391,12 +390,12 @@ Create a new pipeline project: name, optional description/model/execution settin
 | `defaultModel` | string \| null | optional | Default LLM model for runs |
 | `defaultProviderId` | integer \| null | optional | Which of your configured providers runs the steps (get_settings lists ids). Steps created via MCP have no per-step provider, so without this the run falls back to your first provider regardless of the step model. |
 | `pipelineConfig` | object \| null | optional | Execution settings |
-| `steps` | array<object> \| null | optional | Ordered agent chain. stepType agent/if/while/approval; if/while need the custom-pipeline tier. |
+| `steps` | array<object> \| null | optional | Ordered agent chain. stepType agent/if/while/approval — every step type is available to every account. |
 
 
 ### `update_pipeline`
 
-Update a pipeline project you own: rename, change description/default model/execution settings, and/or replace the whole step chain (existing steps are replaced atomically per call). IF/WHILE steps require the custom-pipeline tier. Use get_pipeline first to inspect current state.
+Update a pipeline project you own: rename, change description/default model/execution settings, and/or replace the whole step chain (existing steps are replaced atomically per call). IF/WHILE control-flow steps are open to every account. Use get_pipeline first to inspect current state.
 
 **Scopes `mcp:write` · not read-only — it writes, spends or changes state**
 
@@ -413,11 +412,11 @@ Update a pipeline project you own: rename, change description/default model/exec
 
 ### `design_pipeline`
 
-Auto-design a pipeline from a plain-language objective: the platform designs the optimal agent chain (roles, prompts, if/while quality gates, human approvals), creates the project, agents, steps and a reusable template. Requires the auto-design tier. Uses your desktop app's own LLM when it supports MCP sampling, otherwise a configured LLM provider (Settings).
+Auto-design a pipeline from a plain-language objective: the platform designs the optimal agent chain (roles, prompts, if/while quality gates, human approvals), creates the project, agents, steps and a reusable template. Available to every account. Uses your desktop app's own LLM when it supports MCP sampling, otherwise a configured LLM provider you own (Settings) — the calls are billed on your own key.
 
 > Say something like: "Design a pipeline that turns a product idea into a launch plan."
 
-**Scopes `mcp:write` · tier capability `pipeline:autodesign` · not read-only — it writes, spends or changes state**
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -433,7 +432,7 @@ Start a DURABLE auto-design job: the platform designs the optimal agent pipeline
 
 > Say something like: "Start a durable design job for: translate legal contracts from English to Arabic."
 
-**Scopes `mcp:write` · flag `v2DesignJobs` (durable background design jobs; hidden from `tools/list` and rejected as an unknown tool when off) · tier capability `pipeline:autodesign` · not read-only — it writes, spends or changes state**
+**Scopes `mcp:write` · flag `v2DesignJobs` (durable background design jobs; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -512,9 +511,10 @@ Create a PRIVATE evaluation draft for one of your workflows (nothing publishes a
 | `cases[].expectedOutput` | string | optional | length ≤ 20000 — Reference answer, if you have one (shown to the judge as reference material) |
 | `cases[].origin` | string: `user` \| `generated` \| `paraphrase` | optional | default `"user"` |
 | `cases[].baseCaseId` | string | optional | length ≤ 60 |
-| `judges` | array<object> | **required** | The judging panel; one judge is honest, five costs 5x |
+| `judges` | array<object> | **required** | The judging panel; one judge is honest, five costs 5x. To publish the result as evidence (D12) it must be EXACTLY 3 judges from 3 different model developers with 3 different prompt variants, none sharing a developer with any generating model — anything less runs privately only, and quote_benchmark says which. |
 | `judges[].providerId` | integer | **required** | > 0 — A provider YOU own and have enabled |
 | `judges[].model` | string | **required** | length ≥ 1, length ≤ 120 |
+| `judges[].variant` | string: `anchored_scale` \| `comment_first` \| `checklist_first` | optional | Prompt variant for this judge (D12). An evidence-grade panel needs 3 judges from 3 different model developers each declaring a DIFFERENT variant — every output is then rated 9 times (3 judges × 3 prompts). Omit for a private evaluation and the panel runs the original single prompt, quoted and billed exactly as before. |
 | `candidates` | array<object> | optional | — |
 | `candidates[].label` | string | optional | length ≥ 1, length ≤ 60 |
 | `candidates[].overrideModel` | string | optional | length ≤ 120 — Run EVERY model-backed step of the frozen workflow on this model |
@@ -662,7 +662,7 @@ _11 tools._ Buy, sell and certify. Includes the blind-reviewer pair that perform
 | [`enroll_reviewer`](#enroll_reviewer) | Join the marketplace reviewer pool | `mcp:write` | — |
 | [`get_next_review_task`](#get_next_review_task) | Claim the next blind review task as an enrolled reviewer: one anonymized input/output pair plus the rubric, with the listing's identity never revealed | `mcp:write` | — |
 | [`submit_review_task`](#submit_review_task) | Return your 1–5 scores for a claimed blind task and earn reviewer points | `mcp:write` | — |
-| [`publish_to_marketplace`](#publish_to_marketplace) | Create a marketplace listing from a pipeline project | `mcp:write` | `marketplace:publish` |
+| [`publish_to_marketplace`](#publish_to_marketplace) | Create a marketplace listing from a pipeline project | `mcp:write` | — |
 | [`submit_for_review`](#submit_for_review) | Submit a draft marketplace listing for certification | `mcp:write` | — |
 | [`get_listing_status`](#get_listing_status) | Check a marketplace listing's certification stage: generating test data, pending review, in blind review, certifying, rejected, or published. | `mcp:read` | — |
 | [`my_marketplace_listings`](#my_marketplace_listings) | List all marketplace listings you have created (drafts, in review, published, rejected). | `mcp:read` | — |
@@ -755,7 +755,7 @@ Create a marketplace listing from a pipeline project. Sets price and description
 
 > Say something like: "Publish my pipeline 'Contract Redliner' to the marketplace at $4.99."
 
-**Scopes `mcp:write` · tier capability `marketplace:publish` · not read-only — it writes, spends or changes state**
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
@@ -840,7 +840,7 @@ _15 tools._ Evidence publication and protected marketplace execution (v2 P3): wh
 
 ### `preview_evidence`
 
-Build the public disclosure manifest for one of your completed benchmarks and hash it, WITHOUT publishing. This is the full §7.3 disclosure: tested version identity, every case (or a labelled withholding), the exact judging template, weights, every judgment including failures, all attempts, observed cost with unknowns as unknown, and the deterministic validators recorded as disabled. Also returns eligibilityIssues — what would stop a seller publication — and secretFindings.
+Build the public disclosure manifest for one of your completed benchmarks and hash it, WITHOUT publishing. This is the full §7.3 disclosure: tested version identity, every case (or a labelled withholding), the exact judging template for EVERY prompt variant the panel ran, weights, every judgment including failures, all attempts, observed cost with unknowns as unknown, and the deterministic validators recorded as disabled. Also returns eligibilityIssues — what would stop a seller publication — secretFindings, and panelIssues: under decision D12 a panel that is not 3 judges from 3 different model developers × 3 prompt variants, disjoint from every generating model, cannot be published as evidence by EITHER boundary; its result stays a private evaluation.
 
 > Say something like: "Preview the evidence for benchmark 3 as seller evidence."
 
@@ -928,7 +928,7 @@ Withdraw a publication you authored. Historical run data, attempts and financial
 
 ### `listing_publication_state`
 
-Where one of your listings stands under the v2 rules: legacy or v2 publication mode, which workflow version is sold, which publication is current, and the evidenceSummaryRevision to pass as expectedListingRevision. Owner-scoped: another user's listing is reported as not found.
+Where one of your listings stands under the v2 rules: a `stage` that separates 'nothing published yet' from 'recorded as legacy and not managed here' from 'v2 evidence is current', which workflow version is sold, which publication is current, and the evidenceSummaryRevision to pass as expectedListingRevision. `null` means there is no v2 record for it at all, which is not the same as revision 0. Owner-scoped: another user's listing is reported as not found.
 
 **Scopes `mcp:read` · flag `v2Publication` (evidence publication; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
@@ -1069,20 +1069,19 @@ For a listing's current published evidence: which provider/model/version it was 
 
 ## Account
 
-_6 tools._ Your own tenancy: providers and keys, default model, tier, notifications.
+_5 tools._ Your own tenancy: providers and keys, default model, tier, notifications.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
-| [`deewaanai_help`](#deewaanai_help) | This guide — tailored to your tier and connected app. | `mcp:read` | — |
+| [`deewaanai_help`](#deewaanai_help) | This guide — filtered to your scopes, what you own, and the connected app. | `mcp:read` | — |
 | [`suggest_llm_providers`](#suggest_llm_providers) | Show a curated list of free, cheap, and local LLM providers with signup links and setup instructions | `mcp:read` | — |
 | [`add_provider`](#add_provider) | Add an LLM provider from this chat — just paste the slug and API key | `mcp:write` | — |
-| [`get_settings`](#get_settings) | Show your tier, capabilities, configured LLM providers, and default model. | `mcp:read` | — |
+| [`get_settings`](#get_settings) | Show what you own (purchased pipelines and other entitlements), configured LLM providers, and your default model. | `mcp:read` | — |
 | [`set_default_model`](#set_default_model) | Set your preferred model (and optionally provider) used for new pipeline work. | `mcp:write` | — |
-| [`upgrade_tier`](#upgrade_tier) | Show your current tier, missing capabilities, and upgrade options with pricing and checkout links. | `mcp:read` | — |
 
 ### `deewaanai_help`
 
-Guide to using DeeWaanAI from this chat: what pipelines are, every command available on YOUR plan (with examples), and tips for your current setup. Start here if unsure what to ask.
+Guide to using DeeWaanAI from this chat: what pipelines are, every command your account and this connected app can actually run (with examples), and tips for your current setup. Start here if unsure what to ask.
 
 **Scopes `mcp:read` · annotated read-only**
 
@@ -1118,7 +1117,7 @@ Add a new LLM provider to your account so you can design and run pipelines. Prov
 
 ### `get_settings`
 
-Show your DeeWaanAI settings: plan/tier, capabilities, owned providers (keys never shown), resolved default model and its account/provider/unset source, access warnings and next steps, and desktop sampling support.
+Show your DeeWaanAI settings: what you own (purchased pipelines and other entitlements), owned providers (keys never shown), resolved default model and its account/provider/unset source, access warnings and next steps, and desktop sampling support.
 
 **Scopes `mcp:read` · annotated read-only**
 
@@ -1136,19 +1135,6 @@ Save an exact model and owned, enabled default provider together. Optionally set
 | `model` | string | **required** | length ≥ 1, length ≤ 100 — Model name, e.g. gemini-2.0-flash, gpt-4o-mini, deepseek-chat |
 | `providerId` | integer | optional | ≥ 1 — An enabled provider you own from get_settings; omitted means your currently selected provider, never an automatic choice |
 | `setProviderDefault` | boolean | optional | Explicitly set true to also update only the chosen provider's default model for operations that read provider defaults; otherwise leave it unchanged |
-
-
-### `upgrade_tier`
-
-Show your current plan, what features are unlocked, and what you're missing. Returns upgrade options with a Stripe checkout link (or a pricing page link if billing is not live yet).
-
-> Say something like: "What tiers are available and how much do they cost?"
-
-**Scopes `mcp:read` · annotated read-only**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `planId` | string: `solo` \| `team_seat` | optional | Which plan to upgrade to (solo or team_seat). If omitted, returns all options. |
 
 
 ## Your data
@@ -1201,120 +1187,6 @@ Back up a pipeline to the GitHub repo connected to its project (web app → Proj
 | `message` | string | optional | length ≤ 200 |
 
 
-## Team
-
-_8 tools._ Multi-user shared context, runs, handoffs, skills. Behind the `teamsync` flag — and see the scope note below before planning around them.
-
-| Tool | One line | Scopes | Gate |
-| --- | --- | --- | --- |
-| [`team_context_get`](#team_context_get) | Read shared team context across connected desktop apps. | `team:read` | `teamsync` |
-| [`team_memory_append`](#team_memory_append) | Append to shared team memory. | `team:write` | `teamsync` |
-| [`team_runs_list`](#team_runs_list) | List runs shared with your team. | `team:read` | `teamsync` |
-| [`team_run_resume`](#team_run_resume) | Resume a run handed off by another teammate or app. | `team:write` | `teamsync` |
-| [`team_handoff`](#team_handoff) | Hand off work to another teammate or connected app. | `team:write` | `teamsync` |
-| [`team_feedback_submit`](#team_feedback_submit) | Submit structured feedback on a teammate's run. | `team:write` | `teamsync` |
-| [`team_skills_list`](#team_skills_list) | List skills shared by your team. | `team:read` | `teamsync` |
-| [`team_skill_use`](#team_skill_use) | Use a shared team skill. | `team:write` | `teamsync` |
-
-### `team_context_get`
-
-Read a team-shared project's memory: recent episodes, structured state (goal, key decisions, recent activity), and the current state-lock version. Only projects shared with the team are accessible — personal-only projects are rejected.
-
-**Scopes `team:read` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `teamId` | integer | **required** | > 0 |
-| `projectId` | integer | **required** | > 0 |
-
-
-### `team_memory_append`
-
-Append a note to a team-shared project's episodic memory, attributed to you and your app. Also bumps the shared state's recent activity through the optimistic lock. Episodes are append-only and visible to every teammate's app.
-
-**Scopes `team:write` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `teamId` | integer | **required** | > 0 |
-| `projectId` | integer | **required** | > 0 |
-| `note` | string | **required** | length ≥ 1, length ≤ 4000 |
-
-
-### `team_runs_list`
-
-List pipeline runs across projects shared with a team, plus the approvals waiting for you (runs handed off to you from any teammate's app). Use team_run_resume to resume a run, or approve_step to record a decision.
-
-**Scopes `team:read` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `teamId` | integer | **required** | > 0 |
-| `limit` | integer | optional | ≥ 1, ≤ 50, default `20` |
-
-
-### `team_run_resume`
-
-Resume a paused pipeline run (e.g. after a human-in-the-loop approval) from any app. Mirrors the web app's resumePipeline. To record an approval decision instead, use approve_step.
-
-**Scopes `team:write` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `runId` | integer | **required** | > 0 |
-
-
-### `team_handoff`
-
-Hand off a pipeline run's pending approval to a teammate. The assignee must share a team with the run's project. They will see the run under team_runs_list → waitingForYou and can decide with approve_step from their own app.
-
-**Scopes `team:write` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `runId` | integer | **required** | > 0 |
-| `assigneeUserId` | integer | **required** | > 0 |
-| `note` | string | optional | length ≤ 1000 |
-
-
-### `team_feedback_submit`
-
-Submit product feedback (bug, suggestion, praise, or confusion) from your desktop app. Optionally tie it to a pipeline run so the team sees the context.
-
-**Scopes `team:write` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `category` | string: `bug` \| `suggestion` \| `praise` \| `confusion` | optional | default `"suggestion"` |
-| `message` | string | **required** | length ≥ 1, length ≤ 5000 |
-| `runId` | integer | optional | > 0 |
-
-
-### `team_skills_list`
-
-List skills available to you through a team: pipeline steps from team-shared projects, custom agents from teammates, and your marketplace-licensed pipelines. Use team_skill_use to import one into your own project.
-
-**Scopes `team:read` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `teamId` | integer | **required** | > 0 |
-
-
-### `team_skill_use`
-
-Import a team skill (a shared pipeline step or a teammate's custom agent) into a project you own. The imported copy is disabled by default — enable it in the project before running it.
-
-**Scopes `team:write` · flag `teamsync` (team workspace sync; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
-
-| Argument | Type | Required | Constraints and meaning |
-| --- | --- | --- | --- |
-| `teamId` | integer | **required** | > 0 |
-| `kind` | string: `pipeline` \| `agent` | **required** | — |
-| `id` | integer | **required** | > 0 |
-| `targetProjectId` | integer | **required** | > 0 |
-
-
 ## Diagnostics
 
 _1 tools._ Connectivity probes, one per direction of the transport.
@@ -1331,13 +1203,3 @@ Diagnostic: ask the connected desktop app's own LLM to reply (MCP sampling). Rep
 
 _No arguments._
 
-
-## Known gap in this surface
-
-**The 8 `team_*` tools cannot be reached with an OAuth-authorized MCP token today.** They demand
-`team:read`/`team:write`, which exist in `tokenService.TOKEN_SCOPES`, but the OAuth code and refresh
-paths filter requested scopes through `MCP_SCOPES` in `api/mcp/auth.ts` (`mcp:read`, `mcp:run`,
-`mcp:write`) — and that OAuth path is the only thing in the repo that mints an access token
-`/mcp` will accept. Gate 4 can therefore never pass for them, independent of the `teamsync` flag.
-Recorded rather than patched: widening the scopes a third-party client may be granted is an
-authorization decision, not a documentation fix.

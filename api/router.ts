@@ -14,7 +14,6 @@ import { templateRouter } from "./routers/template";
 import { marketplaceRouter } from "./routers/marketplace";
 import { projectFilesRouter } from "./routers/projectFiles";
 import { projectImportRouter } from "./routers/projectImport";
-import { teamRouter } from "./routers/team";
 import { feedbackRouter } from "./routers/feedback";
 import { issuesRouter } from "./routers/issues";
 import { voucherRouter } from "./routers/voucher";
@@ -58,7 +57,6 @@ export const appRouter = createRouter({
   marketplace: marketplaceRouter,
   projectFile: projectFilesRouter,
   projectImport: projectImportRouter,
-  team: teamRouter,
   feedback: feedbackRouter,
   issues: issuesRouter,
   voucher: voucherRouter,

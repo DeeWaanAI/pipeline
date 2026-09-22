@@ -121,15 +121,35 @@ async function seedFixture() {
     { projectId, stepOrder: 1, stepType: "agent", name: "Draft", role: "builder", systemPrompt: SECRET_PROMPT, isEnabled: true, providerId, model: "fake-model" },
     { projectId, stepOrder: 2, stepType: "agent", name: "Polish", role: "polisher", systemPrompt: "polish it", isEnabled: true, providerId, model: "fake-model" },
   ]);
+  // D12 needs reviewed vendors in the catalog: the generator is one developer's
+  // model and the three judges are three OTHER developers — all served by the
+  // ONE hosting provider above, which is exactly the point: developer comes
+  // from the catalog column, never from whose key served the call.
+  // `.ignore()` — the unique (provider, modelId) index makes these global.
+  await db.insert(schema.modelCatalog).ignore().values([
+    { provider: "fake-host", modelId: "fake-model", vendor: "qwen" },
+    { provider: "fake-host", modelId: "judge-ds", vendor: "deepseek" },
+    { provider: "fake-host", modelId: "judge-glm", vendor: "zhipu" },
+    { provider: "fake-host", modelId: "judge-llama", vendor: "meta" },
+    { provider: "fake-host", modelId: "judge-model", vendor: null },
+  ]);
   return { db, userId, projectId, providerId };
 }
+
+/** An evidence-grade D12 panel — 3 developers × 3 prompt variants — all
+ *  served through the fixture's single hosting provider on purpose. */
+const evidencePanel = (f: { providerId: number }) => [
+  { providerId: f.providerId, model: "judge-ds", variant: "anchored_scale" as const },
+  { providerId: f.providerId, model: "judge-glm", variant: "comment_first" as const },
+  { providerId: f.providerId, model: "judge-llama", variant: "checklist_first" as const },
+];
 
 /** A completed benchmark whose children were really executed by the plan. */
 async function completedBenchmark(f: Awaited<ReturnType<typeof seedFixture>>) {
   const benchmarkId = await svc.createBenchmarkDraft({
     userId: f.userId, projectId: f.projectId,
     cases: [{ inputText: "clause one" }, { inputText: "clause two" }],
-    judges: [{ providerId: f.providerId, model: "judge-model" }],
+    judges: evidencePanel(f),
   });
   const quote = await svc.quoteBenchmark({ userId: f.userId, benchmarkId });
   const approval = await svc.approveBenchmarkSpend({ userId: f.userId, benchmarkId, planHash: quote.planHash });
@@ -201,10 +221,14 @@ describe("evidence publication (DB-backed)", () => {
     expect(first.eligibilityIssues).toEqual([]);
     expect(first.secretFindings).toEqual([]);
     expect(first.manifest.versionIdentity.includesPrivateDefinition).toBe(false);
-    expect(first.manifest.judging.judgments.length).toBe(2);
-    expect(first.manifest.attempts.planned.judgments).toBe(2);
-    expect(first.manifest.attempts.completed.judgments).toBe(2);
+    // D12: 2 cases × 1 candidate × 1 repeat × (3 judges × 3 variants) = 18 ratings.
+    expect(first.manifest.judging.judgments.length).toBe(18);
+    expect(first.manifest.judging.judgePrompts.length).toBe(3);
+    expect(first.manifest.attempts.planned.judgments).toBe(18);
+    expect(first.manifest.attempts.completed.judgments).toBe(18);
     expect(first.manifest.attempts.allSelectedPlanAttemptsDisclosed).toBe(true);
+    expect(first.panelIssues).toEqual([]);
+    expect(first.evidenceGradePanel).toBe(true);
   });
 
   it("discloses the things a reader needs and never the private workflow definition (A12 publication half)", async () => {
@@ -490,7 +514,9 @@ describe("evidence publication (DB-backed)", () => {
       userId: f.userId, projectId: f.projectId,
       // The secret is in the TEST INPUT this time, which is published material.
       cases: [{ inputText: "translate this; token sk-ABCDEFGHIJKL1234567890 attached" }],
-      judges: [{ providerId: f.providerId, model: "judge-model" }],
+      // Evidence-grade panel on purpose: the refusal under test must be the
+      // SECRET, not the panel — the panel gate would otherwise fire first.
+      judges: evidencePanel(f),
     });
     const quote = await svc.quoteBenchmark({ userId: f.userId, benchmarkId });
     const approval = await svc.approveBenchmarkSpend({ userId: f.userId, benchmarkId, planHash: quote.planHash });
@@ -530,6 +556,65 @@ describe("evidence publication (DB-backed)", () => {
     const stored = await publicationRow(community.publicationId);
     expect(stored.provenance).toBe("platform_recorded");
     expect(JSON.parse(String(stored.publicManifest)).costs.currency).toBe("USD");
+  });
+
+  it("D12: a private single-judge panel runs fine but its result is NOT publishable as evidence, by either boundary", async () => {
+    const f = await seedFixture();
+    // The finding-5 shape: one judge, self-graded, everything else complete.
+    const benchmarkId = await svc.createBenchmarkDraft({
+      userId: f.userId, projectId: f.projectId,
+      cases: [{ inputText: "clause one" }, { inputText: "clause two" }],
+      judges: [{ providerId: f.providerId, model: "judge-model" }],
+    });
+    const quote = await svc.quoteBenchmark({ userId: f.userId, benchmarkId });
+    // Private evaluation stays fully quotable/approvable/runnable:
+    expect(quote.blockingErrors).toEqual([]);
+    expect(quote.panel.evidenceGrade).toBe(false);
+    expect(quote.warnings.join(" ")).toContain("private-only panel (D12)");
+    const approval = await svc.approveBenchmarkSpend({ userId: f.userId, benchmarkId, planHash: quote.planHash });
+    const started = await svc.startBenchmark({ userId: f.userId, benchmarkId, planHash: quote.planHash, spendApprovalId: approval });
+    expect(started.ok).toBe(true);
+    const lease = await svc.acquireBenchmark(benchmarkId);
+    await svc.executeBenchmark({ benchmarkId, leaseToken: lease! });
+
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "community", consentVersion: "consent-v1" });
+    expect(preview.evidenceGradePanel).toBe(false);
+    expect(preview.panelIssues.join(" ")).toContain("panel_needs_three_judges");
+    await expect(ev.publishCommunityEvidence({
+      userId: f.userId, benchmarkId, previewHash: preview.previewHash, consentVersion: "consent-v1",
+    })).rejects.toThrow(/publication_refused: the judging panel of this evidence is not evidence-grade \(decision D12\)/);
+
+    // Same refusal on the seller side, with the "run an evidence-grade panel
+    // or keep it private" sentence a user can act on.
+    const { listingId } = await seedListing(f);
+    const sellerPreview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    await expect(ev.publishVersion({
+      userId: f.userId, listingId, workflowVersionId: Number(sellerPreview.manifest.versionIdentity.workflowVersionId),
+      benchmarkId, previewHash: sellerPreview.previewHash, consentVersion: "consent-v1",
+    })).rejects.toThrow(/keep this result private/);
+  });
+
+  it("D12: an evidence-grade panel gets nine ratings per output, and each variant is disclosed", async () => {
+    const f = await seedFixture();
+    const { benchmarkId } = await completedBenchmark(f);
+    const db = await connection();
+    const judgments = await db.select().from(schema.benchmarkJudgments).where(eq(schema.benchmarkJudgments.benchmarkId, benchmarkId));
+    // 2 cases × 1 candidate × 1 repeat × 3 judges × 3 variants — the money
+    // rule: the approved arithmetic is exactly what ran.
+    expect(judgments).toHaveLength(18);
+    expect(new Set(judgments.map((j) => j.judgePromptVersion))).toEqual(new Set([
+      "judge-v1:anchored_scale", "judge-v1:comment_first", "judge-v1:checklist_first",
+    ]));
+    // every (run, slot, variant) triple appears exactly once
+    const keys = judgments.map((j) => `${j.runId}|${j.judgeSlot}|${j.judgePromptVersion}`);
+    expect(new Set(keys).size).toBe(18);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v1" });
+    // §7.3: the reader sees all three exact prompt templates, each tagged.
+    expect(preview.manifest.judging.judgePrompts.map((p) => p.judgePromptVersion)).toEqual([
+      "judge-v1:anchored_scale", "judge-v1:comment_first", "judge-v1:checklist_first",
+    ]);
+    expect(JSON.stringify(preview.manifest)).toContain("SCORING PROCEDURE (checklist_first)");
+    expect(JSON.stringify(preview.manifest)).toContain("SCORING PROCEDURE (comment_first)");
   });
 
   it("withdrawal and replacement are separate immutable rows; testedAt never moves", async () => {

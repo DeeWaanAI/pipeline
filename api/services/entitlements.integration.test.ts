@@ -56,7 +56,12 @@ describe.skipIf(!hasDb)("entitlements (integration: real MySQL)", () => {
     expect(await can(userId, capability)).toBe(false);
   });
 
-  it("resolveCapabilities unions explicit entitlement grants", async () => {
+  it("resolveCapabilities reports explicit grants only — no tier, no plan", async () => {
+    // A freshly created account holds the legacy `standard` value in
+    // `users.tier`, which used to materialise `pipeline:fixed` + `llm:1` here.
+    // The ladder is retired, so an ungranted account must come back empty.
+    expect(await resolveCapabilities(userId)).toEqual({ capabilities: [] });
+
     await grant({
       subjectType: "user",
       subjectId: userId,
@@ -64,9 +69,9 @@ describe.skipIf(!hasDb)("entitlements (integration: real MySQL)", () => {
       source: "manual",
       sourceRef: "integration-test",
     });
-    const { capabilities, tier } = await resolveCapabilities(userId);
-    expect(tier).toBe("standard");
-    expect(capabilities).toContain(capability);
+    const resolved = await resolveCapabilities(userId);
+    expect(resolved).not.toHaveProperty("tier");
+    expect(resolved.capabilities).toEqual([capability]);
   });
 });
 

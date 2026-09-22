@@ -1,7 +1,7 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import * as jose from "jose";
-import { createRouter, publicQuery, authedQuery, adminQuery } from "../middleware";
+import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { users } from "@db/schema";
 import { eq, count } from "drizzle-orm";
@@ -117,7 +117,7 @@ export const localAuthRouter = createRouter({
 
         logger.info("User signed up", { userId: created.id, username: created.username, role });
         const token = await signLocalToken(created.id, created.username ?? "user");
-        return { token, user: { id: created.id, name: created.name, username: created.username, role, tier: created.tier } };
+        return { token, user: { id: created.id, name: created.name, username: created.username, role } };
       } catch (e) { dbErr(e); }
     }),
 
@@ -153,7 +153,7 @@ export const localAuthRouter = createRouter({
 
         logger.info("User logged in", { userId: user.id, username: user.username, role });
         const token = await signLocalToken(user.id, user.username ?? "user");
-        return { token, user: { id: user.id, name: user.name, username: user.username, role, tier: user.tier } };
+        return { token, user: { id: user.id, name: user.name, username: user.username, role } };
       } catch (e) { dbErr(e); }
     }),
 
@@ -168,48 +168,8 @@ export const localAuthRouter = createRouter({
     } catch { return null; }
   }),
 
-  // Admin-only tier management (production)
-  setTier: adminQuery
-    .input(z.object({
-      userId: z.number(),
-      tier: z.enum(["standard", "pro_designer", "pro_auto"]),
-    }))
-    .mutation(async ({ input }) => {
-      await getDb()
-        .update(users)
-        .set({ tier: input.tier })
-        .where(eq(users.id, input.userId));
-
-      const [updated] = await getDb()
-        .select()
-        .from(users)
-        .where(eq(users.id, input.userId))
-        .limit(1);
-
-      logger.info("Tier updated by admin", { targetUserId: input.userId, tier: input.tier });
-      return { tier: updated?.tier ?? "standard" };
-    }),
-
-  // Dev-only: any user can switch their own tier for testing
-  devTierSwitch: authedQuery
-    .input(z.object({ tier: z.enum(["standard", "pro_designer", "pro_auto"]) }))
-    .mutation(async ({ input, ctx }) => {
-      if (env.isProduction) {
-        throw new Error("devTierSwitch is only available in development mode");
-      }
-
-      await getDb()
-        .update(users)
-        .set({ tier: input.tier })
-        .where(eq(users.id, ctx.user.id));
-
-      const [updated] = await getDb()
-        .select()
-        .from(users)
-        .where(eq(users.id, ctx.user.id))
-        .limit(1);
-
-      logger.info("Dev tier switch", { userId: ctx.user.id, tier: input.tier });
-      return { tier: updated?.tier ?? "standard" };
-    }),
+  // `setTier` and `devTierSwitch` were removed with the tier ladder (owner
+  // decision 2026-09-22). There is no plan to switch to, so the dev-only
+  // mutation that wrote `users.tier` is gone; the column stays in the
+  // database untouched and unread (additive-only rule).
 });

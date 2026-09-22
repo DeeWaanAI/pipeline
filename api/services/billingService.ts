@@ -6,11 +6,11 @@
 
 import Stripe from "stripe";
 import { getDb } from "../queries/connection";
-import { subscriptions, idempotencyKeys, teamSeats, teamMembers, teams } from "@db/schema";
-import { eq, sql } from "drizzle-orm";
+import { subscriptions, idempotencyKeys, teamSeats, teams } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
-import { PLANS, PLAN_CAPABILITIES, type PlanId } from "../config/plans";
+import { PLANS, type PlanId } from "../config/plans";
 import * as entitlementService from "./entitlements";
 import { fulfillMarketplacePurchase, revokeMarketplacePurchase } from "./entitlementSync";
 
@@ -36,10 +36,11 @@ export class BillingNotConfiguredError extends Error {
 }
 
 // ─── Checkout ───────────────────────────────────────────────────────
+// One flat per-account subscription: quantity is always 1 and no seat
+// counting happens on this side any more.
 export async function createCheckoutSession(opts: {
   userId: number;
   plan: PlanId;
-  seats?: number;
   successUrl: string;
   cancelUrl: string;
 }): Promise<{ url: string }> {
@@ -50,30 +51,27 @@ export async function createCheckoutSession(opts: {
   if (!plan || !plan.priceId) {
     throw new Error(`Plan "${opts.plan}" is not available`);
   }
-  const seats = Math.max(1, opts.seats ?? 1);
 
   const session = await client.checkout.sessions.create({
     mode: "subscription",
-    line_items: [{ price: plan.priceId, quantity: plan.perSeat ? seats : 1 }],
+    line_items: [{ price: plan.priceId, quantity: 1 }],
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
     client_reference_id: String(opts.userId),
     metadata: {
       userId: String(opts.userId),
       plan: plan.id,
-      seats: String(seats),
     },
     subscription_data: {
       metadata: {
         userId: String(opts.userId),
         plan: plan.id,
-        seats: String(seats),
       },
     },
   });
 
   if (!session.url) throw new Error("Stripe did not return a checkout URL");
-  logger.info("Checkout session created", { userId: opts.userId, plan: plan.id, seats });
+  logger.info("Checkout session created", { userId: opts.userId, plan: plan.id });
   return { url: session.url };
 }
 
@@ -128,57 +126,6 @@ export async function createMarketplaceCheckoutSession(opts: {
   return { url: session.url };
 }
 
-// ─── Team seat subscription checkout (Phase 2 TeamSync) ─────────────
-// One Stripe subscription per team: a single team_seat price line item
-// whose quantity equals the member count. Member add/remove later adjusts
-// the quantity (prorated) via syncTeamSeatQuantity().
-export async function createTeamSeatCheckoutSession(opts: {
-  teamId: number;
-  userId: number;
-  seatCount: number;
-  successUrl: string;
-  cancelUrl: string;
-}): Promise<{ url: string }> {
-  const client = getStripe();
-  if (!client) throw new BillingNotConfiguredError();
-
-  const priceId = PLANS.team_seat.priceId;
-  if (!priceId) {
-    throw new Error("Team seat plan is not available");
-  }
-  const seats = Math.max(1, Math.floor(opts.seatCount));
-
-  const session = await client.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: seats }],
-    success_url: opts.successUrl,
-    cancel_url: opts.cancelUrl,
-    client_reference_id: String(opts.userId),
-    metadata: {
-      type: "team_seats",
-      teamId: String(opts.teamId),
-      userId: String(opts.userId),
-    },
-    // Metadata travels to the subscription so update/delete events can
-    // be matched back to the team without extra lookups.
-    subscription_data: {
-      metadata: {
-        type: "team_seats",
-        teamId: String(opts.teamId),
-        userId: String(opts.userId),
-      },
-    },
-  });
-
-  if (!session.url) throw new Error("Stripe did not return a checkout URL");
-  logger.info("Team seat checkout session created", {
-    teamId: opts.teamId,
-    userId: opts.userId,
-    seats,
-  });
-  return { url: session.url };
-}
-
 // ─── Idempotent event processing ────────────────────────────────────
 // Drizzle wraps mysql2 errors — the ER_DUP_ENTRY code lives on `.cause`
 // (and the top-level message becomes "Failed query: ..."), so check both
@@ -217,38 +164,30 @@ function periodEndFromSubscription(sub: Stripe.Subscription): Date | null {
   return ts ? new Date(ts * 1000) : null;
 }
 
+/**
+ * Reconcile the entitlement rows a subscription wrote.
+ *
+ * A plan no longer grants any capability (there is no plan ladder — one flat
+ * subscription buys the whole product, see api/config/plans.ts), so an active
+ * subscription adds nothing here. The revoke arm stays: `entitlements` rows
+ * with source="subscription" from before this change are still real rows, and
+ * they must be cleaned up when a live subscription lapses or is canceled.
+ */
 async function syncSubscriptionEntitlements(opts: {
   userId: number;
   plan: string;
   status: string;
   sourceRef: string;
 }): Promise<void> {
-  const caps = PLAN_CAPABILITIES[opts.plan];
-  if (!caps) return;
   const active = opts.status === "active" || opts.status === "trialing";
+  if (active) return;
 
-  if (active) {
-    for (const capability of caps) {
-      // Avoid duplicate rows for the same subscription grant
-      const existing = await entitlementService.getActiveEntitlements("user", opts.userId);
-      if (existing.some((e) => e.capability === capability && e.sourceRef === opts.sourceRef)) continue;
-      await entitlementService.grant({
-        subjectType: "user",
-        subjectId: opts.userId,
-        capability,
-        source: "subscription",
-        sourceRef: opts.sourceRef,
-      });
-    }
-  } else {
-    // Subscription no longer active — revoke everything it granted
-    await entitlementService.revoke({
-      subjectType: "user",
-      subjectId: opts.userId,
-      source: "subscription",
-      sourceRef: opts.sourceRef,
-    });
-  }
+  await entitlementService.revoke({
+    subjectType: "user",
+    subjectId: opts.userId,
+    source: "subscription",
+    sourceRef: opts.sourceRef,
+  });
 }
 
 async function upsertSubscription(opts: {
@@ -288,7 +227,13 @@ async function upsertSubscription(opts: {
   }
 }
 
-// ─── Team seat helpers (Phase 2 TeamSync) ───────────────────────────
+// ─── Team seat helpers — RECONCILIATION ONLY ────────────────────────
+// Team features and per-seat checkout were removed (ticket #26), but a
+// team-seat subscription bought before that change can still be LIVE, so its
+// Stripe events must keep being recorded instead of throwing. Nothing new can
+// be purchased on this path. `team:sync` gates no capability any more; the
+// grant/revoke below just keeps the entitlement ledger honest about what the
+// subscription paid for.
 // Capability the team owner holds while a team seat subscription is active.
 const TEAM_SYNC_CAPABILITY = "team:sync";
 
@@ -358,85 +303,6 @@ async function syncTeamSyncEntitlement(opts: {
       capability: TEAM_SYNC_CAPABILITY,
       source: "subscription",
       sourceRef: opts.sourceRef,
-    });
-  }
-}
-
-/**
- * Reconcile the billed seat count with actual membership. Called after
- * every member add/remove. Stripe errors are swallowed (logged) — a
- * billing hiccup must never fail a membership operation.
- */
-export async function syncTeamSeatQuantity(teamId: number): Promise<void> {
-  const db = getDb();
-  const [countRow] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(teamMembers)
-    .where(eq(teamMembers.teamId, teamId));
-  const memberCount = Math.max(1, Number(countRow?.count ?? 0));
-
-  const [existing] = await db.select()
-    .from(teamSeats)
-    .where(eq(teamSeats.teamId, teamId))
-    .limit(1);
-
-  if (!existing) {
-    await db.insert(teamSeats).values({ teamId, seats: memberCount });
-    return;
-  }
-
-  if (existing.seats === memberCount) return;
-
-  await db.update(teamSeats)
-    .set({ seats: memberCount })
-    .where(eq(teamSeats.teamId, teamId));
-
-  if (existing.stripeSubscriptionItemId) {
-    try {
-      const client = getStripe();
-      if (client) {
-        await client.subscriptionItems.update(existing.stripeSubscriptionItemId, {
-          quantity: memberCount,
-          proration_behavior: "create_prorations",
-        });
-        logger.info("Team seat quantity synced to Stripe", { teamId, seats: memberCount });
-      }
-    } catch (err) {
-      logger.warn("Stripe seat quantity sync failed — membership change kept", {
-        teamId,
-        seats: memberCount,
-        error: (err as Error).message,
-      });
-    }
-  }
-}
-
-/**
- * Best-effort cancel of a team's seat subscription (used on team delete).
- * Never throws — the team_seats row itself cascades with the team.
- */
-export async function cancelTeamSeatSubscription(teamId: number): Promise<void> {
-  const db = getDb();
-  const [row] = await db.select()
-    .from(teamSeats)
-    .where(eq(teamSeats.teamId, teamId))
-    .limit(1);
-  if (!row?.stripeSubscriptionId) return;
-
-  try {
-    const client = getStripe();
-    if (client) {
-      await client.subscriptions.cancel(row.stripeSubscriptionId);
-      logger.info("Team seat subscription canceled", {
-        teamId,
-        stripeSubscriptionId: row.stripeSubscriptionId,
-      });
-    }
-  } catch (err) {
-    logger.warn("Best-effort team subscription cancel failed", {
-      teamId,
-      stripeSubscriptionId: row.stripeSubscriptionId,
-      error: (err as Error).message,
     });
   }
 }

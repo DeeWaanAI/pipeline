@@ -11,6 +11,7 @@
 
 import { z } from "zod";
 import type { McpTool, McpAuthContext } from "../types";
+import { JUDGE_PROMPT_VARIANTS } from "../../../contracts/offeringV2";
 import {
   approveBenchmarkSpend, cancelBenchmark, createBenchmarkDraft, getBenchmarkProgress,
   listBenchmarkSummaries, prepareCasesDraft, prepareRubricDraft, quoteBenchmark, resumeBenchmark, startBenchmark,
@@ -54,13 +55,15 @@ const candidateSchema = z.object({
 const judgeSchema = z.object({
   providerId: z.number().int().positive().describe("A provider YOU own and have enabled"),
   model: z.string().min(1).max(120),
+  /** D12: which of the three canonical judge prompt framings this slot carries. */
+  variant: z.enum(JUDGE_PROMPT_VARIANTS).optional().describe("Prompt variant for this judge (D12). An evidence-grade panel needs 3 judges from 3 different model developers each declaring a DIFFERENT variant — every output is then rated 9 times (3 judges × 3 prompts). Omit for a private evaluation and the panel runs the original single prompt, quoted and billed exactly as before."),
 });
 
 const createInputSchema = z.object({
   projectId: z.number().int().positive().describe("The workflow you own that this evaluates"),
   executionMode: z.enum(["grade_only", "compare_models", "compare_frontier_solo"]).default("grade_only"),
   cases: z.array(caseSchema.omit({ stableCaseId: true })).min(1).max(50),
-  judges: z.array(judgeSchema).min(1).max(5).describe("The judging panel; one judge is honest, five costs 5x"),
+  judges: z.array(judgeSchema).min(1).max(5).describe("The judging panel; one judge is honest, five costs 5x. To publish the result as evidence (D12) it must be EXACTLY 3 judges from 3 different model developers with 3 different prompt variants, none sharing a developer with any generating model — anything less runs privately only, and quote_benchmark says which."),
   candidates: z.array(candidateSchema).max(4).optional(),
   generationRepeats: z.number().int().min(1).max(5).optional().describe("Independent repetitions per case (1 by default)"),
   judgmentKind: z.enum(["rubric", "pairwise"]).optional().describe("pairwise requires exactly two candidates"),
@@ -70,7 +73,7 @@ const createInputSchema = z.object({
 
 const quoteToolResult = (quote: Awaited<ReturnType<typeof quoteBenchmark>>) => ({
   ...quote,
-  howToReadThis: "planHash binds the approval: change anything (cases, candidates, judges, rubric, limits, repeats) and start is refused until you re-quote and re-approve. generationCalls counts provider LLM calls. blockingErrors must be empty before approval is possible. Unknown prices are shown as unknown, never zero. rates[] tells you what the estimate used: source provider_list is the host's own published price as of pricingAsOf, price_vector is our fallback table — neither sees promotional, committed-use or cached-input discounts, so the real bill can be lower. The estimate assumes 2,000/1,200 tokens per generation and 3,000/300 per judging call; long answers cost more than quoted.",
+  howToReadThis: "planHash binds the approval: change anything (cases, candidates, judges including their D12 prompt variants, rubric, limits, repeats) and start is refused until you re-quote and re-approve. generationCalls counts provider LLM calls; with declared variants each output is judged once per judge per variant (a 3-judge × 3-variant panel = 9 ratings per output, and judgingCalls reflects that). blockingErrors must be empty before approval is possible. panel.evidenceGrade tells you whether this result could ever be published as evidence: false means it is a PRIVATE evaluation (quote.warnings names the exact panel rule it misses — publishing it later is refused). Unknown prices are shown as unknown, never zero. rates[] tells you what the estimate used: source provider_list is the host's own published price as of pricingAsOf, price_vector is our fallback table — neither sees promotional, committed-use or cached-input discounts, so the real bill can be lower. The estimate assumes 2,000/1,200 tokens per generation and 3,000/300 per judging call; long answers cost more than quoted.",
 });
 
 export const createBenchmarkTool: McpTool = {

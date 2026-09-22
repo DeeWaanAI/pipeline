@@ -182,6 +182,18 @@ export type CandidateStrategy = z.infer<typeof CandidateStrategySchema>;
 /** Judgment kinds. Mirrors `benchmarkJudgments.kind` and `pairPreference`. */
 export const JudgmentKindSchema = z.enum(["rubric", "pairwise"]);
 export type JudgmentKind = z.infer<typeof JudgmentKindSchema>;
+/**
+ * Judge prompt variants (decision D12). THE canonical closed list — defined
+ * once here and imported by the benchmark services; a variant is referenced
+ * by name, never free text, so a frozen plan cannot smuggle a bespoke prompt
+ * past the hash. Each variant asks the SAME rubric question in a meaningfully
+ * different order/framing (anchored scale first, free comment first, checklist
+ * first) while the judge still returns the same validated JSON shape.
+ * An evidence-grade panel has 3 judges × 3 variants = 9 ratings per output.
+ */
+export const JUDGE_PROMPT_VARIANTS = ["anchored_scale", "comment_first", "checklist_first"] as const;
+export const JudgePromptVariantSchema = z.enum(JUDGE_PROMPT_VARIANTS);
+export type JudgePromptVariant = z.infer<typeof JudgePromptVariantSchema>;
 export const PairPreferenceSchema = z.enum(["a", "b", "tie"]);
 export type PairPreference = z.infer<typeof PairPreferenceSchema>;
 /** Mirrors `benchmarkJudgments.orientation` (recorded/randomized for paired checks). */
@@ -719,6 +731,9 @@ export const BenchmarkDraftInputSchema = z
           providerId: IdSchema,
           model: z.string().min(1).max(120),
           judgePromptVersion: z.string().min(1).max(60),
+          /** D12 prompt variant. Optional so a draft frozen before D12 keeps
+           *  parsing; an evidence-grade panel declares all three. */
+          variant: JudgePromptVariantSchema.optional(),
         }),
       )
       .min(1),
@@ -945,6 +960,8 @@ const EvaluationSummaryBaseSchema = z.object({
         judgeSlot: z.number().int().positive(),
         judgeModel: z.string().min(1),
         judgePromptVersion: z.string().min(1),
+        /** D12: which prompt variant this judge's slot carries, when declared. */
+        variant: JudgePromptVariantSchema.optional(),
         revision: z.string().min(1).nullable(),
         notExposedReason: RevisionNotExposedReasonSchema.optional(),
       }),
@@ -1045,6 +1062,8 @@ export const PublicJudgeIdentitySchema = z
     judgeModel: z.string().min(1).max(120),
     judgeProviderRoute: z.string().min(1).nullable(),
     judgePromptVersion: z.string().min(1).max(60),
+    /** D12: this judge's declared prompt variant, when the panel declared one. */
+    variant: JudgePromptVariantSchema.optional(),
     revision: z.string().min(1).nullable(),
     notExposedReason: RevisionNotExposedReasonSchema.optional(),
     settings: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),

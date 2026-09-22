@@ -1,49 +1,44 @@
 // ═══════════════════════════════════════════════════════════════════
 //  ENTITLEMENTS — the single "can user X do Y" brain (F0.6)
 // ═══════════════════════════════════════════════════════════════════
-// Resolution order:
-//   1. Explicit `entitlements` table rows (unexpired)
-//   2. Active/trialing `subscriptions` row → plan capability set
-//   3. User's `tier` via TIER_CAPABILITIES
-//   4. Unexpired voucher redemption (voucher_redemptions)
+// Resolution order — there is exactly one arm now:
+//   1. Explicit `entitlements` table rows (unexpired). This is where a
+//      marketplace purchase (`pipeline:run:<listingId>`, see
+//      api/services/entitlementSync.ts) and any manual/admin grant live.
 //
-// Additive only: existing tier checks elsewhere are untouched. Consumers
-// (tRPC middleware, MCP layer, UI) should prefer this service for new code.
+// There used to be three more arms below: an active/trialing subscription
+// mapped through PLAN_CAPABILITIES, `users.tier` mapped through
+// TIER_CAPABILITIES, and an unexpired voucher redemption mapped through the
+// redeemed tier. All three were removed with the tier ladder and the plan
+// ladder (owner decision 2026-09-22): DeeWaanAI sells ONE flat monthly
+// per-account subscription with a 7-day trial from signup and BYO keys, so no
+// capability is bought by tier — IF/WHILE pipelines and auto-design are open
+// to every signed-in account, and LLM spend is always the user's own.
+//
+// Additive only: `users.tier`, `vouchers.tier` and `voucher_redemptions.tier`
+// stay in the database and voucher redemption keeps writing them (unread
+// legacy data); `entitlements.subject_type`/`execution_grants.subject_type`
+// still accept the stored value "team". No migration touches any of them.
 
 import { getDb } from "../queries/connection";
-import { entitlements, subscriptions, users, voucherRedemptions } from "@db/schema";
+import { entitlements } from "@db/schema";
 import { eq, and, or, gt, isNull } from "drizzle-orm";
-import { PLAN_CAPABILITIES } from "../config/plans";
 import { logger } from "../lib/logger";
 
 export type EntitlementSource = "tier" | "subscription" | "voucher" | "purchase" | "manual";
-export type SubjectType = "user" | "team";
 
-// ─── Tier capability sets ───────────────────────────────────────────
-// standard: fixed pipeline, 1 LLM
-// pro_designer: + custom pipelines, 3 LLMs, marketplace publishing
-// pro_auto: + auto-design
-export const TIER_CAPABILITIES: Record<string, ReadonlySet<string>> = {
-  standard: new Set(["pipeline:fixed", "llm:1"]),
-  pro_designer: new Set(["pipeline:fixed", "llm:1", "pipeline:custom", "llm:3", "marketplace:publish"]),
-  pro_auto: new Set(["pipeline:fixed", "llm:1", "pipeline:custom", "llm:3", "marketplace:publish", "pipeline:autodesign"]),
-};
-
-const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
-
-export interface EntitlementContext {
-  teamId?: number;
-}
+/** Subjects an entitlement row can be filed against. The `subject_type`
+ *  column still stores "team" for historical rows; nothing reads those. */
+export type SubjectType = "user";
 
 /**
- * Can this user exercise a capability? Checks explicit grants first, then
- * subscription plan, then tier, then voucher redemptions.
+ * Can this user exercise a capability? Only an explicit, unexpired
+ * `entitlements` row counts — everything else is open by default.
  */
-export async function can(userId: number, capability: string, ctx?: EntitlementContext): Promise<boolean> {
+export async function can(userId: number, capability: string): Promise<boolean> {
   const db = getDb();
   const now = new Date();
 
-  // (1) Explicit entitlement rows (user-scoped, unexpired)
   const rows = await db.select({ capability: entitlements.capability })
     .from(entitlements)
     .where(and(
@@ -53,54 +48,7 @@ export async function can(userId: number, capability: string, ctx?: EntitlementC
       or(isNull(entitlements.expiresAt), gt(entitlements.expiresAt, now)),
     ))
     .limit(1);
-  if (rows.length > 0) return true;
-
-  // Team-scoped entitlement rows (when a team context is provided)
-  if (ctx?.teamId) {
-    const teamRows = await db.select({ capability: entitlements.capability })
-      .from(entitlements)
-      .where(and(
-        eq(entitlements.subjectType, "team"),
-        eq(entitlements.subjectId, ctx.teamId),
-        eq(entitlements.capability, capability),
-        or(isNull(entitlements.expiresAt), gt(entitlements.expiresAt, now)),
-      ))
-      .limit(1);
-    if (teamRows.length > 0) return true;
-  }
-
-  // (2) Active/trialing subscription → plan capability set
-  const [sub] = await db.select()
-    .from(subscriptions)
-    .where(eq(subscriptions.userId, userId))
-    .limit(1);
-  if (sub && ACTIVE_SUBSCRIPTION_STATUSES.has(sub.status)) {
-    const planCaps = PLAN_CAPABILITIES[sub.plan];
-    if (planCaps?.has(capability)) return true;
-  }
-
-  // (3) Tier capabilities
-  const [user] = await db.select({ tier: users.tier })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const tierCaps = user ? TIER_CAPABILITIES[user.tier] : undefined;
-  if (tierCaps?.has(capability)) return true;
-
-  // (4) Unexpired voucher redemption → redeemed tier's capabilities
-  const [redemption] = await db.select({ tier: voucherRedemptions.tier })
-    .from(voucherRedemptions)
-    .where(and(
-      eq(voucherRedemptions.userId, userId),
-      or(isNull(voucherRedemptions.expiresAt), gt(voucherRedemptions.expiresAt, now)),
-    ))
-    .limit(1);
-  if (redemption) {
-    const voucherCaps = TIER_CAPABILITIES[redemption.tier];
-    if (voucherCaps?.has(capability)) return true;
-  }
-
-  return false;
+  return rows.length > 0;
 }
 
 /** Grant a capability to a subject. */
@@ -154,56 +102,19 @@ export async function revoke(opts: {
 }
 
 /**
- * Resolve the FULL capability set for a user — the same union `can()`
- * checks (explicit entitlements + active subscription plan + tier +
- * unexpired voucher redemption), materialized as a sorted list together
- * with the user's raw tier (kept for display/label purposes only).
+ * Resolve the capability set for a user — today that is exactly their
+ * unexpired explicit entitlement rows, i.e. "what you own": the marketplace
+ * pipelines you have bought (plus any manual grant). No plan, tier or
+ * voucher feeds this any more.
  *
- * UI consumers (billing.myCapabilities → useCapabilities) use this so
- * adding a plan or product becomes data, not code.
+ * UI consumers (billing.myCapabilities) use this so adding a product stays
+ * data, not code.
  */
-export async function resolveCapabilities(userId: number): Promise<{ capabilities: string[]; tier: string }> {
-  const db = getDb();
-  const now = new Date();
+export async function resolveCapabilities(userId: number): Promise<{ capabilities: string[] }> {
   const caps = new Set<string>();
-
-  // (1) Explicit entitlement rows (user-scoped, unexpired)
   const active = await getActiveEntitlements("user", userId);
   for (const e of active) caps.add(e.capability);
-
-  // (2) Active/trialing subscription → plan capability set
-  const [sub] = await db.select()
-    .from(subscriptions)
-    .where(eq(subscriptions.userId, userId))
-    .limit(1);
-  if (sub && ACTIVE_SUBSCRIPTION_STATUSES.has(sub.status)) {
-    const planCaps = PLAN_CAPABILITIES[sub.plan];
-    if (planCaps) for (const c of planCaps) caps.add(c);
-  }
-
-  // (3) Tier capabilities
-  const [user] = await db.select({ tier: users.tier })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const tier = user?.tier ?? "standard";
-  const tierCaps = TIER_CAPABILITIES[tier];
-  if (tierCaps) for (const c of tierCaps) caps.add(c);
-
-  // (4) Unexpired voucher redemption → redeemed tier's capabilities
-  const [redemption] = await db.select({ tier: voucherRedemptions.tier })
-    .from(voucherRedemptions)
-    .where(and(
-      eq(voucherRedemptions.userId, userId),
-      or(isNull(voucherRedemptions.expiresAt), gt(voucherRedemptions.expiresAt, now)),
-    ))
-    .limit(1);
-  if (redemption) {
-    const voucherCaps = TIER_CAPABILITIES[redemption.tier];
-    if (voucherCaps) for (const c of voucherCaps) caps.add(c);
-  }
-
-  return { capabilities: [...caps].sort(), tier };
+  return { capabilities: [...caps].sort() };
 }
 
 export interface ActiveEntitlement {

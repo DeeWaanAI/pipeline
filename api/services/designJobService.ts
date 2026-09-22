@@ -26,7 +26,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { customAgents, designJobs, jobOutbox, pipelineSteps, pipelineTemplates, pipelineVersions, projectRevisions, projects, llmProviders } from "@db/schema";
 import { logger } from "../lib/logger";
-import { can } from "./entitlements";
 import { getDb } from "../queries/connection";
 import {
   AUTO_DESIGN_MAX_STEPS,
@@ -128,11 +127,11 @@ export async function snapshotProjectSteps(projectId: number) {
 
 export async function authorizeDesignRequest(userId: number, projectId: number, providerId?: number) {
   const db = getDb();
+  // Project ownership is the authorization check. Auto-design carries no plan
+  // gate any more (owner decision 2026-09-22), but the spend path below — quote
+  // → approve → start, on the caller's own provider — is untouched.
   const [project] = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
   if (!project) throw new Error("Project not found");
-  if (!(await can(userId, "pipeline:autodesign"))) {
-    throw new Error("Auto-design requires the auto-design tier.");
-  }
   let provider = providerId ?? project.defaultProviderId ?? undefined;
   if (provider) {
     const [p] = await db.select().from(llmProviders).where(eq(llmProviders.id, provider));

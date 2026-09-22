@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { projects, pipelineSteps, customAgents, llmProviders, teamMembers, teamProjects } from "@db/schema";
-import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import { projects, pipelineSteps, customAgents, llmProviders } from "@db/schema";
+import { eq, and, desc, asc } from "drizzle-orm";
 import { CreateProjectSchema, UpdateProjectSchema } from "@contracts/index";
 import { validateToken, listRepos, createRepo, createOrUpdateFile, deleteFolder } from "../services/giteeService";
 import * as disk from "../services/projectFilesDisk";
@@ -12,45 +12,13 @@ export const projectRouter = createRouter({
   list: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
 
-    // 1. Get user's own projects
-    const ownProjects = await db
+    // Owner-only: team sharing was removed with ticket #26, so the project
+    // list is exactly the projects this account owns.
+    return await db
       .select()
       .from(projects)
       .where(eq(projects.userId, ctx.user.id))
       .orderBy(desc(projects.updatedAt));
-
-    // 2. Get projects shared with teams the user belongs to
-    const memberships = await db
-      .select({ teamId: teamMembers.teamId })
-      .from(teamMembers)
-      .where(eq(teamMembers.userId, ctx.user.id));
-
-    const teamIds = memberships.map((m) => m.teamId);
-
-    let sharedProjectIds: number[] = [];
-    if (teamIds.length > 0) {
-      const shared = await db
-        .select({ projectId: teamProjects.projectId })
-        .from(teamProjects)
-        .where(inArray(teamProjects.teamId, teamIds));
-      sharedProjectIds = shared.map((s) => s.projectId);
-    }
-
-    // Remove duplicates of user's own projects
-    const uniqueSharedIds = sharedProjectIds.filter(
-      (id) => !ownProjects.find((op) => op.id === id),
-    );
-
-    let sharedProjects: typeof ownProjects = [];
-    if (uniqueSharedIds.length > 0) {
-      sharedProjects = await db
-        .select()
-        .from(projects)
-        .where(inArray(projects.id, uniqueSharedIds))
-        .orderBy(desc(projects.updatedAt));
-    }
-
-    return [...ownProjects, ...sharedProjects];
   }),
 
   getById: authedQuery
@@ -58,46 +26,14 @@ export const projectRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = getDb();
 
-      // 1. Check if user owns the project
+      // Owner-only (non-leaky: a project you do not own reads as missing).
       const [ownProject] = await db
         .select()
         .from(projects)
         .where(and(eq(projects.id, input.id), eq(projects.userId, ctx.user.id)))
         .limit(1);
 
-      if (ownProject) return ownProject;
-
-      // 2. Check if project is shared with a team the user belongs to
-      const memberships = await db
-        .select({ teamId: teamMembers.teamId })
-        .from(teamMembers)
-        .where(eq(teamMembers.userId, ctx.user.id));
-
-      if (memberships.length > 0) {
-        const teamIds = memberships.map((m) => m.teamId);
-        const shared = await db
-          .select()
-          .from(teamProjects)
-          .where(
-            and(
-              eq(teamProjects.projectId, input.id),
-              inArray(teamProjects.teamId, teamIds),
-            ),
-          )
-          .limit(1);
-
-        if (shared.length > 0) {
-          // Return the project even though user doesn't own it
-          const [project] = await db
-            .select()
-            .from(projects)
-            .where(eq(projects.id, input.id))
-            .limit(1);
-          return project ?? null;
-        }
-      }
-
-      return null;
+      return ownProject ?? null;
     }),
 
   create: authedQuery

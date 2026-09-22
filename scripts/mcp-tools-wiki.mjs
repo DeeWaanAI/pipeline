@@ -5,7 +5,7 @@
 //   MCP_TOOLS_WIKI=1 npx vitest run api/mcp/tools/wikiDump.test.ts
 
 const tools = JSON.parse(await new Response(process.stdin).text());
-const ORDER = ["Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Publish", "Account", "Your data", "Team", "Diagnostics"];
+const ORDER = ["Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Publish", "Account", "Your data", "Diagnostics"];
 
 const GROUP_INTRO = {
   Discover: "Read-only orientation: what you own, what a pipeline contains, what is on the marketplace, and what the project remembers. Nothing here spends or writes.",
@@ -17,7 +17,6 @@ const GROUP_INTRO = {
   Publish: "Evidence publication and protected marketplace execution (v2 P3): what becomes public, exactly which version was tested, and what it is like to run a purchased workflow under your own credentials.",
   Account: "Your own tenancy: providers and keys, default model, tier, notifications.",
   "Your data": "Persistent project memory that survives across conversations.",
-  Team: "Multi-user shared context, runs, handoffs, skills. Behind the `teamsync` flag — and see the scope note below before planning around them.",
   Diagnostics: "Connectivity probes, one per direction of the transport.",
 };
 
@@ -26,7 +25,6 @@ const FLAG_NOTE = {
   v2Benchmarks: "private evaluation",
   v2Publication: "evidence publication",
   v2ProtectedExecution: "protected marketplace execution",
-  teamsync: "team workspace sync",
   batch_mode: "batch research runs",
   mcp_sampling: "server-initiated sampling",
 };
@@ -262,16 +260,5 @@ for (const g of ORDER) {
   out.push("");
   for (const t of inGroup) out.push(toolSection(t));
 }
-
-out.push(`## Known gap in this surface
-
-**The 8 \`team_*\` tools cannot be reached with an OAuth-authorized MCP token today.** They demand
-\`team:read\`/\`team:write\`, which exist in \`tokenService.TOKEN_SCOPES\`, but the OAuth code and refresh
-paths filter requested scopes through \`MCP_SCOPES\` in \`api/mcp/auth.ts\` (\`mcp:read\`, \`mcp:run\`,
-\`mcp:write\`) — and that OAuth path is the only thing in the repo that mints an access token
-\`/mcp\` will accept. Gate 4 can therefore never pass for them, independent of the \`teamsync\` flag.
-Recorded rather than patched: widening the scopes a third-party client may be granted is an
-authorization decision, not a documentation fix.
-`);
 
 process.stdout.write(out.join("\n"));

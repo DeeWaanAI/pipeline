@@ -1,42 +1,34 @@
 // ═══════════════════════════════════════════════════════════════════
 //  PLAN CATALOG (F0.7)
 // ═══════════════════════════════════════════════════════════════════
-// Stripe price IDs come from env; capability sets feed the entitlements
-// brain (F0.6). Adding a plan = add a row here + a Stripe price.
+// One flat monthly per-account subscription (owner decision 2026-09-22):
+// no tier ladder, no seats, no per-run fees — the user always pays for their
+// own LLM calls with their own keys (BYOK). The Stripe price ID comes from
+// env; `subscriptions` rows still record whatever plan string a live
+// subscription carries so webhook reconciliation keeps working.
+//
+// PLAN_CAPABILITIES used to live here and fed the entitlements brain; a plan
+// now grants no capability, so it is gone. `team_seat` (per-seat billing) is
+// gone with the team features.
 
 import { env } from "../lib/env";
 
-export type PlanId = "solo" | "team_seat";
+export type PlanId = "solo";
 
 export interface Plan {
   id: PlanId;
   name: string;
   interval: "month";
-  perSeat: boolean;
   priceId: string; // Stripe price id from env ("" when unconfigured)
 }
 
 export const PLANS: Record<PlanId, Plan> = {
   solo: {
     id: "solo",
-    name: "Solo",
+    name: "DeeWaanAI",
     interval: "month",
-    perSeat: false,
     priceId: env.stripePriceSolo,
   },
-  team_seat: {
-    id: "team_seat",
-    name: "Team Seat",
-    interval: "month",
-    perSeat: true,
-    priceId: env.stripePriceTeamSeat,
-  },
-};
-
-// Capabilities granted while a subscription on the plan is active/trialing
-export const PLAN_CAPABILITIES: Record<string, ReadonlySet<string>> = {
-  solo: new Set(["pipeline:fixed", "llm:1", "pipeline:custom", "llm:3", "pipeline:autodesign"]),
-  team_seat: new Set(["pipeline:fixed", "llm:1", "pipeline:custom", "llm:3", "pipeline:autodesign", "team:collaborate"]),
 };
 
 /** Public, secret-free plan listing for the pricing UI. */
@@ -45,7 +37,6 @@ export function listPublicPlans(): Array<Omit<Plan, "priceId"> & { available: bo
     id: p.id,
     name: p.name,
     interval: p.interval,
-    perSeat: p.perSeat,
     available: p.priceId.length > 0,
   }));
 }

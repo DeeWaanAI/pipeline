@@ -127,7 +127,7 @@ describe("set_default_model route validation", () => {
 
   it.each([null, 999, 20, 12])("does not guess when current provider is invalid (%s)", async (providerId) => {
     accounts[0].defaultProviderId = providerId;
-    await expect(save({ model: "exact-model" })).rejects.toThrow(/get_settings/);
+    await expect(save({ model: "exact-model" })).rejects.toThrow(/provider/i);
     expect(updates).toEqual([]);
   });
 

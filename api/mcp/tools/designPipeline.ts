@@ -1,14 +1,14 @@
 // MCP tool: design_pipeline — the auto designer. The user states an
 // objective; the platform's LLM designer generates the optimal pipeline
-// (agents + steps + template) into a freshly created project.
-// Gated by the pipeline:autodesign capability (top tier).
+// (agents + steps + template) into a freshly created project the caller owns.
+// Open to every signed-in account (no plan ladder, owner decision 2026-09-22);
+// the designer's LLM calls are billed on the caller's OWN provider.
 
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
 import { projects } from "@db/schema";
-import { can } from "../../services/entitlements";
 import { runAutoDesign } from "../../services/autoDesignService";
 import { isFeatureEnabled } from "../../plugins/featureFlags";
 
@@ -26,18 +26,12 @@ interface CreateMessageResultLike {
 export const designPipeline: McpTool = {
   name: "design_pipeline",
   description:
-    "Auto-design a pipeline from a plain-language objective: the platform designs the optimal agent chain (roles, prompts, if/while quality gates, human approvals), creates the project, agents, steps and a reusable template. Requires the auto-design tier. Uses your desktop app's own LLM when it supports MCP sampling, otherwise a configured LLM provider (Settings).",
+    "Auto-design a pipeline from a plain-language objective: the platform designs the optimal agent chain (roles, prompts, if/while quality gates, human approvals), creates the project, agents, steps and a reusable template. Available to every account. Uses your desktop app's own LLM when it supports MCP sampling, otherwise a configured LLM provider you own (Settings) — the calls are billed on your own key.",
   inputSchema,
   requiredScopes: ["mcp:write"],
   annotations: { readOnlyHint: false },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = inputSchema.parse(args);
-
-    if (!(await can(ctx.userId, "pipeline:autodesign"))) {
-      throw new Error(
-        "Auto-design requires the auto-design tier. Create the pipeline manually with create_pipeline, or upgrade the plan.",
-      );
-    }
 
     // Create the target project, then let the shared designer fill it.
     const db = getDb();

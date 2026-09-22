@@ -1,6 +1,11 @@
 // Shared v2 evaluation types (offering redesign spec §4/§6/§9). Leaf module:
 // no DB imports — safe for swarmService and the benchmark services alike.
 
+import { JUDGE_PROMPT_VARIANTS, type JudgePromptVariant } from "../../../contracts/offeringV2";
+
+export { JUDGE_PROMPT_VARIANTS };
+export type { JudgePromptVariant };
+
 /** One canonical pipeline step inside an immutable version snapshot. */
 export interface SnapshotStep {
   stepOrder: number;
@@ -47,6 +52,23 @@ export interface JudgeSpec {
   slot: number;
   providerId: number;
   model: string;
+  /** D12 prompt variant. OPTIONAL and deliberately NOT defaulted here: an
+   *  existing frozen plan without this key must keep validating and keep
+   *  hashing to the same planHash. When present it joins the hashed plan, so
+   *  two panels differing only in variants produce different approvals. */
+  variant?: JudgePromptVariant;
+}
+
+/** The distinct prompt variants a panel actually runs. Each judge grades each
+ *  output under EVERY listed variant (the 3×3 cross product of decision D12),
+ *  so a panel of 3 judges declaring 3 different variants produces 9 ratings
+ *  per output. A panel with no declared variants — every pre-D12 plan — is a
+ *  single-variant panel: `[undefined]` means "the original `judge-v1`
+ *  prompt", so the money rule holds and an untouched draft keeps quoting and
+ *  hashing exactly as before. */
+export function panelVariants(judges: Array<Pick<JudgeSpec, "variant">>): Array<JudgePromptVariant | undefined> {
+  const declared = [...new Set(judges.map((j) => j.variant))].filter((v): v is JudgePromptVariant => v !== undefined);
+  return declared.length ? declared : [undefined];
 }
 
 export interface CandidateSpec {
@@ -110,6 +132,10 @@ export interface CallCounts {
   stepsPerGeneration: number;
   generationCalls: number;
   judgingCalls: number;
+  /** D12: prompt variants each judge runs (the cross-product multiplier).
+   *  Absent, not 1, for pre-D12 panels: the counts object is hashed, and a
+   *  new field on an untouched plan would look like a plan edit. */
+  judgingPromptVariants?: number;
   /** Contract §9: generation calls are a SUM over candidates, so the quote
    *  shows what each condition contributes (the P5 cost table renders this). */
   generationPerCandidate: Array<{

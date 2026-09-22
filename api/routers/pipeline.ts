@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { pipelineSteps, customAgents, llmProviders, projects, teamMembers, teamProjects } from "@db/schema";
+import { pipelineSteps, customAgents, llmProviders, projects } from "@db/schema";
 import { eq, and, asc, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
@@ -86,35 +86,14 @@ export const pipelineRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const db = getDb();
 
-      // Check ownership OR team membership
+      // OWNER-ONLY read (team sharing was removed with ticket #26). The
+      // non-leaky "not found" wording is kept so probing ids tells nothing.
       const [project] = await db
-        .select()
+        .select({ userId: projects.userId })
         .from(projects)
         .where(eq(projects.id, input.projectId))
         .limit(1);
-      if (!project) throw new Error("Project not found");
-
-      // If not owner, check if project is shared with a team the user belongs to
-      if (project.userId !== ctx.user.id) {
-        const memberships = await db
-          .select({ teamId: teamMembers.teamId })
-          .from(teamMembers)
-          .where(eq(teamMembers.userId, ctx.user.id));
-        const teamIds = memberships.map((m) => m.teamId);
-        if (teamIds.length > 0) {
-          const shared = await db
-            .select()
-            .from(teamProjects)
-            .where(and(
-              eq(teamProjects.projectId, input.projectId),
-              inArray(teamProjects.teamId, teamIds),
-            ))
-            .limit(1);
-          if (shared.length === 0) throw new Error("Project not found");
-        } else {
-          throw new Error("Project not found");
-        }
-      }
+      if (!project || project.userId !== ctx.user.id) throw new Error("Project not found");
 
       const steps = await db
         .select()

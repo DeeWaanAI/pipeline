@@ -274,6 +274,79 @@ Plus the two pass-blocking usability items from the fix list: **F3 fixed** (prov
 default), **F4 fixed** (readable results). Neither has been re-observed from a real chat seat —
 see FIX INCREMENT 1's note on this session's `-32603` MCP binding.
 
+## LOCAL DB STATE before the D13 removals (2026-09-22, read-only `information_schema` + counts)
+
+Migrations 028/029/030 are confirmed applied in the local `swarm` DB by column and
+constraint, not by memory: `call_attempts.cost_basis`/`cost_pricing_as_of`;
+`marketplace_purchases.workflow_version_id`/`evidence_publication_id` with
+`fk_purchase_workflow_version` + `fk_purchase_evidence_publication`;
+`external_evidence_reports.publication_state` (`enum('draft','published','withdrawn')`
+NOT NULL) + `consent_version`/`preview_hash`/`published_at`/`withdrawn_at` +
+`fk_external_reports_workflow_version`.
+Row counts: 7 benchmarks, 23 runs, 28 judgments, 52 ledger attempts, 1 evidence
+publication, **0 purchases, 0 external reports, 0 teams, 0 team_seats, 0
+subscriptions, 0 entitlements**. So #26/#28 cannot destroy any local
+team/subscription row — there are none — and because the rule is "stop reading the
+columns, never drop them", the same change is non-destructive against a production
+database that may hold rows this session is not allowed to inspect.
+
+## D12 + D13 backend increment (2026-09-22/23)
+
+Two workstreams landed together because they share files (`benchmarkTools.ts`,
+`helpContent.ts`, `settings.ts`, the generated wiki). Both are the owner's
+decisions of 2026-09-22: **D12** the vendor-disjoint evidence panel, **D13**
+one flat subscription — no team features, no tier ladder.
+
+**D12 — a self-graded benchmark can no longer be published as evidence (closes finding 5).**
+`api/services/benchmark/judgePanel.ts` is the single source of the rule and its
+refusal text: exactly 3 judges from 3 different model **developers**, each on a
+different prompt variant (9 ratings per output), and no judge sharing a
+developer with any model that generated anything in the plan. Vendor comes from
+the admin-reviewed catalog's new `vendor` column (**migration 031**, one nullable
+`ADD COLUMN`, applied to the local `swarm` DB), never from `llm_providers` — one
+Together key serves many developers. Unknown vendor is disjoint from *nothing*:
+it can fill no slot and raises no collision. The gate is **wired structurally**
+at draft creation (`benchmarkService.ts:208`), at quote/approve/start as a
+`blockingError` (`:533`), and again at publication (`evidenceService.ts:186`) —
+not remembered per tool, which was finding 25's failure mode. A private
+evaluation may still run any panel; it simply cannot become evidence, and the
+reply says so. Variants are hash-committed (`planHash`) and version-stamped
+(`judge-v1:<variant>`), while a plan with no declared variants reproduces the
+**pre-D12 prompt byte-for-byte** under `judge-v1`, so existing judgments stay
+comparable — pinned literally in `judgeService.test.ts`.
+`ICC(3,1)/ICC(3,k)` (two-way mixed, absolute agreement) report nulls naming the
+degenerate condition. **The delegate's ICC(3,1) denominator was wrong**
+(`k·MSres` where the variance-components algebra gives `(k−1)·MSres`),
+understating reliability (0.894199 vs 0.922631 on the pinned 5×3 matrix); caught
+by re-deriving it from `sa/(sa+sb+se)`, fixed, and
+`judgePanelIcc.test.ts` now pins the statistic against its own definition rather
+than a sentence-count proxy.
+
+**D13 — the ladder and the team arm are gone from the code; the data is not touched.**
+`TIER_CAPABILITIES`/`PLAN_CAPABILITIES` deleted; `can()` and
+`resolveCapabilities()` now read **explicit grant rows only**, which is what
+purchases and reviewer grants are made of, so no bought right changed hands.
+The four real gates (IF/WHILE steps ×2, `design_pipeline`, `start_design_job`)
+are removed — removing a paid gate makes accounts more able, never less.
+`upgrade_tier` and the 8 `team_*` tools, the `team` router, `sharedMemory`, the
+team fixtures and the TeamSync smoke script are deleted; the checkout surface is
+`solo`-only. **Nothing was dropped from the database**: `teams`, `team_members`,
+`team_projects`, `team_seats`, the nullable `teamId` columns and the
+`users.tier`/`vouchers.tier` enums all remain, unread. `a12Leakage` gained the
+proof that matters: with the old membership rows still present, a former
+teammate is now told the run is **not visible to this account** — the removal
+fails closed rather than leaking through a stale join.
+`entitlements.test.ts` no longer pins matrices that don't exist; it pins the
+`pipeline:run:<listingId>` string format instead, because that string is written
+into rows that already exist. `voucher` redemption still writes a legacy tier
+value nothing reads — **open owner question**: what a purchased voucher buys
+under one flat subscription. Registered MCP tools: 74 → **65** (−8 team, −1
+upgrade), wiki regenerated from the live registry.
+
+Gates: `npm test` 474 pass / 4 fail = the documented `providerThrottle` baseline
+only; `npx tsc -b` clean outside `src/` (the frontend half of D13 lands
+separately); `node --check` on the wiki generator.
+
 ## Watchdog status
 The cron task `v2-phase-watchdog` is DISABLED (failure circuit, 3× `session-failed`) and its
 executionScope cwd was `app 25` — the frozen prod folder — while its instructions target this

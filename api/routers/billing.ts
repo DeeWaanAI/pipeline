@@ -2,10 +2,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { subscriptions, teams, teamMembers, teamSeats } from "@db/schema";
-import { eq, and, inArray, desc, sql } from "drizzle-orm";
+import { subscriptions } from "@db/schema";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { listPublicPlans } from "../config/plans";
-import { createCheckoutSession, createTeamSeatCheckoutSession, isBillingConfigured, BillingNotConfiguredError } from "../services/billingService";
+import { createCheckoutSession, isBillingConfigured, BillingNotConfiguredError } from "../services/billingService";
 import { getActiveEntitlements, resolveCapabilities } from "../services/entitlements";
 
 function billingUnavailable(): never {
@@ -37,10 +37,11 @@ export const billingRouter = createRouter({
 
   // Create a Stripe Checkout session; returns the hosted checkout URL.
   // success/cancel URLs are derived server-side from the request origin.
+  // One flat per-account subscription (owner decision 2026-09-22): there is no
+  // seat model and no ladder, so `solo` is the only plan that can be bought.
   createCheckout: authedQuery
     .input(z.object({
-      planId: z.enum(["solo", "team_seat"]),
-      seats: z.number().int().min(1).max(100).optional(),
+      planId: z.enum(["solo"]),
     }))
     .mutation(async ({ input, ctx }) => {
       if (!isBillingConfigured()) billingUnavailable();
@@ -49,7 +50,6 @@ export const billingRouter = createRouter({
         const { url } = await createCheckoutSession({
           userId: ctx.user.id,
           plan: input.planId,
-          seats: input.seats,
           successUrl: `${origin}/settings?checkout=success`,
           cancelUrl: `${origin}/settings?checkout=cancel`,
         });
@@ -58,84 +58,6 @@ export const billingRouter = createRouter({
         if (err instanceof BillingNotConfiguredError) billingUnavailable();
         throw err;
       }
-    }),
-
-  // Team seat checkout (Phase 2 TeamSync): owner-only; one subscription
-  // whose quantity equals the current member count.
-  createTeamCheckout: authedQuery
-    .input(z.object({
-      teamId: z.number().int().positive(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      if (!isBillingConfigured()) billingUnavailable();
-      const db = getDb();
-
-      const [team] = await db.select()
-        .from(teams)
-        .where(eq(teams.id, input.teamId))
-        .limit(1);
-      if (!team) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
-      }
-      if (team.ownerId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only the team owner can manage seat billing" });
-      }
-
-      const [countRow] = await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, input.teamId));
-      const seatCount = Math.max(1, Number(countRow?.count ?? 1));
-
-      const origin = requestOrigin(ctx.req);
-      try {
-        const { url } = await createTeamSeatCheckoutSession({
-          teamId: input.teamId,
-          userId: ctx.user.id,
-          seatCount,
-          successUrl: `${origin}/settings?checkout=success`,
-          cancelUrl: `${origin}/settings?checkout=cancel`,
-        });
-        return { checkoutUrl: url };
-      } catch (err) {
-        if (err instanceof BillingNotConfiguredError) billingUnavailable();
-        throw err;
-      }
-    }),
-
-  // Seat billing status for a team (any member can view).
-  teamSeatStatus: authedQuery
-    .input(z.object({
-      teamId: z.number().int().positive(),
-    }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-
-      const [membership] = await db.select()
-        .from(teamMembers)
-        .where(and(
-          eq(teamMembers.teamId, input.teamId),
-          eq(teamMembers.userId, ctx.user.id),
-        ))
-        .limit(1);
-      if (!membership) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Not a member of this team" });
-      }
-
-      const [seatRow] = await db.select()
-        .from(teamSeats)
-        .where(eq(teamSeats.teamId, input.teamId))
-        .limit(1);
-
-      const [countRow] = await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(teamMembers)
-        .where(eq(teamMembers.teamId, input.teamId));
-
-      return {
-        seats: seatRow?.seats ?? Math.max(1, Number(countRow?.count ?? 0)),
-        hasActiveSubscription: Boolean(seatRow?.stripeSubscriptionId),
-      };
     }),
 
   // Current user's active subscription + active entitlements

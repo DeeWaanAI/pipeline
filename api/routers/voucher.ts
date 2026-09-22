@@ -6,6 +6,11 @@ import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { logger } from "../lib/logger";
 
+// LEGACY (owner decision 2026-09-22, ticket #28): a redemption still writes
+// `users.tier` and `voucher_redemptions.tier`, but the tier ladder is gone and
+// nothing reads either value any more — api/services/entitlements.ts resolves
+// capabilities from explicit `entitlements` rows only. Kept as-is (no schema
+// change, no migration) so past redemption records stay intact.
 export const voucherRouter = createRouter({
   // Admin: generate a voucher code
   generate: adminQuery

@@ -4,7 +4,7 @@ import {
   pipelineConfigInputSchema,
   pipelineStepInputSchema,
   pipelineStepsInputSchema,
-  stepsRequireCustomTier,
+  stepsUseControlFlow,
 } from "./pipelineValidation";
 
 const agent = (over: Record<string, unknown> = {}) => ({
@@ -73,10 +73,10 @@ describe("pipelineStepsInputSchema", () => {
   });
 });
 
-describe("stepsRequireCustomTier", () => {
+describe("stepsUseControlFlow", () => {
   it("is false for sequential agent/approval chains", () => {
     expect(
-      stepsRequireCustomTier([
+      stepsUseControlFlow([
         pipelineStepInputSchema.parse(agent()),
         pipelineStepInputSchema.parse({ name: "Review", stepType: "approval" }),
       ]),
@@ -90,7 +90,7 @@ describe("stepsRequireCustomTier", () => {
         agent({ name: "G", stepType: "if", ifConfig: { options: ["pass"], mappings: { pass: 1 } } }),
       ),
     ];
-    expect(stepsRequireCustomTier(withIf)).toBe(true);
+    expect(stepsUseControlFlow(withIf)).toBe(true);
   });
 });
 

@@ -32,7 +32,6 @@ it("renders the MCP tools wiki from the registry", { skip: !process.env.MCP_TOOL
       group: h?.group ?? null,
       summary: h?.summary ?? null,
       example: h?.example ?? null,
-      capability: h?.capability ?? null,
       schema: JSON.parse(JSON.stringify(z.toJSONSchema(t.inputSchema as never, { io: "input" } as never))),
     };
   });

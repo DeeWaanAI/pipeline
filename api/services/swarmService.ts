@@ -260,8 +260,7 @@ const MAX_WHILE_ITERATIONS = 3; // Hard cap for WHILE loops regardless of DB con
  * For an ordinary run they hold a 200-char summary, which is what the owner's
  * history/debug screens read. On a PROTECTED run the same rows are written
  * under the BUYER's project — so a summary of the seller's system prompt would
- * be reachable by anyone entitled to read that run (export, history, team
- * views, debug). §8.1 forbids that, so nothing of the definition is persisted
+ * be reachable by anyone entitled to read that run (export, history, debug). §8.1 forbids that, so nothing of the definition is persisted
  * on a protected run at all: the columns record only that a step ran, with its
  * length. Redacting at the write beats filtering at every read, because a read
  * path added next month inherits the protection automatically.
@@ -461,8 +460,8 @@ async function executeAgentStep(opts: {
 
   try {
     logger.debug(`[STEP-TRACE] Step ${stepNum} resolving provider...`);
-    // Resolve provider: prefer the user's own provider, fall back if pipeline
-    // references another user's provider (e.g., team member running owner's pipeline)
+    // Resolve provider: always the CALLING user's own provider — a stored id
+    // that is not theirs is never used (they pay for their own calls, BYOK).
     if (!resolvedProviderId) {
       const [fp] = await db.select().from(llmProviders).where(eq(llmProviders.userId, ctx.user.id)).limit(1);
       if (!fp) throw new Error("No LLM provider configured. Add one in Settings first.");
@@ -476,8 +475,8 @@ async function executeAgentStep(opts: {
       .where(and(eq(llmProviders.id, resolvedProviderId), eq(llmProviders.userId, ctx.user.id)))
       .limit(1);
 
-    // If not found (e.g., team member running a shared pipeline with owner's providerId),
-    // fall back to the user's first available provider
+    // If not found (stale or foreign provider id), fall back to the calling
+    // user's own first available provider.
     if (!p) {
       logger.debug(`[STEP-TRACE] Provider ${resolvedProviderId} not found for user ${ctx.user.id}, falling back`);
       const [fp] = await db.select().from(llmProviders).where(eq(llmProviders.userId, ctx.user.id)).limit(1);

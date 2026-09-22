@@ -42,7 +42,7 @@ function consentInstructions(previewHash: string, workflowVersionId: number | st
 export const previewEvidenceTool: McpTool = {
   name: "preview_evidence",
   description:
-    "Build the public disclosure manifest for one of your completed benchmarks and hash it, WITHOUT publishing. This is the full §7.3 disclosure: tested version identity, every case (or a labelled withholding), the exact judging template, weights, every judgment including failures, all attempts, observed cost with unknowns as unknown, and the deterministic validators recorded as disabled. Also returns eligibilityIssues — what would stop a seller publication — and secretFindings.",
+    "Build the public disclosure manifest for one of your completed benchmarks and hash it, WITHOUT publishing. This is the full §7.3 disclosure: tested version identity, every case (or a labelled withholding), the exact judging template for EVERY prompt variant the panel ran, weights, every judgment including failures, all attempts, observed cost with unknowns as unknown, and the deterministic validators recorded as disabled. Also returns eligibilityIssues — what would stop a seller publication — secretFindings, and panelIssues: under decision D12 a panel that is not 3 judges from 3 different model developers × 3 prompt variants, disjoint from every generating model, cannot be published as evidence by EITHER boundary; its result stays a private evaluation.",
   inputSchema: previewInputSchema,
   requiredScopes: ["mcp:read"],
   featureFlag: "v2Publication",

@@ -1,21 +1,26 @@
 // Pure content builder for the deewaanai_help tool. No I/O — the tool
-// handler resolves capabilities/flags/settings and passes them in, so this
+// handler resolves what the caller owns/has enabled and passes it in, so this
 // module is unit-testable. The catalog mirrors the registered MCP tools;
 // buildHelp() filters it down to what the CALLER can actually use
-// (scopes + capabilities + feature flags) and adds situation-aware tips.
+// (scopes + feature flags) and adds situation-aware tips.
+//
+// There is no tier ladder (owner decision 2026-09-22): one flat monthly
+// subscription, 7-day trial from signup, bring your own LLM keys, no per-run
+// fees. So nothing here is gated on a plan, and there is no upsell copy to
+// generate — a tool is shown if the caller's scopes and the enabled feature
+// flags allow it.
 
 export interface HelpCatalogEntry {
   name: string;
-  group: "Discover" | "Run" | "Research" | "Author" | "Evaluate" | "Marketplace" | "Publish" | "Account" | "Your data" | "Team" | "Diagnostics";
+  group: "Discover" | "Run" | "Research" | "Author" | "Evaluate" | "Marketplace" | "Publish" | "Account" | "Your data" | "Diagnostics";
   summary: string;
   example?: string;
   scopes: string[];
-  capability?: string;
   flag?: string;
 }
 
 export interface BuildHelpInput {
-  tier: string;
+  /** What the account owns: unexpired entitlement rows (purchases, grants). */
   capabilities: string[];
   scopes: string[];
   /** flag key → enabled for this user */
@@ -32,56 +37,14 @@ export interface HelpSection {
 }
 
 export interface HelpContent {
-  tier: string;
   overview: string;
   sections: HelpSection[];
-  locked: HelpSection[];
-  upgradeCTA: string;
   tips: string[];
 }
 
 const GROUP_ORDER: HelpCatalogEntry["group"][] = [
-  "Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Publish", "Account", "Your data", "Team", "Diagnostics",
+  "Discover", "Run", "Research", "Author", "Evaluate", "Marketplace", "Publish", "Account", "Your data", "Diagnostics",
 ];
-
-// ─── Tier marketing copy (internal upsell) ─────────────────────────
-interface TierUpsell {
-  name: string;
-  unlocks: string[]; // capability strings
-  pitch: string[];   // human-readable value props
-}
-
-const TIER_UPSELL: Record<string, TierUpsell[]> = {
-  standard: [
-    {
-      name: "Pro Designer",
-      unlocks: ["pipeline:custom", "llm:3", "marketplace:publish"],
-      pitch: [
-        "IF/WHILE quality gates — loop back automatically until output passes quality checks",
-        "Up to 3 LLM providers per pipeline — mix GPT-4, Claude, DeepSeek in one chain",
-        "Publish your pipelines to the marketplace and earn from every purchase",
-      ],
-    },
-    {
-      name: "Pro Auto",
-      unlocks: ["pipeline:autodesign"],
-      pitch: [
-        "AI Auto-Designer — describe your goal in plain language, we build the optimal pipeline automatically",
-        "Everything in Pro Designer included",
-      ],
-    },
-  ],
-  pro_designer: [
-    {
-      name: "Pro Auto",
-      unlocks: ["pipeline:autodesign"],
-      pitch: [
-        "AI Auto-Designer — describe your goal in plain language, we build the optimal pipeline automatically",
-      ],
-    },
-  ],
-  pro_auto: [],
-};
 
 export const HELP_CATALOG: HelpCatalogEntry[] = [
   // ── Discover ────────────────────────────────────────────────────
@@ -146,7 +109,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   // ── Author ──────────────────────────────────────────────────────
   {
     name: "create_pipeline", group: "Author", scopes: ["mcp:write"],
-    summary: "Create a pipeline step by step: agents run in sequence; paid tiers add if/while quality gates that loop back until the output passes.",
+    summary: "Create a pipeline step by step: agents run in sequence, and if/while quality gates loop back until the output passes — every step type is open to every account.",
     example: "\"Create a pipeline that drafts a post, critiques it, and refines it until it passes.\"",
   },
   {
@@ -154,13 +117,13 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Edit a pipeline you own: rename, reorder steps, change prompts or gate settings.",
   },
   {
-    name: "design_pipeline", group: "Author", scopes: ["mcp:write"], capability: "pipeline:autodesign",
-    summary: "Auto-designer: state the objective in plain language and the platform generates the optimal pipeline (agents, prompts, quality gates, approvals) as a new project plus a reusable template.",
+    name: "design_pipeline", group: "Author", scopes: ["mcp:write"],
+    summary: "Auto-designer: state the objective in plain language and the platform generates the optimal pipeline (agents, prompts, quality gates, approvals) as a new project plus a reusable template. Included in your subscription — the LLM calls run on your own provider key.",
     example: "\"Design a pipeline that turns a product idea into a launch plan.\"",
   },
   {
-    name: "start_design_job", group: "Author", scopes: ["mcp:write"], capability: "pipeline:autodesign", flag: "v2DesignJobs",
-    summary: "Durable auto-design: queues the designer as a background job on your configured provider (no live session needed) and returns a job id. The candidate is retained as an immutable version — review and apply it deliberately; your project is never overwritten silently.",
+    name: "start_design_job", group: "Author", scopes: ["mcp:write"], flag: "v2DesignJobs",
+    summary: "Durable auto-design: queues the designer as a background job on your configured provider (no live session needed) and returns a job id. The candidate is retained as an immutable version — review and apply it deliberately; your project is never overwritten silently. Costs money on your own key, so it still goes quote → approve → start.",
     example: "\"Start a durable design job for: translate legal contracts from English to Arabic.\"",
   },
   {
@@ -220,7 +183,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   // ── Marketplace ─────────────────────────────────────────────────
   {
-    name: "publish_to_marketplace", group: "Marketplace", scopes: ["mcp:write"], capability: "marketplace:publish",
+    name: "publish_to_marketplace", group: "Marketplace", scopes: ["mcp:write"],
     summary: "Create a marketplace listing from a pipeline project. Sets price and description. The listing starts as a draft — call submit_for_review when ready.",
     example: "\"Publish my pipeline 'Contract Redliner' to the marketplace at $4.99.\"",
   },
@@ -340,11 +303,6 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   // ── Account ─────────────────────────────────────────────────────
   {
-    name: "upgrade_tier", group: "Account", scopes: ["mcp:read"],
-    summary: "Show your current tier, missing capabilities, and upgrade options with pricing and checkout links.",
-    example: "\"What tiers are available and how much do they cost?\"",
-  },
-  {
     name: "suggest_llm_providers", group: "Account", scopes: ["mcp:read"],
     summary: "Show a curated list of free, cheap, and local LLM providers with signup links and setup instructions. Start here if you don't have an API key yet.",
     example: "\"What free providers can I use?\"",
@@ -356,7 +314,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "get_settings", group: "Account", scopes: ["mcp:read"],
-    summary: "Show your tier, capabilities, configured LLM providers, and default model.",
+    summary: "Show what you own (purchased pipelines and other entitlements), configured LLM providers, and your default model.",
   },
   {
     name: "set_default_model", group: "Account", scopes: ["mcp:write"],
@@ -364,7 +322,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "deewaanai_help", group: "Account", scopes: ["mcp:read"],
-    summary: "This guide — tailored to your tier and connected app.",
+    summary: "This guide — filtered to your scopes, what you own, and the connected app.",
   },
   // ── Your data (Batch B — no lock-in) ────────────────────────────
   {
@@ -382,39 +340,6 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Push a pipeline export to your connected GitHub repo.",
     example: "\"Back up my pipeline to GitHub.\"",
   },
-  // ── Team (TeamSync flag) ────────────────────────────────────────
-  {
-    name: "team_context_get", group: "Team", scopes: ["team:read"], flag: "teamsync",
-    summary: "Read shared team context across connected desktop apps.",
-  },
-  {
-    name: "team_memory_append", group: "Team", scopes: ["team:write"], flag: "teamsync",
-    summary: "Append to shared team memory.",
-  },
-  {
-    name: "team_runs_list", group: "Team", scopes: ["team:read"], flag: "teamsync",
-    summary: "List runs shared with your team.",
-  },
-  {
-    name: "team_run_resume", group: "Team", scopes: ["team:write"], flag: "teamsync",
-    summary: "Resume a run handed off by another teammate or app.",
-  },
-  {
-    name: "team_handoff", group: "Team", scopes: ["team:write"], flag: "teamsync",
-    summary: "Hand off work to another teammate or connected app.",
-  },
-  {
-    name: "team_feedback_submit", group: "Team", scopes: ["team:write"], flag: "teamsync",
-    summary: "Submit structured feedback on a teammate's run.",
-  },
-  {
-    name: "team_skills_list", group: "Team", scopes: ["team:read"], flag: "teamsync",
-    summary: "List skills shared by your team.",
-  },
-  {
-    name: "team_skill_use", group: "Team", scopes: ["team:write"], flag: "teamsync",
-    summary: "Use a shared team skill.",
-  },
   // ── Diagnostics ─────────────────────────────────────────────────
   {
     name: "sample_ping", group: "Diagnostics", scopes: ["mcp:read"], flag: "mcp_sampling",
@@ -423,21 +348,15 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
 ];
 
 export function buildHelp(input: BuildHelpInput): HelpContent {
-  const caps = new Set(input.capabilities);
   const scopes = new Set(input.scopes);
 
+  // Nothing is capability-gated any more: a tool shows if the caller's scopes
+  // and the enabled feature flags allow it. `capabilities` is only what the
+  // account OWNS (purchases/grants), used for an informational tip below.
   const visible = HELP_CATALOG.filter((e) => {
     if (!e.scopes.every((s) => scopes.has(s))) return false;
-    if (e.capability && !caps.has(e.capability)) return false;
     if (e.flag && !input.flags[e.flag]) return false;
     return true;
-  });
-
-  const lockedTools = HELP_CATALOG.filter((e) => {
-    if (!e.scopes.every((s) => scopes.has(s))) return false;
-    if (e.flag && !input.flags[e.flag]) return false;
-    // Show as "locked" if the user has the scope but lacks the capability
-    return e.capability && !caps.has(e.capability);
   });
 
   const sections: HelpSection[] = [];
@@ -448,39 +367,16 @@ export function buildHelp(input: BuildHelpInput): HelpContent {
     if (tools.length > 0) sections.push({ group, tools });
   }
 
-  const locked: HelpSection[] = [];
-  if (lockedTools.length > 0) {
-    for (const group of GROUP_ORDER) {
-      const tools = lockedTools
-        .filter((e) => e.group === group)
-        .map(({ name, summary }) => ({ name, summary }));
-      if (tools.length > 0) locked.push({ group, tools });
-    }
-  }
-
   const tips: string[] = [];
-  const upsells = TIER_UPSELL[input.tier] ?? [];
 
-  if (upsells.length > 0) {
-    tips.push(
-      `Your current plan is ${input.tier}. Upgrade to unlock more:`,
-    );
-    for (const u of upsells) {
-      tips.push(`${u.name}: ${u.pitch.join("; ")}.`);
-    }
-    tips.push('Call upgrade_tier to see pricing and subscribe.');
-  } else {
-    tips.push("You're on the top tier — you have access to every feature.");
-  }
+  tips.push(
+    "One flat monthly subscription covers everything here — every step type, the auto designer and marketplace publishing. Your trial runs 7 days from signup, you bring your own LLM keys, and DeeWaanAI never charges per run: every provider call is billed by your own provider.",
+  );
 
-  if (!caps.has("pipeline:autodesign")) {
+  const owned = input.capabilities.filter((c) => c.startsWith("pipeline:run:"));
+  if (owned.length > 0) {
     tips.push(
-      "Auto-design (design_pipeline) is part of the top tier. On your current plan you can still build any pipeline manually with create_pipeline — describe the agents and steps and the assistant will create them.",
-    );
-  }
-  if (!caps.has("pipeline:custom")) {
-    tips.push(
-      "Your plan supports sequential pipelines (agents run one after another). If/while quality gates that loop until the output passes are available on higher tiers.",
+      `You own ${owned.length} purchased marketplace pipeline(s) — list_pipelines shows them under Purchased, and run_pipeline runs them on your own provider.`,
     );
   }
 
@@ -496,18 +392,13 @@ export function buildHelp(input: BuildHelpInput): HelpContent {
   }
 
   tips.push(
-    "Pipelines are agents run one after another. Depending on your tier, if/while gates can review an agent's output and loop back until it passes, and approval steps pause for your OK. The auto designer generates the optimal chain from a plain-language objective.",
+    "Pipelines are agents run one after another. if/while gates can review an agent's output and loop back until it passes, and approval steps pause for your OK. The auto designer generates the optimal chain from a plain-language objective.",
   );
 
   return {
-    tier: input.tier,
     overview:
       "DeeWaanAI lets you build and run multi-agent pipelines from this chat. Everything below is filtered to what your account and connected app can actually do.",
     sections,
-    locked,
-    upgradeCTA: upsells.length > 0
-      ? `You're on ${input.tier}. Call upgrade_tier to see plans and pricing.`
-      : "You're on the top tier — every feature is unlocked.",
     tips,
   };
 }

@@ -9,6 +9,7 @@ import { isFeatureEnabled } from "../plugins/featureFlags";
 import { desc, eq } from "drizzle-orm";
 import { benchmarks } from "@db/schema";
 import { getDb } from "../queries/connection";
+import { JudgePromptVariantSchema } from "../../contracts/offeringV2";
 import {
   approveBenchmarkSpend, cancelBenchmark, createBenchmarkDraft, getBenchmarkProgress,
   prepareCasesDraft, prepareRubricDraft, quoteBenchmark, resumeBenchmark, startBenchmark,
@@ -66,7 +67,7 @@ const draftCore = {
   /** Grade-only is the Test journey default (spec §4.1, A01). */
   executionMode: z.enum(["grade_only", "compare_models", "compare_frontier_solo"]).default("grade_only"),
   cases: z.array(caseSchema).min(1).max(50),
-  judges: z.array(z.object({ providerId: z.number().int().positive(), model: z.string().min(1).max(120) })).min(1).max(5),
+  judges: z.array(z.object({ providerId: z.number().int().positive(), model: z.string().min(1).max(120), variant: JudgePromptVariantSchema.optional() })).min(1).max(5),
   candidates: z.array(candidateSchema).max(4).optional(),
   generationRepeats: z.number().int().min(1).max(5).optional(),
   judgmentKind: z.enum(["rubric", "pairwise"]).optional(),
@@ -100,7 +101,7 @@ export const benchmarkRouter = createRouter({
           importedResponseId: z.number().int().positive().optional(),
           decoding: z.object({ temperature: z.number().optional(), maxTokens: z.number().optional() }),
         })).max(4),
-        judges: z.array(z.object({ slot: z.number().int().min(1), providerId: z.number().int().positive(), model: z.string().min(1).max(120) })).min(1).max(5),
+        judges: z.array(z.object({ slot: z.number().int().min(1), providerId: z.number().int().positive(), model: z.string().min(1).max(120), variant: JudgePromptVariantSchema.optional() })).min(1).max(5),
         rubric: rubricSchema,
         validators: z.array(validatorSchema).max(4).default([]),
         generationRepeats: z.number().int().min(1).max(5),

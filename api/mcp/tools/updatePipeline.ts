@@ -1,20 +1,20 @@
 // MCP tool: update_pipeline — modify settings and/or replace the step chain
-// of a project the caller OWNS (team members can run/view but not edit).
-// IF/WHILE steps require the pipeline:custom capability, same as create.
+// of a project the caller OWNS (owner-only edit is the real authorization
+// check here). IF/WHILE steps are open to every account, same as create:
+// there is no plan ladder (owner decision 2026-09-22).
 
 import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
 import { llmProviders, pipelineSteps, projects } from "@db/schema";
-import { can } from "../../services/entitlements";
 import { finalizePipelineCreation } from "../../services/pipelineCreationService";
 import { insertProjectSteps } from "./_shared";
 import {
   findWhileTargetErrors,
   pipelineConfigInputSchema,
   pipelineStepsInputSchema,
-  stepsRequireCustomTier,
+  stepsUseControlFlow,
 } from "./pipelineValidation";
 
 const inputSchema = z.object({
@@ -34,7 +34,7 @@ const inputSchema = z.object({
 export const updatePipeline: McpTool = {
   name: "update_pipeline",
   description:
-    "Update a pipeline project you own: rename, change description/default model/execution settings, and/or replace the whole step chain (existing steps are replaced atomically per call). IF/WHILE steps require the custom-pipeline tier. Use get_pipeline first to inspect current state.",
+    "Update a pipeline project you own: rename, change description/default model/execution settings, and/or replace the whole step chain (existing steps are replaced atomically per call). IF/WHILE control-flow steps are open to every account. Use get_pipeline first to inspect current state.",
   inputSchema,
   requiredScopes: ["mcp:write"],
   annotations: { readOnlyHint: false, destructiveHint: true },
@@ -53,12 +53,6 @@ export const updatePipeline: McpTool = {
     if (input.steps) {
       const targetErrors = findWhileTargetErrors(input.steps);
       if (targetErrors.length > 0) throw new Error(targetErrors.join("; "));
-
-      if (stepsRequireCustomTier(input.steps) && !(await can(ctx.userId, "pipeline:custom"))) {
-        throw new Error(
-          "IF/WHILE control-flow steps require the custom-pipeline tier. Keep the chain sequential, or upgrade the plan.",
-        );
-      }
     }
 
     // Settings patch (only provided fields)
@@ -114,7 +108,7 @@ export const updatePipeline: McpTool = {
       id: input.id,
       updated: Object.keys(patch),
       stepCount,
-      controlFlow: input.steps ? stepsRequireCustomTier(input.steps) : undefined,
+      controlFlow: input.steps ? stepsUseControlFlow(input.steps) : undefined,
     };
   },
 };

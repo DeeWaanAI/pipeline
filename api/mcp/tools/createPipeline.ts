@@ -1,20 +1,20 @@
 // MCP tool: create_pipeline — create a project with an optional full step
-// definition in one call. IF/WHILE steps require the pipeline:custom
-// capability (tier-gated); plain sequential agents are open to all tiers.
+// definition in one call. Every step type (agent / if / while / approval) is
+// open to every signed-in account: there is no plan ladder (owner decision
+// 2026-09-22). What IS enforced below is provider ownership.
 
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
 import { llmProviders, projects } from "@db/schema";
-import { can } from "../../services/entitlements";
 import { finalizePipelineCreation } from "../../services/pipelineCreationService";
 import { insertProjectSteps } from "./_shared";
 import {
   findWhileTargetErrors,
   pipelineConfigInputSchema,
   pipelineStepsInputSchema,
-  stepsRequireCustomTier,
+  stepsUseControlFlow,
 } from "./pipelineValidation";
 
 const inputSchema = z.object({
@@ -26,14 +26,14 @@ const inputSchema = z.object({
   ),
   pipelineConfig: pipelineConfigInputSchema.nullish().describe("Execution settings"),
   steps: pipelineStepsInputSchema.nullish().describe(
-    "Ordered agent chain. stepType agent/if/while/approval; if/while need the custom-pipeline tier.",
+    "Ordered agent chain. stepType agent/if/while/approval — every step type is available to every account.",
   ),
 });
 
 export const createPipeline: McpTool = {
   name: "create_pipeline",
   description:
-    "Create a new pipeline project: name, optional description/model/execution settings, and optionally a full ordered step chain (agents run sequentially; if/while control-flow steps require the custom-pipeline tier). Returns the new project id for run_pipeline.",
+    "Create a new pipeline project: name, optional description/model/execution settings, and optionally a full ordered step chain (agents run sequentially; if/while control-flow steps loop or branch until the output passes and are open to every account). Returns the new project id for run_pipeline.",
   inputSchema,
   requiredScopes: ["mcp:write"],
   annotations: { readOnlyHint: false },
@@ -43,12 +43,6 @@ export const createPipeline: McpTool = {
     if (input.steps) {
       const targetErrors = findWhileTargetErrors(input.steps);
       if (targetErrors.length > 0) throw new Error(targetErrors.join("; "));
-
-      if (stepsRequireCustomTier(input.steps) && !(await can(ctx.userId, "pipeline:custom"))) {
-        throw new Error(
-          "IF/WHILE control-flow steps require the custom-pipeline tier. Create the pipeline with sequential agent steps only, or upgrade the plan.",
-        );
-      }
     }
 
     const db = getDb();
@@ -100,7 +94,7 @@ export const createPipeline: McpTool = {
       id: project.id,
       name: project.name,
       stepCount: input.steps?.length ?? 0,
-      controlFlow: input.steps ? stepsRequireCustomTier(input.steps) : false,
+      controlFlow: input.steps ? stepsUseControlFlow(input.steps) : false,
       next: "Run it with run_pipeline, inspect with get_pipeline, adjust with update_pipeline.",
     };
   },

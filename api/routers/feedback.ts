@@ -10,8 +10,8 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { feedback, users, teamMembers, teamProjects } from "@db/schema";
-import { eq, desc, and, inArray, sql, or } from "drizzle-orm";
+import { feedback, users } from "@db/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { signScreenshotUrl } from "../lib/screenshotUrls";
 
 export const feedbackRouter = createRouter({
@@ -21,7 +21,6 @@ export const feedbackRouter = createRouter({
   submit: authedQuery
     .input(
       z.object({
-        teamId: z.number().optional(),
         projectId: z.number().optional(),
         targetType: z.enum(["message", "ui", "general"]).default("general"),
         targetMessageId: z.number().optional(),
@@ -46,30 +45,11 @@ export const feedbackRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
-      // Auto-detect team from projectId if not explicitly provided
-      let teamId = input.teamId || null;
-      if (!teamId && input.projectId) {
-        // Check if project is shared with any team the user belongs to
-        const memberships = await db
-          .select({ teamId: teamMembers.teamId })
-          .from(teamMembers)
-          .where(eq(teamMembers.userId, ctx.user.id));
-        const teamIds = memberships.map((m) => m.teamId);
-        if (teamIds.length > 0) {
-          const shared = await db
-            .select({ teamId: teamProjects.teamId })
-            .from(teamProjects)
-            .where(and(
-              eq(teamProjects.projectId, input.projectId),
-              inArray(teamProjects.teamId, teamIds),
-            ))
-            .limit(1);
-          if (shared.length > 0) teamId = shared[0].teamId;
-        }
-      }
-
+      // The team auto-detect arm is gone with ticket #26: `feedback.team_id`
+      // stays a nullable column (historical rows keep their value) but new
+      // submissions are attributed to the project and the submitting account.
       const [result] = await db.insert(feedback).values({
-        teamId,
+        teamId: null,
         projectId: input.projectId || null,
         userId: ctx.user.id,
         targetType: input.targetType,
@@ -83,7 +63,7 @@ export const feedbackRouter = createRouter({
         status: "new",
       });
 
-      return { id: result.insertId, success: true, teamId };
+      return { id: result.insertId, success: true };
     }),
 
   /**
@@ -119,51 +99,26 @@ export const feedbackRouter = createRouter({
     }),
 
   /**
-   * List feedback for a project or team.
-   * When filtering by teamId, also includes feedback for shared projects
-   * even if teamId was not explicitly set on the feedback record.
+   * List feedback for a project (or by status/type).
    */
   list: authedQuery
     .input(
       z.object({
         projectId: z.number().optional(),
-        teamId: z.number().optional(),
         status: z.enum(["new", "triaged", "in_progress", "resolved", "verified", "closed"]).optional(),
         feedbackType: z.enum(["bug", "suggestion", "praise", "confusion"]).optional(),
         limit: z.number().min(1).max(100).default(50),
         offset: z.number().min(0).default(0),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const db = getDb();
-
-      // Get shared project IDs for this team (for retroactive matching)
-      let sharedProjectIds: number[] = [];
-      if (input.teamId !== undefined) {
-        const shared = await db
-          .select({ projectId: teamProjects.projectId })
-          .from(teamProjects)
-          .where(eq(teamProjects.teamId, input.teamId));
-        sharedProjectIds = shared.map((s) => s.projectId);
-      }
 
       // Build WHERE conditions dynamically using proper SQL (no JS filtering)
       const whereConditions = [];
 
       if (input.projectId !== undefined) {
         whereConditions.push(eq(feedback.projectId, input.projectId));
-      }
-
-      if (input.teamId !== undefined) {
-        // Match by teamId, shared project, or current user's own feedback
-        const teamConditions: ReturnType<typeof eq>[] = [
-          eq(feedback.teamId, input.teamId),
-          eq(feedback.userId, ctx.user.id),
-        ];
-        if (sharedProjectIds.length > 0) {
-          teamConditions.push(inArray(feedback.projectId, sharedProjectIds));
-        }
-        whereConditions.push(or(...teamConditions));
       }
 
       if (input.status) {
@@ -244,11 +199,10 @@ export const feedbackRouter = createRouter({
   stats: authedQuery
     .input(
       z.object({
-        teamId: z.number().optional(),
         projectId: z.number().optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const db = getDb();
 
       // Build WHERE conditions using SQL (no full-table load)
@@ -256,25 +210,6 @@ export const feedbackRouter = createRouter({
 
       if (input.projectId !== undefined) {
         whereConditions.push(eq(feedback.projectId, input.projectId));
-      }
-
-      // Get shared project IDs for retroactive matching
-      let sharedProjectIds: number[] = [];
-      if (input.teamId !== undefined) {
-        const shared = await db
-          .select({ projectId: teamProjects.projectId })
-          .from(teamProjects)
-          .where(eq(teamProjects.teamId, input.teamId));
-        sharedProjectIds = shared.map((s) => s.projectId);
-
-        const teamConditions: ReturnType<typeof eq>[] = [
-          eq(feedback.teamId, input.teamId),
-          eq(feedback.userId, ctx.user.id),
-        ];
-        if (sharedProjectIds.length > 0) {
-          teamConditions.push(inArray(feedback.projectId, sharedProjectIds));
-        }
-        whereConditions.push(or(...teamConditions));
       }
 
       const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;

@@ -1,8 +1,12 @@
 // MCP tools: get_settings / set_default_model — account settings from the
 // desktop chat, so the user never has to open the web app for basics.
-// get_settings shows tier, capabilities, providers (never API keys), and
-// the default model; set_default_model saves an owned, enabled model/provider
-// route atomically, optionally updating that provider's default model too.
+// get_settings shows what you own (purchased pipelines / granted
+// entitlements), providers (never API keys), and the default model;
+// set_default_model saves an owned, enabled model/provider route atomically,
+// optionally updating that provider's default model too.
+//
+// There is no plan ladder: nothing here is an upsell, and a refusal to save a
+// model always names the missing provider route and how to add one.
 
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
@@ -13,7 +17,7 @@ import { resolveCapabilities } from "../../services/entitlements";
 
 async function settingsSnapshot(ctx: McpAuthContext) {
   const db = getDb();
-  const { capabilities, tier } = await resolveCapabilities(ctx.userId);
+  const { capabilities } = await resolveCapabilities(ctx.userId);
   const [user] = await db
     .select({ defaultModel: users.defaultModel, defaultProviderId: users.defaultProviderId })
     .from(users)
@@ -57,7 +61,8 @@ async function settingsSnapshot(ctx: McpAuthContext) {
   nextSteps.push("On your next intended provider call, if access is denied, confirm that this provider's key has access to the exact model, then explicitly choose an accessible model/provider pair. No model is silently substituted and no provider organization privacy settings are changed.");
 
   return {
-    tier,
+    // What this account owns: unexpired entitlement rows (purchased
+    // marketplace pipelines, manual grants). Not a plan — there is none.
     capabilities,
     defaultModel: user?.defaultModel ?? null,
     defaultProviderId: selected?.id ?? null,
@@ -79,7 +84,7 @@ async function settingsSnapshot(ctx: McpAuthContext) {
 export const getSettings: McpTool = {
   name: "get_settings",
   description:
-    "Show your DeeWaanAI settings: plan/tier, capabilities, owned providers (keys never shown), resolved default model and its account/provider/unset source, access warnings and next steps, and desktop sampling support.",
+    "Show your DeeWaanAI settings: what you own (purchased pipelines and other entitlements), owned providers (keys never shown), resolved default model and its account/provider/unset source, access warnings and next steps, and desktop sampling support.",
   inputSchema: z.object({}),
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
@@ -115,8 +120,12 @@ export const setDefaultModel: McpTool = {
         .for("update");
       if (!user) throw new Error("Account not found. Reconnect before updating settings.");
       const providerId = input.providerId ?? user.defaultProviderId;
+      // Every refusal below is a plain statement about the account's own
+      // provider routes. Nothing here is a plan pitch: with BYOK the only
+      // reason a model cannot be saved is that no enabled provider of yours
+      // serves it, and the fix is add_provider.
       if (providerId == null) {
-        throw new Error("No default provider is selected. Call get_settings, then supply an explicit providerId for an enabled provider you own; no provider will be guessed.");
+        throw new Error(`You have no enabled provider serving "${input.model}" — add one with add_provider, or call get_settings and supply an explicit providerId for a provider you own. Nothing is guessed.`);
       }
       const [owned] = await tx
         .select({ id: llmProviders.id, isEnabled: llmProviders.isEnabled })
@@ -125,10 +134,10 @@ export const setDefaultModel: McpTool = {
         .limit(1)
         .for("update");
       if (!owned) {
-        throw new Error("The supplied or selected provider is not one of your configured providers. Call get_settings and explicitly choose an enabled providerId you own.");
+        throw new Error(`The supplied or selected provider is not one of your configured providers, so nothing serves "${input.model}" yet. Call get_settings and choose an enabled providerId you own, or add one with add_provider.`);
       }
       if (owned.isEnabled !== true) {
-        throw new Error("The supplied or selected provider is disabled. Enable it in Settings or call get_settings and explicitly choose another enabled providerId you own.");
+        throw new Error(`The supplied or selected provider is disabled, so you have no enabled provider serving "${input.model}" yet. Enable it in Settings, choose another enabled providerId you own, or add one with add_provider.`);
       }
 
       await tx.update(users)

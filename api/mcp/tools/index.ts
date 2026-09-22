@@ -22,7 +22,6 @@ import { approveStep } from "./approveStep";
 import { projectContext } from "./projectContext";
 import { memoryGet, memoryAppend } from "./memory";
 import { searchMarketplace } from "./searchMarketplace";
-import { upgradeTier } from "./upgradeTier";
 import { enrollReviewer } from "./enrollReviewer";
 import { getNextReviewTask } from "./getNextReviewTask";
 import { submitReviewTask } from "./submitReviewTask";
@@ -33,11 +32,6 @@ import {
   myMarketplaceListings,
   myPurchases,
 } from "./marketplaceTools";
-import { teamContextGet, teamMemoryAppend } from "./team/teamContext";
-import { teamRunsList, teamRunResume } from "./team/teamRuns";
-import { teamHandoff } from "./team/teamHandoff";
-import { teamFeedbackSubmit } from "./team/teamFeedback";
-import { teamSkillsList, teamSkillUse } from "./team/teamSkills";
 import { exportPipeline, exportMyData, syncToGithub } from "./portability";
 import { exportRun } from "./exportRun";
 import { runBatch } from "./runBatch";
@@ -87,7 +81,6 @@ export const TOOLS: McpTool[] = [
   memoryGet,
   memoryAppend,
   searchMarketplace,
-  upgradeTier,
   enrollReviewer,
   getNextReviewTask,
   submitReviewTask,
@@ -107,14 +100,4 @@ export const TOOLS: McpTool[] = [
   batchStatus,
   resumeBatchTool,
   exportBatchResultsTool,
-  // Phase 2 — TeamSync (all featureFlag: "teamsync"; the server hides
-  // them from tools/list and rejects calls unless the flag is enabled).
-  teamContextGet,
-  teamMemoryAppend,
-  teamRunsList,
-  teamRunResume,
-  teamHandoff,
-  teamFeedbackSubmit,
-  teamSkillsList,
-  teamSkillUse,
 ];

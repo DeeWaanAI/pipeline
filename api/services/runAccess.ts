@@ -8,13 +8,17 @@
 // the BUYER's project, and an unguarded `debug.list(runId)` would show them to
 // anyone.
 //
-// The rule is the one `swarm.getPipeline` already used (owner, or a team the
-// project is shared with), stated in ONE place so the remaining surfaces cannot
-// each invent their own. Failures report "not found", never "forbidden", so a
-// caller cannot probe which ids exist.
+// The rule is stated in ONE place so the remaining surfaces cannot each invent
+// their own: a project (and its runs and responses) is visible to its OWNER
+// only. Team sharing was the second arm and was removed with the team features
+// (ticket #26); the marketplace purchase arm lives in
+// api/services/entitlementSync.ts + api/routers/marketplaceExecution.ts, which
+// authorize by entitlement (`pipeline:run:<listingId>`), not by project id.
+// Failures report "not found", never "forbidden", so a caller cannot probe
+// which ids exist.
 
-import { and, eq } from "drizzle-orm";
-import { agentResponses, projects, swarmRuns, teamMembers, teamProjects } from "@db/schema";
+import { eq } from "drizzle-orm";
+import { agentResponses, projects, swarmRuns } from "@db/schema";
 import { getDb } from "../queries/connection";
 
 export class NotVisibleError extends Error {
@@ -24,28 +28,19 @@ export class NotVisibleError extends Error {
   }
 }
 
-/** Same access rule as the pipeline editor: owner, or a team the project was
- *  shared with. No membership ⇒ no visibility, even for a known id. */
+/** Owner-only visibility. No ownership ⇒ no visibility, even for a known id. */
 export async function canAccessProject(userId: number, projectId: number): Promise<boolean> {
   const db = getDb();
   const [project] = await db.select({ userId: projects.userId }).from(projects)
     .where(eq(projects.id, projectId)).limit(1);
-  if (!project) return false;
-  if (project.userId === userId) return true;
-
-  const [shared] = await db.select({ id: teamProjects.id })
-    .from(teamProjects)
-    .innerJoin(teamMembers, eq(teamMembers.teamId, teamProjects.teamId))
-    .where(and(eq(teamProjects.projectId, projectId), eq(teamMembers.userId, userId)))
-    .limit(1);
-  return !!shared;
+  return !!project && project.userId === userId;
 }
 
 export async function assertProjectVisible(userId: number, projectId: number): Promise<void> {
   if (!(await canAccessProject(userId, projectId))) throw new NotVisibleError("project");
 }
 
-/** A run is visible to its owning user or to anyone who can see its project. */
+/** A run is visible to its owning user, or to the owner of its project. */
 export async function canAccessRun(userId: number, swarmRunId: number): Promise<boolean> {
   const db = getDb();
   const [run] = await db.select({

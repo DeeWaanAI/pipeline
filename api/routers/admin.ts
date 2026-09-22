@@ -42,7 +42,6 @@ export const adminRouter = createRouter({
         name: users.name,
         email: users.email,
         role: users.role,
-        tier: users.tier,
         createdAt: users.createdAt,
         lastSignInAt: users.lastSignInAt,
         projectCount: sql<number>`(SELECT COUNT(*) FROM projects WHERE projects.user_id = ${users.id})`,
@@ -85,18 +84,9 @@ export const adminRouter = createRouter({
       return { success: true };
     }),
 
-  setUserTier: adminQuery
-    .input(z.object({ userId: z.number(), tier: z.enum(["standard", "pro_designer", "pro_auto"]) }))
-    .mutation(async ({ input, ctx }) => {
-      await getDb().update(users).set({ tier: input.tier }).where(eq(users.id, input.userId));
-      logger.info("Admin: user tier changed", { targetUserId: input.userId, tier: input.tier });
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: "user.set_tier",
-        targetType: "user", targetId: input.userId,
-        detail: { tier: input.tier }, ip: ctx.remoteIp,
-      });
-      return { success: true };
-    }),
+  // NOTE: the old `setUserTier` mutation was removed with the tier ladder
+  // (owner decision 2026-09-22) — `users.tier` is legacy data that gates
+  // nothing, so there is no admin lever for it any more.
 
   // ─── Feedback Management (CRITICAL for beta testing) ───────────────
   listAllFeedback: adminQuery
@@ -184,11 +174,9 @@ export const adminRouter = createRouter({
     const [userStats] = await db.select({
       total: sql<number>`COUNT(*)`,
       active7d: sql<number>`COUNT(CASE WHEN last_sign_in_at > DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END)`,
-      byTier: sql<Record<string, number>>`JSON_OBJECT(
-        'standard', COUNT(CASE WHEN tier = 'standard' THEN 1 END),
-        'pro_designer', COUNT(CASE WHEN tier = 'pro_designer' THEN 1 END),
-        'pro_auto', COUNT(CASE WHEN tier = 'pro_auto' THEN 1 END)
-      )`,
+      // Per-tier counts were removed with the tier ladder (2026-09-22):
+      // `users.tier` is legacy data that gates nothing, so splitting the
+      // audience by it reports a distinction the product no longer makes.
     }).from(users);
 
     const [runStats] = await db.select({

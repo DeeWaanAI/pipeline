@@ -11,8 +11,8 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
-import { projects, teamMembers, teamProjects } from "@db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { projects } from "@db/schema";
+import { eq } from "drizzle-orm";
 /// <reference path="../../contracts/adm-zip.d.ts" />
 import { generateIntelligenceCard, findRelevantFiles } from "../services/projectIntelligence";
 import { syncProjectToGitee, fetchFilesFromGitee } from "../services/giteeSync";
@@ -49,27 +49,15 @@ function detectLanguage(filePath: string): string {
   return map[ext] || "unknown";
 }
 
-// Helper: check if user can access a project (owner or team member)
+// Helper: OWNER-ONLY project access (team sharing was removed with #26).
 async function canAccessProject(userId: number, projectId: number): Promise<boolean> {
   const db = getDb();
-  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!project) return false;
-  if (project.userId === userId) return true;
-
-  // Check team membership
-  const memberships = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, userId));
-  const teamIds = memberships.map((m) => m.teamId);
-  if (teamIds.length === 0) return false;
-
-  const shared = await db
-    .select()
-    .from(teamProjects)
-    .where(and(eq(teamProjects.projectId, projectId), inArray(teamProjects.teamId, teamIds)))
+  const [project] = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
     .limit(1);
-  return shared.length > 0;
+  return !!project && project.userId === userId;
 }
 
 export const projectImportRouter = createRouter({
@@ -241,7 +229,7 @@ export const projectImportRouter = createRouter({
    * Fetch file contents by path.
    * HYBRID ARCHITECTURE:
    *   1. Read from local disk (fastest, primary)
-   *   2. Fall back to Gitee (for team members / cross-device)
+   *   2. Fall back to Gitee (cross-device sync of your own project)
    *   3. Return whatever we found
    */
   fetchFileContents: authedQuery
@@ -414,7 +402,7 @@ export const projectImportRouter = createRouter({
   /**
    * Sync project files from Gitee to local disk.
    * Used when:
-   *   - A team member opens a shared project for the first time
+   *   - The owner opens their own project on a new device for the first time
    *   - A user logs in from a new computer (no local files)
    *   - Local files were deleted and need to be restored
    */

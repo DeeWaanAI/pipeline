@@ -446,14 +446,19 @@ describe("A12 leakage battery (DB-backed, real protected run through the engine)
     expect((run.runParams as { protectedRun?: unknown }).protectedRun).toBeTruthy();
   });
 
-  it("a teammate the container is shared with sees progress, not the definition", async () => {
+  it("a leftover team membership grants nothing now that team sharing is gone", async () => {
+    // The fixture still writes `teams`/`team_members`/`team_projects` rows,
+    // because the rule for the removal was to stop HONOURING them, not to
+    // delete anyone's data. This is the proof that a stale membership cannot
+    // reach another user's run — the access helpers are owner-only now, so the
+    // former teammate sees less than they used to, and sees nothing of A12's
+    // protected content in particular.
     const mate = caller(f.teammate);
-    const stats = JSON.stringify(await mate.debug.getRunStats({ swarmRunId: f.swarmRunId }));
-    expect(stats).not.toMatch(LEAK);
-    // Team visibility is not ownership: the run endpoints stay closed.
+    await expect(mate.debug.getRunStats({ swarmRunId: f.swarmRunId }))
+      .rejects.toThrow(/not visible to this account|not_found_or_not_authorized/);
     await expect(mate.export.exportRun({ runId: f.swarmRunId })).rejects.toThrow(/Run not found/);
-    // The seller's own project is not shared with anyone.
     await expect(mate.debug.getStats({ projectId: f.sellerProjectId })).rejects.toThrow(/not_found_or_not_authorized/);
+    await expect(mate.debug.getStats({ projectId: f.containerProjectId })).rejects.toThrow(/not_found_or_not_authorized/);
   });
 });
 

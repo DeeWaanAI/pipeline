@@ -27,21 +27,23 @@ import { logger } from "../../lib/logger";
 import { executeSwarmRun } from "../swarmService";
 import { resolveModelPricing, type PricingSource, type ResolvedPricing } from "./modelPricing";
 import {
-  VALIDATORS_DISABLED_REASON,
+  VALIDATORS_DISABLED_REASON, panelVariants,
   type BenchmarkCallPlan, type CallCounts, type CandidateSpec, type CaseSpec,
-  type JudgeSpec, type RubricSpec, type SnapshotStep, type ValidatorSpec, type VersionDefinition,
+  type JudgePromptVariant, type JudgeSpec, type RubricSpec, type SnapshotStep, type ValidatorSpec, type VersionDefinition,
 } from "./benchmarkTypes";
 import {
   computeCounts, expandDraftCandidates, hashPlan, planPreflightErrors,
   repeatsForCandidate, stepsPerGenerationForCandidate,
 } from "./benchmarkCallPlan";
+import { assessBenchmarkPanel, computeIcc, iccDesignNull } from "./judgePanel";
+import { resolveModelVendors } from "../modelCatalogService";
 import {
   captureVersionFromProject, createVersionRow, loadVersionDefinition, materializeOverrideVersion,
   snapshotStepsFromProject, stepResolutionsFromSnapshot, singleRouteOfSnapshot,
 } from "./versionService";
 import {
-  JUDGE_PROMPT_VERSION, buildPairwiseJudgePrompt, buildRubricJudgePrompt,
-  generateJudgeCall, parseAndValidatePairwiseVerdict, parseAndValidateRubricVerdict,
+  buildPairwiseJudgePrompt, buildRubricJudgePrompt,
+  generateJudgeCall, judgePromptVersionFor, parseAndValidatePairwiseVerdict, parseAndValidateRubricVerdict,
 } from "./judgeService";
 import { benchmarkLedgerTotals, costDisclosure, recordCallAttempt } from "./benchmarkLedger";
 
@@ -66,7 +68,7 @@ export interface CreateBenchmarkInput {
   /** Defaults to the Test journey's grade-only mode (spec §4.1, A01). */
   executionMode?: BenchmarkCallPlan["executionMode"];
   cases: Array<{ inputText: string; origin?: CaseSpec["origin"]; baseCaseId?: string; expectedOutput?: string }>;
-  judges: Array<{ providerId: number; model: string }>;
+  judges: Array<{ providerId: number; model: string; variant?: JudgePromptVariant }>;
   candidates?: Array<{
     label?: string; overrideModel?: string; overrideProviderId?: number;
     isFrontierSoloBaseline?: boolean; baselinePrompt?: string;
@@ -163,7 +165,12 @@ function toDraftPlan(input: CreateBenchmarkInput): DraftPlan {
       ...(c.baselinePrompt ? { baselinePrompt: c.baselinePrompt } : {}),
       decoding: {},
     })),
-    judges: input.judges.map((j, i) => ({ slot: i + 1, providerId: j.providerId, model: j.model })),
+    judges: input.judges.map((j, i) => ({
+      slot: i + 1, providerId: j.providerId, model: j.model,
+      // Only present when the owner declared one: an untouched draft must keep
+      // hashing to the planHash its approval was granted against.
+      ...(j.variant ? { variant: j.variant } : {}),
+    })),
     rubric: input.rubric ?? DEFAULT_RUBRIC,
     validators: [],
     generationRepeats,
@@ -190,7 +197,19 @@ export async function createBenchmarkDraft(input: CreateBenchmarkInput): Promise
   const importedIds = (input.candidates ?? []).map((c) => c.existingResponseId).filter((v): v is number => typeof v === "number");
   if (importedIds.length) await assertOwnedResponses(input.userId, importedIds);
 
+  // D12, creation end: a draft attached to a LISTING is being built as
+  // evidence, so its panel must be evidence-grade BEFORE anything is quoted
+  // or approved. An unattached draft is a private evaluation and may keep any
+  // panel — but its result then cannot be published as evidence, which the
+  // quote says out loud and publication re-checks structurally.
   const draft = toDraftPlan(input);
+  if (input.listingId) {
+    const steps = planNeedsSnapshot(draft) ? (await snapshotStepsFromProject(input.userId, input.projectId)).steps : [];
+    const panel = await assessBenchmarkPanel({ judges: draft.judges, candidates: expandDraftCandidates(draft.candidates) }, steps);
+    if (!panel.evidenceGrade) {
+      throw new Error(`panel_not_evidence_grade: ${panel.issues.join(" ")} — this draft is attached to listing ${input.listingId}, so it is being built as publishable evidence. Fix the panel to satisfy the rules above, or create the draft without a listing to keep it private.`);
+    }
+  }
   const [res] = await db.insert(benchmarks).values({
     ownerId: input.userId,
     listingId: input.listingId ?? null,
@@ -219,6 +238,17 @@ export async function updateBenchmarkDraft(opts: {
   ]);
   const imported = opts.draft.candidates.map((c) => c.importedResponseId).filter((v): v is number => typeof v === "number");
   if (imported.length) await assertOwnedResponses(opts.userId, imported);
+  // Same D12 creation gate on the edit path: a listing-attached draft cannot
+  // have its panel weakened into a non-evidence shape after the fact.
+  if (b.listingId) {
+    const steps = planNeedsSnapshot(opts.draft) && b.sourceProjectId
+      ? (await snapshotStepsFromProject(opts.userId, b.sourceProjectId)).steps
+      : [];
+    const panel = await assessBenchmarkPanel({ judges: opts.draft.judges, candidates: expandDraftCandidates(opts.draft.candidates) }, steps);
+    if (!panel.evidenceGrade) {
+      throw new Error(`panel_not_evidence_grade: ${panel.issues.join(" ")} — this draft is attached to listing ${b.listingId}, so it is being built as publishable evidence. Fix the panel to satisfy the rules above, or keep the evaluation off a listing.`);
+    }
+  }
   await db.update(benchmarks).set({ plan: JSON.stringify(opts.draft), executionMode: opts.draft.executionMode })
     .where(eq(benchmarks.id, b.id));
   return { ok: true, message: "draft updated" };
@@ -372,8 +402,7 @@ async function writeDraftPlan(
 
 export interface QuoteResult {
   planHash: string;
-  counts: BenchmarkCallPlan["counts"];
-  estimatedGenerationCostUsd: number | null;
+  counts: BenchmarkCallPlan["counts"];  estimatedGenerationCostUsd: number | null;
   estimatedJudgingCostUsd: number | null;
   estimatedTotalCostUsd: number | null;
   pricingStatus: "priced" | "unknown";
@@ -387,6 +416,16 @@ export interface QuoteResult {
   /** Non-empty means start will refuse; surfaced at quote time so the user
    *  fixes the plan before approving spend against it. */
   blockingErrors: string[];
+  /** D12 panel classification, stated rather than left for a publication
+   *  refusal to discover: `evidenceGrade:false` means this result is a
+   *  private evaluation that cannot be published as evidence. */
+  panel: {
+    evidenceGrade: boolean;
+    judges: number;
+    variants: number;
+    judgeVendors: Array<{ model: string; vendor: string | null }>;
+    issues: string[];
+  };
 }
 
 function priceCalls(
@@ -423,6 +462,9 @@ function countsForDraft(draft: DraftPlan, steps: SnapshotStep[]): CallCounts {
     caseCount: draft.cases.length,
     judgeCount: draft.judges.length,
     judgmentKind: draft.judgmentKind,
+    // D12: every judge grades every declared prompt variant, so the quoting
+    // count and the count the worker will actually judge are the SAME number.
+    variantCount: panelVariants(draft.judges).length,
     candidates: candidates.map((c) => ({
       stableCandidateId: c.stableCandidateId,
       strategy: c.strategy,
@@ -484,6 +526,18 @@ async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteRes
   }
 
   const blocking = planPreflightErrors(plan, steps);
+  // D12, quote end: the panel is classified against the reviewed catalog's
+  // vendor attribution. Listing-attached plans cannot proceed on a
+  // non-evidence panel (structural blocking); a private plan is quoted with
+  // the consequence stated in plain words, never silently.
+  const panel = await assessBenchmarkPanel(plan, steps);
+  if (!panel.evidenceGrade) {
+    if (b.listingId) {
+      blocking.push(`panel_not_evidence_grade: ${panel.issues.join(" ")} — this benchmark is attached to listing ${b.listingId}, so only an evidence-grade panel may be approved or started (D12).`);
+    } else {
+      warnings.push(`private-only panel (D12): ${panel.issues.join(" ")} This benchmark still runs as a PRIVATE evaluation — quote it, approve it, read it — but its result cannot be published as evidence.`);
+    }
+  }
   return {
     plan,
     planHash: hashPlan(plan),
@@ -499,6 +553,13 @@ async function buildQuote(userId: number, benchmarkId: number): Promise<QuoteRes
     })),
     warnings: [...blocking.map((e) => `PLAN BLOCKED: ${e}`), ...warnings],
     blockingErrors: blocking,
+    panel: {
+      evidenceGrade: panel.evidenceGrade,
+      judges: panel.judges,
+      variants: panel.variants,
+      judgeVendors: plan.judges.map((j) => ({ model: j.model, vendor: panel.vendorByModel[j.model] ?? null })),
+      issues: panel.issues,
+    },
   };
 }
 
@@ -948,53 +1009,62 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
   const caseById = new Map(cases.map((c) => [c.id, c]));
 
   if (plan.judgmentKind === "rubric" || plan.executionMode === "grade_only") {
+    // D12: every judge grades every declared prompt variant — the 3×3 cross
+    // product that makes 9 ratings per output. A pre-D12 panel has exactly one
+    // entry (`undefined` = the original judge-v1 prompt), so the loop below is
+    // the loop it always was and the quote's judgingCalls still equals reality.
+    const variants = panelVariants(plan.judges);
     for (const run of runs) {
       for (const judge of plan.judges) {
-        const dup = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
-          .where(and(eq(benchmarkJudgments.runId, run.id), eq(benchmarkJudgments.judgeSlot, judge.slot), eq(benchmarkJudgments.judgePromptVersion, JUDGE_PROMPT_VERSION)))
-          .limit(1);
-        if (dup.length) continue; // idempotent re-entry
-        const kase = caseById.get(run.caseId)!;
-        const prompt = buildRubricJudgePrompt({
-          taskInput: String(kase.inputText), candidateOutput: String(run.outputText ?? ""),
-          rubric: plan.rubric,
-          ...(kase.expectedOutput ? { referenceMaterial: String(kase.expectedOutput) } : {}),
-        });
-        const startedAt = new Date();
-        try {
-          const out = await generateJudgeCall({ judge, ownerId: b.ownerId, prompt });
-          const verdict = parseAndValidateRubricVerdict(out.content, plan.rubric);
-          const [res] = await db.insert(benchmarkJudgments).values({
-            benchmarkId, runId: run.id, judgeSlot: judge.slot,
-            rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: JUDGE_PROMPT_VERSION,
-            judgeModel: out.model, orientation: "none", kind: "rubric",
-            dimensionScores: verdict.dimensionScores ?? null,
-            normalizedAggregate: verdict.normalizedAggregate ?? null,
-            rationale: verdict.rationale ?? null,
-            status: verdict.status,
-            validationNotes: verdict.validationNotes ?? null,
+        for (const variant of variants) {
+          const promptVersion = judgePromptVersionFor(variant);
+          const dup = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
+            .where(and(eq(benchmarkJudgments.runId, run.id), eq(benchmarkJudgments.judgeSlot, judge.slot), eq(benchmarkJudgments.judgePromptVersion, promptVersion)))
+            .limit(1);
+          if (dup.length) continue; // idempotent re-entry
+          const kase = caseById.get(run.caseId)!;
+          const prompt = buildRubricJudgePrompt({
+            taskInput: String(kase.inputText), candidateOutput: String(run.outputText ?? ""),
+            rubric: plan.rubric,
+            ...(kase.expectedOutput ? { referenceMaterial: String(kase.expectedOutput) } : {}),
+            ...(variant ? { variant } : {}),
           });
-          await recordCallAttempt({
-            operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
-            purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
-            providerRefId: judge.providerId, requestedModel: judge.model, returnedModel: out.model,
-            outcome: "success", promptTokens: out.promptTokens, completionTokens: out.completionTokens,
-            startedAt, finishedAt: new Date(),
-          });
-        } catch (err) {
-          const msg = (err as Error).message || "";
-          const [res] = await db.insert(benchmarkJudgments).values({
-            benchmarkId, runId: run.id, judgeSlot: judge.slot,
-            rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: JUDGE_PROMPT_VERSION,
-            judgeModel: judge.model, orientation: "none", kind: "rubric", status: "failed",
-          });
-          await recordCallAttempt({
-            operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
-            purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
-            providerRefId: judge.providerId, requestedModel: judge.model,
-            outcome: /timeout|network|ECONN/i.test(msg) ? "uncertain" : "failed",
-            startedAt, finishedAt: new Date(), errorMessage: msg,
-          });
+          const startedAt = new Date();
+          try {
+            const out = await generateJudgeCall({ judge, ownerId: b.ownerId, prompt });
+            const verdict = parseAndValidateRubricVerdict(out.content, plan.rubric);
+            const [res] = await db.insert(benchmarkJudgments).values({
+              benchmarkId, runId: run.id, judgeSlot: judge.slot,
+              rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: promptVersion,
+              judgeModel: out.model, orientation: "none", kind: "rubric",
+              dimensionScores: verdict.dimensionScores ?? null,
+              normalizedAggregate: verdict.normalizedAggregate ?? null,
+              rationale: verdict.rationale ?? null,
+              status: verdict.status,
+              validationNotes: verdict.validationNotes ?? null,
+            });
+            await recordCallAttempt({
+              operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
+              purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
+              providerRefId: judge.providerId, requestedModel: judge.model, returnedModel: out.model,
+              outcome: "success", promptTokens: out.promptTokens, completionTokens: out.completionTokens,
+              startedAt, finishedAt: new Date(),
+            });
+          } catch (err) {
+            const msg = (err as Error).message || "";
+            const [res] = await db.insert(benchmarkJudgments).values({
+              benchmarkId, runId: run.id, judgeSlot: judge.slot,
+              rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: promptVersion,
+              judgeModel: judge.model, orientation: "none", kind: "rubric", status: "failed",
+            });
+            await recordCallAttempt({
+              operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
+              purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
+              providerRefId: judge.providerId, requestedModel: judge.model,
+              outcome: /timeout|network|ECONN/i.test(msg) ? "uncertain" : "failed",
+              startedAt, finishedAt: new Date(), errorMessage: msg,
+            });
+          }
         }
       }
     }
@@ -1020,58 +1090,111 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
     const ordered = [...pairRuns].sort((x, y) => (candById.get(x.candidateId)!.stableCandidateId < candById.get(y.candidateId)!.stableCandidateId ? -1 : 1));
     const [first, second] = ordered;
     for (const judge of plan.judges) {
+      // Orientation is fixed per (pair, slot) so a judge's variants see the
+      // same presentation order — the variant is the only thing being tested.
       const orientation = parseInt(sha256(`${first.id}:${second.id}:${judge.slot}`).slice(0, 4), 16) % 2 ? "ab" : "ba";
-      const dup = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
-        .where(and(eq(benchmarkJudgments.runAId, first.id), eq(benchmarkJudgments.runBId, second.id), eq(benchmarkJudgments.judgeSlot, judge.slot), eq(benchmarkJudgments.judgePromptVersion, JUDGE_PROMPT_VERSION)))
-        .limit(1);
-      if (dup.length) continue;
-      const kase = caseById.get(first.caseId)!;
-      const presentedA = orientation === "ab" ? first : second;
-      const presentedB = orientation === "ab" ? second : first;
-      const prompt = buildPairwiseJudgePrompt({ taskInput: String(kase.inputText), outputA: String(presentedA.outputText ?? ""), outputB: String(presentedB.outputText ?? ""), rubric: plan.rubric });
-      const startedAt = new Date();
-      try {
-        const out = await generateJudgeCall({ judge, ownerId: b.ownerId, prompt });
-        let verdict = parseAndValidatePairwiseVerdict(out.content);
-        if (orientation === "ba" && verdict.preference && verdict.preference !== "tie") {
-          verdict = { ...verdict, preference: verdict.preference === "a" ? "b" : "a" };
+      for (const variant of panelVariants(plan.judges)) {
+        const promptVersion = judgePromptVersionFor(variant);
+        const dup = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
+          .where(and(eq(benchmarkJudgments.runAId, first.id), eq(benchmarkJudgments.runBId, second.id), eq(benchmarkJudgments.judgeSlot, judge.slot), eq(benchmarkJudgments.judgePromptVersion, promptVersion)))
+          .limit(1);
+        if (dup.length) continue;
+        const kase = caseById.get(first.caseId)!;
+        const presentedA = orientation === "ab" ? first : second;
+        const presentedB = orientation === "ab" ? second : first;
+        const prompt = buildPairwiseJudgePrompt({
+          taskInput: String(kase.inputText), outputA: String(presentedA.outputText ?? ""), outputB: String(presentedB.outputText ?? ""),
+          rubric: plan.rubric,
+          ...(variant ? { variant } : {}),
+        });
+        const startedAt = new Date();
+        try {
+          const out = await generateJudgeCall({ judge, ownerId: b.ownerId, prompt });
+          let verdict = parseAndValidatePairwiseVerdict(out.content);
+          if (orientation === "ba" && verdict.preference && verdict.preference !== "tie") {
+            verdict = { ...verdict, preference: verdict.preference === "a" ? "b" : "a" };
+          }
+          const [res] = await db.insert(benchmarkJudgments).values({
+            benchmarkId, runAId: first.id, runBId: second.id, judgeSlot: judge.slot,
+            rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: promptVersion,
+            judgeModel: out.model, orientation, kind: "pairwise",
+            pairPreference: verdict.preference ?? null, rationale: verdict.rationale ?? null, status: verdict.status,
+          });
+          await recordCallAttempt({
+            operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
+            purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
+            providerRefId: judge.providerId, requestedModel: judge.model, returnedModel: out.model,
+            outcome: "success", promptTokens: out.promptTokens, completionTokens: out.completionTokens,
+            startedAt, finishedAt: new Date(),
+          });
+        } catch (err) {
+          // A failed pairwise call is still a spent call: it gets its own
+          // judgment row (status failed) plus its ledger attempt, so coverage
+          // and cost never silently disappear (spec §7.2, §9).
+          const msg = (err as Error).message || "";
+          const [res] = await db.insert(benchmarkJudgments).values({
+            benchmarkId, runAId: first.id, runBId: second.id, judgeSlot: judge.slot,
+            rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: promptVersion,
+            judgeModel: judge.model, orientation, kind: "pairwise", status: "failed",
+          });
+          await recordCallAttempt({
+            operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
+            purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
+            providerRefId: judge.providerId, requestedModel: judge.model,
+            outcome: /timeout|network|ECONN/i.test(msg) ? "uncertain" : "failed",
+            startedAt, finishedAt: new Date(), errorMessage: msg,
+          });
         }
-        const [res] = await db.insert(benchmarkJudgments).values({
-          benchmarkId, runAId: first.id, runBId: second.id, judgeSlot: judge.slot,
-          rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: JUDGE_PROMPT_VERSION,
-          judgeModel: out.model, orientation, kind: "pairwise",
-          pairPreference: verdict.preference ?? null, rationale: verdict.rationale ?? null, status: verdict.status,
-        });
-        await recordCallAttempt({
-          operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
-          purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
-          providerRefId: judge.providerId, requestedModel: judge.model, returnedModel: out.model,
-          outcome: "success", promptTokens: out.promptTokens, completionTokens: out.completionTokens,
-          startedAt, finishedAt: new Date(),
-        });
-      } catch (err) {
-        // A failed pairwise call is still a spent call: it gets its own
-        // judgment row (status failed) plus its ledger attempt, so coverage
-        // and cost never silently disappear (spec §7.2, §9).
-        const msg = (err as Error).message || "";
-        const [res] = await db.insert(benchmarkJudgments).values({
-          benchmarkId, runAId: first.id, runBId: second.id, judgeSlot: judge.slot,
-          rubricVersionRef: plan.rubric.versionRef, judgePromptVersion: JUDGE_PROMPT_VERSION,
-          judgeModel: judge.model, orientation, kind: "pairwise", status: "failed",
-        });
-        await recordCallAttempt({
-          operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
-          purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
-          providerRefId: judge.providerId, requestedModel: judge.model,
-          outcome: /timeout|network|ECONN/i.test(msg) ? "uncertain" : "failed",
-          startedAt, finishedAt: new Date(), errorMessage: msg,
-        });
       }
     }
   }
 }
 
 // ─── Summary (descriptive only) ─────────────────────────────────────
+
+/** Assemble the D12 ICC block: the design-level degeneracies the decision
+ *  names (fewer than 3 judges, a single vendor, vendor unattributable from
+ *  the catalog) are checked first, then `computeIcc` sees to the matrix
+ *  itself (fewer than 2 complete cases, an all-identical matrix). Every null
+ *  says which condition produced it; a degenerate design never gets a number. */
+async function iccDisclosure(
+  plan: BenchmarkCallPlan,
+  raterScores: Map<number, Map<string, number>>,
+) {
+  const variants = panelVariants(plan.judges);
+  const raterKeys = variants.flatMap((v) => plan.judges.map((j) => `${j.slot}|${judgePromptVersionFor(v)}`));
+  const design = {
+    rows: "cases (each completed candidate output graded by the whole panel)",
+    columns: "raters (judge slot × prompt variant)",
+    judges: plan.judges.length,
+    variants: variants.length,
+    plannedRaters: raterKeys.length,
+  };
+  const matrix = [...raterScores.values()]
+    .filter((row) => raterKeys.every((k) => row.has(k)))
+    .map((row) => raterKeys.map((k) => row.get(k)!));
+  const nullOut = (reason: string, usedRows = matrix.length) => ({
+    icc31SingleJudge: null,
+    icc3kPanelMean: null,
+    completeCaseRows: usedRows,
+    ratingColumns: raterKeys.length,
+    design,
+    note: `ICC not computed: ${reason}. No number is invented for a degenerate design.`,
+  });
+  const vendorsForIcc = await resolveModelVendors(plan.judges.map((j) => j.model));
+  const designNull = iccDesignNull(plan.judges.map((j) => vendorsForIcc[j.model] ?? null), plan.judges.length);
+  if (designNull) return nullOut(designNull);
+  const icc = computeIcc(matrix);
+  if (icc.nullReason) return nullOut(icc.nullReason, icc.usedRows);
+  return {
+    icc31SingleJudge: icc.icc31,
+    icc3kPanelMean: icc.icc3k,
+    completeCaseRows: icc.usedRows,
+    ratingColumns: icc.columns,
+    design,
+    note: `ICC(3,1) estimates the reliability of a single rater's rating and ICC(3,k) that of the panel mean (k = ${icc.columns} raters; ICC(3,9) on a full 3-judge × 3-variant panel), from a two-way mixed analysis of variance, absolute agreement, over the complete rows only. It is a reliability coefficient for THIS panel on THESE recorded cases: not a validity claim, not a measure of accuracy, and no inference is made beyond these cases.`,
+  };
+}
 
 export async function computeSummary(benchmarkId: number): Promise<Record<string, unknown>> {
   const db = getDb();
@@ -1106,11 +1229,17 @@ export async function computeSummary(benchmarkId: number): Promise<Record<string
   // is a description of these panel scores — not an inter-rater reliability
   // statistic, and no inference is drawn from it.
   const panels = new Map<number, number[]>();
+  // Per-run scores keyed by RATERS (slot × prompt-version), for the ICC matrix.
+  const raterScores = new Map<number, Map<string, number>>();
   for (const j of judgments) {
     if (j.kind !== "rubric" || j.status !== "completed" || j.runId == null) continue;
     const score = Number(j.normalizedAggregate);
     if (!Number.isFinite(score)) continue;
     panels.set(j.runId, [...(panels.get(j.runId) ?? []), score]);
+    const rater = `${j.judgeSlot}|${j.judgePromptVersion}`;
+    const row = raterScores.get(j.runId) ?? new Map<string, number>();
+    if (!row.has(rater)) row.set(rater, score); // unique index keeps one per rater; first wins defensively
+    raterScores.set(j.runId, row);
   }
   const fullPanels = [...panels.values()].filter((scores) => scores.length >= 2);
   const meanAbsDiff = fullPanels.length
@@ -1127,13 +1256,20 @@ export async function computeSummary(benchmarkId: number): Promise<Record<string
       ? Number(Math.max(...fullPanels.map((s) => Math.max(...s) - Math.min(...s))).toFixed(6))
       : null,
     note: "observed dispersion among the judges in this panel only; not an inter-rater reliability measure and not an inference about any model",
+    // D12: the inter-rater reliability statistic the thesis reports, as a
+    // SEPARATE additive computation next to the descriptive dispersion above.
+    // Matrix convention: ROWS = cases (each completed candidate output the
+    // whole panel graded), COLUMNS = raters (judge slot × prompt variant —
+    // 9 columns for a full 3×3 D12 panel). Degenerate designs produce null
+    // with the condition named, never a number.
+    icc: await iccDisclosure(plan, raterScores),
   };
 
   const summary: Record<string, unknown> = {
     descriptiveOnly: true,
     executionMode: plan.executionMode,
     rubric: plan.rubric.versionRef,
-    judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model })),
+    judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model, ...(j.variant ? { variant: j.variant } : {}) })),
     // Disclosed, not omitted: no deterministic validation ran, and why (§7.1).
     validators: {
       enabled: (plan.validators ?? []).filter((v) => (v as { enabled?: boolean }).enabled).length,
@@ -1179,7 +1315,10 @@ function expectedJudgmentCount(
   runs: Array<{ status: string; caseId: number; replicationIndex: number | null }>,
 ): number {
   const completed = runs.filter((r) => r.status === "completed");
-  const J = Math.max(plan.judges.length, 1);
+  // D12: a rater is a (judge slot × prompt variant) pair, exactly the unit the
+  // quote multiplied by, so "planned judgments" means the same thing here and
+  // in counts.judgingCalls (the money rule).
+  const J = Math.max(plan.judges.length, 1) * panelVariants(plan.judges).length;
   if (plan.judgmentKind !== "pairwise") return completed.length * J;
   const paired = new Set(pairedRepeatsOf(plan));
   const perPair = new Map<string, number>();
@@ -1268,7 +1407,7 @@ export async function getBenchmarkProgress(opts: {
       planHash: b.planHash, executionMode: plan.executionMode, judgmentKind: plan.judgmentKind,
       cases: plan.cases.length, candidates: plan.candidates.length,
       generationRepeats: plan.generationRepeats,
-      judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model })),
+      judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model, ...(j.variant ? { variant: j.variant } : {}) })),
       rubric: plan.rubric.versionRef,
       plannedCalls: { generation: plan.counts.generationCalls, judging: plan.counts.judgingCalls },
     } : null,

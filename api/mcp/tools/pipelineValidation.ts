@@ -7,7 +7,7 @@ import { z } from "zod";
 export const STEP_TYPES = ["agent", "if", "while", "approval"] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
-/** Step types that require the pipeline:custom capability (tier-gated). */
+/** Step types needing an extra config object (IF/WHILE control flow). */
 export const CONTROL_FLOW_TYPES: ReadonlySet<string> = new Set(["if", "while"]);
 
 export const MAX_STEPS = 20;
@@ -64,8 +64,8 @@ export const pipelineConfigInputSchema = z.object({
   stopOnNoImprovement: z.boolean().optional(),
 });
 
-/** True when any step needs the pipeline:custom capability (IF/WHILE). */
-export function stepsRequireCustomTier(steps: PipelineStepInput[]): boolean {
+/** True when any step is IF/WHILE control flow (open to every account). */
+export function stepsUseControlFlow(steps: PipelineStepInput[]): boolean {
   return steps.some((s) => CONTROL_FLOW_TYPES.has(s.stepType));
 }
 

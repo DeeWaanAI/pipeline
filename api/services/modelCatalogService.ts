@@ -49,6 +49,10 @@ export async function recordCatalogModel(actorId: number, entry: {
   provider: string;
   modelId: string;
   family?: string | null;
+  /** D12: the model's DEVELOPER ("deepseek", "meta", "zhipu", …), not the
+   *  hosting account. Reviewer-filled like everything else here; NULL stays
+   *  "unknown", and unknown counts as disjoint from nothing at the gate. */
+  vendor?: string | null;
   successorOfModelId?: string | null;
   sourceUrl?: string | null;
   availableAt?: Date | null;
@@ -72,6 +76,7 @@ export async function recordCatalogModel(actorId: number, entry: {
     .where(and(eq(modelCatalog.provider, provider), eq(modelCatalog.modelId, modelId))).limit(1);
   const fields = {
     family: entry.family?.trim() || null,
+    vendor: entry.vendor?.trim().toLowerCase() || null,
     successorOfModelId: entry.successorOfModelId?.trim() || null,
     availabilitySource: "admin_reviewed" as const,
     sourceUrl: entry.sourceUrl?.trim() || null,
@@ -291,9 +296,43 @@ export async function markModelDeprecated(actorId: number, catalogId: number, de
   return { ok: true, executionDisabled: false };
 }
 
-/** Seller/buyer-facing freshness read for a published listing's current version. */
-export async function modelFreshnessForListing(listingId: number) {
+/**
+ * D12 vendor attribution: the model's DEVELOPER, read from the admin-reviewed
+ * catalog — never from `llmProviders` (that is a serving account: one Together
+ * key serves DeepSeek, Meta and Zhipu models side by side) and never from a
+ * name substring, for the same reason §12.1 forbids guessed lineage.
+ *
+ * A model with no catalog row, no recorded vendor, or rows that DISAGREE on
+ * the vendor resolves to `null` = unknown. Unknown is not "safe to assume
+ * distinct": at the evidence-panel gate it counts as disjoint from nothing,
+ * so it can never fill a panel slot — and it never collides with another
+ * model either. Exact id match, then case-insensitive, mirroring the
+ * pricing lookup: deliberately not fuzzy, a sibling model's developer is a
+ * wrong answer, not a close one.
+ */
+export async function resolveModelVendors(models: string[]): Promise<Record<string, string | null>> {
+  const unique = [...new Set(models.map((m) => m.trim()).filter(Boolean))];
+  if (!unique.length) return {};
   const db = getDb();
+  const rows = await db.select({ modelId: modelCatalog.modelId, vendor: modelCatalog.vendor }).from(modelCatalog);
+  const vendorByLowerModel = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!row.vendor) continue;
+    const key = row.modelId.toLowerCase();
+    if (!vendorByLowerModel.has(key)) vendorByLowerModel.set(key, new Set());
+    vendorByLowerModel.get(key)!.add(row.vendor.trim().toLowerCase());
+  }
+  const out: Record<string, string | null> = {};
+  for (const model of unique) {
+    const vendors = vendorByLowerModel.get(model.toLowerCase());
+    // Two catalogued rows disagreeing on the developer is "unknown", not a coin flip.
+    out[model] = vendors && vendors.size === 1 ? [...vendors][0] : null;
+  }
+  return out;
+}
+
+/** Seller/buyer-facing freshness read for a published listing's current version. */
+export async function modelFreshnessForListing(listingId: number) {  const db = getDb();
   const [publication] = await db.select({
     manifest: evidencePublications.publicManifest, testedAt: evidencePublications.testedAt, id: evidencePublications.id,
   }).from(evidencePublications)

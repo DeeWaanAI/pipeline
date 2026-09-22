@@ -100,6 +100,39 @@ describe("call-plan arithmetic (spec §9, A08)", () => {
     expect(stepsPerGenerationForCandidate(candidate({ strategy: "solo_baseline" }), FIVE_STEPS)).toBe(1);
     expect(stepsPerGenerationForCandidate(candidate(), FIVE_STEPS)).toBe(5);
   });
+
+  it("D12: a 3-judge × 3-variant panel is the cross product — 9 ratings per output, quoted as such", () => {
+    const counts = computeCounts({
+      caseCount: 3, judgeCount: 3, judgmentKind: "rubric", variantCount: 3,
+      candidates: [
+        { stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+        { stableCandidateId: "y", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+      ],
+    });
+    expect(counts.judgingCalls).toBe(54); // C × M × R × J × V = 3 × 2 × 1 × 9
+    expect(counts.judgingPromptVariants).toBe(3);
+    expect(counts.generationCalls).toBe(30); // generation is untouched by the panel
+  });
+
+  it("D12: pairwise judging multiplies by the variant count too, and omits the field when V=1", () => {
+    const withVariants = computeCounts({
+      caseCount: 3, judgeCount: 3, judgmentKind: "pairwise", variantCount: 3,
+      candidates: [
+        { stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+        { stableCandidateId: "y", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+      ],
+      pairedRepeatCount: 1, pairCount: 1, orientationCount: 1,
+    });
+    expect(withVariants.judgingCalls).toBe(27); // C × PR × P × J × O × V
+    const legacy = computeCounts({
+      caseCount: 3, judgeCount: 3, judgmentKind: "rubric",
+      candidates: [{ stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 }],
+    });
+    // A panel without variants has NO new key in counts at all: untouched
+    // drafts keep hashing to the planHash their spend approval was signed for.
+    expect(legacy).not.toHaveProperty("judgingPromptVariants");
+    expect(legacy.judgingCalls).toBe(9);
+  });
 });
 
 describe("plan hashing (A06)", () => {
@@ -123,6 +156,41 @@ describe("plan hashing (A06)", () => {
     expect(hashPlan(plan({ limits: { ...base.limits, maxConcurrency: 5 } }))).not.toBe(hashPlan(base));
     // A workflow edit that changes the call count invalidates the quote too.
     expect(hashPlan(plan({ counts: { ...base.counts, generationCalls: 36 } }))).not.toBe(hashPlan(base));
+  });
+
+  it("D12: prompt variants join the hash — panels differing only in variants need separate approvals", () => {
+    const base = plan(); // no variants declared
+    const withVariants = plan({
+      judges: [
+        { slot: 1, providerId: 1, model: "judge-1", variant: "anchored_scale" },
+        { slot: 2, providerId: 2, model: "judge-2", variant: "comment_first" },
+        { slot: 3, providerId: 3, model: "judge-3", variant: "checklist_first" },
+      ],
+      counts: computeCounts({
+        caseCount: 3, judgeCount: 3, judgmentKind: "rubric", variantCount: 3,
+        candidates: [
+          { stableCandidateId: "x", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+          { stableCandidateId: "y", strategy: "pipeline", repeats: 1, stepsPerGeneration: 5 },
+        ],
+      }),
+    });
+    const reshuffled = JSON.parse(JSON.stringify(withVariants)) as typeof withVariants;
+    reshuffled.judges = reshuffled.judges.map((j) => ({ ...j, variant: j.slot === 1 ? "comment_first" : j.slot === 2 ? "anchored_scale" : "checklist_first" }) as typeof j);
+    expect(hashPlan(withVariants)).not.toBe(hashPlan(base));
+    // which judge carries WHICH variant is committed, not just that variants exist
+    expect(hashPlan(reshuffled)).not.toBe(hashPlan(withVariants));
+    // key ORDER inside a judge entry must not matter (stable stringify)
+    const reordered = plan({ judges: [{ providerId: 1, variant: "anchored_scale", slot: 1, model: "judge-1" }, ...base.judges.slice(1)] as typeof base.judges, candidates: base.candidates });
+    expect(hashPlan({ ...plan(), judges: [{ slot: 1, providerId: 1, model: "judge-1", variant: "anchored_scale" }, ...plan().judges.slice(1)] })).toBe(hashPlan(reordered));
+  });
+
+  it("a pre-D12 stored plan with no variant key still loads, hashes and preflights unchanged", () => {
+    // Exactly the JSON that was frozen before D12: judges are {slot, providerId, model}.
+    const stored = JSON.stringify(plan());
+    const loaded = JSON.parse(stored) as BenchmarkCallPlan;
+    expect(planPreflightErrors(loaded, FIVE_STEPS)).toEqual([]);
+    expect(hashPlan(loaded)).toBe(hashPlan(plan()));
+    expect(loaded.judges.every((j) => j.variant === undefined)).toBe(true);
   });
 
   it("expands an empty draft candidate list the same way quote and start do", () => {
@@ -181,5 +249,14 @@ describe("plan preflight (spec §5.1/§9)", () => {
     expect(planPreflightErrors(plan({ candidates: [candidate({ stableCandidateId: "dup" }), candidate({ stableCandidateId: "dup" })] }), FIVE_STEPS).join("\n")).toContain("duplicate stable candidate");
     const badWeights = { ...RUBRIC, dimensions: RUBRIC.dimensions.map((d) => ({ ...d, weight: 0.3 })), normalizedWeights: [0.3, 0.3] };
     expect(planPreflightErrors(plan({ rubric: badWeights }), FIVE_STEPS).join("\n")).toContain("sum to 1");
+  });
+
+  it("D12: rejects a duplicated judge slot and a variant outside the closed enum (a plan re-read from the DB is not trusted)", () => {
+    const dupSlot = plan({ judges: [JUDGES[0], JUDGES[1], { ...JUDGES[2], slot: 2 }] });
+    expect(planPreflightErrors(dupSlot, FIVE_STEPS).join("\n")).toContain("judge slots must be distinct");
+    const junkVariant = plan({ judges: [{ ...JUDGES[0], variant: "make_my_answer_win" } as (typeof JUDGES)[0], JUDGES[1], JUDGES[2]] });
+    const errs = planPreflightErrors(junkVariant, FIVE_STEPS).join("\n");
+    expect(errs).toContain('unknown prompt variant "make_my_answer_win"');
+    expect(errs).toContain("anchored_scale, comment_first, checklist_first");
   });
 });

@@ -1,33 +1,22 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { projects, teamMembers, teamProjects } from "@db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { projects } from "@db/schema";
+import { eq, and } from "drizzle-orm";
 import * as giteeService from "../services/giteeService";
 import { TRPCError } from "@trpc/server";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { logger } from "../lib/logger";
 
-// Helper: check if user can access a project (owner or team member)
+// Helper: OWNER-ONLY project access (team sharing was removed with #26).
 async function canAccessProject(userId: number, projectId: number): Promise<boolean> {
   const db = getDb();
-  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!project) return false;
-  if (project.userId === userId) return true;
-
-  const memberships = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, userId));
-  const teamIds = memberships.map((m) => m.teamId);
-  if (teamIds.length === 0) return false;
-
-  const shared = await db
-    .select()
-    .from(teamProjects)
-    .where(and(eq(teamProjects.projectId, projectId), inArray(teamProjects.teamId, teamIds)))
+  const [project] = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
     .limit(1);
-  return shared.length > 0;
+  return !!project && project.userId === userId;
 }
 
 export const giteeRouter = createRouter({

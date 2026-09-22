@@ -1,11 +1,12 @@
 // Shared helpers for MCP tools: project access checks + output compaction.
-// canAccessProject mirrors api/routers/swarm.ts (owner OR team member via a
-// single teamMembers⨯teamProjects join). MCP tokens are bearer credentials, so
-// every tool must call this BEFORE returning any data.
+// canAccessProject is OWNER-ONLY: team sharing was removed (ticket #26), so a
+// project is reachable by the account that owns it and by nobody else. MCP
+// tokens are bearer credentials, so every tool must call this BEFORE
+// returning any data.
 
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "../../queries/connection";
-import { projects, pipelineSteps, teamMembers, teamProjects } from "@db/schema";
+import { projects, pipelineSteps } from "@db/schema";
 import type { PipelineStepInput } from "./pipelineValidation";
 
 /** Insert validated steps as pipeline_steps rows (stepOrder = 1-based index). */
@@ -33,24 +34,15 @@ export async function insertProjectSteps(
   }
 }
 
-/** Owner or team-member access to a project. */
+/** Owner-only access to a project. */
 export async function canAccessProject(userId: number, projectId: number): Promise<boolean> {
   const db = getDb();
-  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!project) return false;
-  if (project.userId === userId) return true;
-
-  const [teamAccess] = await db
-    .select({ id: teamMembers.userId })
-    .from(teamMembers)
-    .innerJoin(teamProjects, eq(teamProjects.teamId, teamMembers.teamId))
-    .where(and(
-      eq(teamMembers.userId, userId),
-      eq(teamProjects.projectId, projectId),
-    ))
+  const [project] = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
     .limit(1);
-
-  return !!teamAccess;
+  return !!project && project.userId === userId;
 }
 
 /** Throw a uniform, non-leaky error when access is denied. */

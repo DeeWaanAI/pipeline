@@ -4,7 +4,6 @@ import { getDb } from "../queries/connection";
 import {
   swarmRuns, agentResponses, agents, llmProviders,
   projects,
-  teamMembers, teamProjects, approvalAssignments,
 } from "@db/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { ExecuteSwarmSchema, ApproveStepSchema, AutoDesignSchema } from "@contracts/index";
@@ -30,26 +29,15 @@ import { checkRateLimitAsync, RATE_LIMITS } from "../lib/rateLimiter";
 //  tRPC return shapes are unchanged; progress still streams via SSE.
 // ═══════════════════════════════════════════════════════════════════
 
-// Helper: check if user can access a project (owner or team member)
+// Helper: OWNER-ONLY project access (team sharing was removed with #26).
 async function canAccessProject(userId: number, projectId: number): Promise<boolean> {
   const db = getDb();
-  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!project) return false;
-  if (project.userId === userId) return true;
-
-  // Single JOIN query: check team membership + project sharing in one step
-  // (replaces 2 separate queries for teamMembers + teamProjects)
-  const [teamAccess] = await db
-    .select({ id: teamMembers.userId })
-    .from(teamMembers)
-    .innerJoin(teamProjects, eq(teamProjects.teamId, teamMembers.teamId))
-    .where(and(
-      eq(teamMembers.userId, userId),
-      eq(teamProjects.projectId, projectId),
-    ))
+  const [project] = await db
+    .select({ userId: projects.userId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
     .limit(1);
-
-  return !!teamAccess;
+  return !!project && project.userId === userId;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -290,28 +278,6 @@ export const swarmRouter = createRouter({
         .set({ executionState: execState })
         .where(eq(swarmRuns.id, input.runId));
 
-      // TeamSync: if this run was handed off to the deciding user via
-      // team_handoff, mark their pending assignment completed. Best-effort —
-      // a failure here must not block the approval decision.
-      try {
-        const completed = await db.update(approvalAssignments)
-          .set({ status: "completed", completedAt: new Date() })
-          .where(and(
-            eq(approvalAssignments.swarmRunId, input.runId),
-            eq(approvalAssignments.assigneeUserId, ctx.user.id),
-            eq(approvalAssignments.status, "pending"),
-          ));
-        if (completed[0].affectedRows > 0) {
-          logger.info("[approveStep] handoff assignment completed", {
-            runId: input.runId, count: completed[0].affectedRows, userId: ctx.user.id,
-          });
-        }
-      } catch (err) {
-        logger.warn("[approveStep] assignment completion failed", {
-          runId: input.runId, error: (err as Error).message,
-        });
-      }
-
       // Re-enqueue so the worker resumes the run with the recorded decision.
       // The frontend also calls execute(runId) afterwards; the worker's
       // per-run claim makes the double enqueue safe (second job no-ops).
@@ -450,8 +416,8 @@ export const swarmRouter = createRouter({
       let [prov] = await db.select().from(llmProviders)
         .where(and(eq(llmProviders.id, resolvedProviderId), eq(llmProviders.userId, ctx.user.id)));
 
-      // If not found (e.g., team member running a shared project with owner's providerId),
-      // fall back to the user's first available provider
+      // If not found (a stale or foreign provider id on the project), fall back
+      // to the calling user's own first available provider — never another account's.
       if (!prov) {
         logger.info("[executeAgent] Provider not found for user, falling back to user's first provider", { providerId: resolvedProviderId, userId: ctx.user.id });
         const [fp] = await db.select().from(llmProviders).where(eq(llmProviders.userId, ctx.user.id)).limit(1);

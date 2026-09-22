@@ -1,16 +1,17 @@
 // Frozen call-plan construction + arithmetic (offering redesign spec §9).
 // Pure module: deterministic hashing and the EXACT counting rules the cost
 // preflight must quote. C = cases, M = candidates, R = generation repeats,
-// J = judges.
-//   Independent rubric grading: judgingCalls = C × M × R × J
-//   Pairwise:                   judgingCalls = C × pairedRepeats × pairs × J × orientations
+// J = judges, V = prompt variants actually declared by the panel (D12; V = 1
+// for every pre-D12 plan, so untouched plans keep their old counts and hashes).
+//   Independent rubric grading: judgingCalls = C × M × R × J × V
+//   Pairwise:                   judgingCalls = C × pairedRepeats × pairs × J × orientations × V
 //   Pipeline generation calls = sum of executed LLM steps over every
 //     case×candidate×repeat run (bounded loops counted at their max
 //     iterations; if-gates count their own call; branches counted at the
 //     widest path — disclosed as an upper bound, never silently lower).
 
 import { createHash } from "node:crypto";
-import type { BenchmarkCallPlan, CallCounts, CandidateSpec, SnapshotStep } from "./benchmarkTypes";
+import { JUDGE_PROMPT_VARIANTS, type BenchmarkCallPlan, type CallCounts, type CandidateSpec, type SnapshotStep } from "./benchmarkTypes";
 
 /** LLM calls one pipeline execution performs, worst-case path.
  *  agent/if steps = 1 call; while gate = 1 assess × (maxIterations+1)
@@ -59,7 +60,6 @@ export interface CandidateCountingSpec {
   /** LLM calls one generation of this candidate performs (0 when imported). */
   stepsPerGeneration: number;
 }
-
 /** Generation repeats actually planned for a candidate. */
 export function repeatsForCandidate(candidate: Pick<CandidateSpec, "strategy">, generationRepeats: number): number {
   return candidate.strategy === "imported_output" ? 1 : generationRepeats;
@@ -82,12 +82,17 @@ export function computeCounts(input: {
   caseCount: number;
   judgmentKind: "rubric" | "pairwise";
   judgeCount: number;
+  /** D12 prompt-variant count V (judges run every declared variant as a
+   *  cross product). Omitted or 1 keeps the pre-D12 arithmetic byte-identical,
+   *  because the counts are part of what the plan hash commits to. */
+  variantCount?: number;
   candidates: CandidateCountingSpec[];
   pairedRepeatCount?: number;
   pairCount?: number;
   orientationCount?: number;
 }): CallCounts {
   const { caseCount: C, judgeCount: J } = input;
+  const V = Math.max(input.variantCount ?? 1, 1);
   const perCandidate = input.candidates.map((c) => ({
     stableCandidateId: c.stableCandidateId,
     strategy: c.strategy,
@@ -105,14 +110,15 @@ export function computeCounts(input: {
     const PR = input.pairedRepeatCount ?? 1;
     const P = input.pairCount ?? Math.max(M * (M - 1) / 2, 1);
     const O = input.orientationCount ?? 1;
-    judgingCalls = C * PR * P * J * O;
+    judgingCalls = C * PR * P * J * O * V;
   } else {
-    judgingCalls = C * M * R * J;
+    judgingCalls = C * M * R * J * V;
   }
   return {
     cases: C, candidates: M, generationRepeats: R, judges: J,
     stepsPerGeneration: S, generationCalls, judgingCalls,
     generationPerCandidate: perCandidate,
+    ...(V > 1 ? { judgingPromptVariants: V } : {}),
     ...(input.judgmentKind === "pairwise"
       ? { pairedRepeatCount: input.pairedRepeatCount ?? 1, pairCount: input.pairCount ?? Math.max(M * (M - 1) / 2, 1), orientationCount: input.orientationCount ?? 1 }
       : {}),
@@ -184,6 +190,16 @@ export function planPreflightErrors(plan: BenchmarkCallPlan, snapshotSteps: Snap
 
   for (const [label, ids] of [["case", plan.cases.map((c) => c.stableCaseId)], ["candidate", plan.candidates.map((c) => c.stableCandidateId)]] as const) {
     if (new Set(ids).size !== ids.length) errors.push(`duplicate stable ${label} ids in plan`);
+  }
+  // D12 panel shape (structural, not advisory): slots must be distinct and a
+  // declared variant must be one of the three canonical ones — a plan parsed
+  // back out of the database may predate validation or carry hand-edited JSON,
+  // and "unknown variant" must never silently rerun as a different prompt.
+  if (new Set(plan.judges.map((j) => j.slot)).size !== plan.judges.length) errors.push("judge slots must be distinct");
+  for (const j of plan.judges) {
+    if (j.variant !== undefined && !(JUDGE_PROMPT_VARIANTS as readonly string[]).includes(j.variant)) {
+      errors.push(`judge slot ${j.slot} names unknown prompt variant "${String(j.variant)}" (allowed: ${JUDGE_PROMPT_VARIANTS.join(", ")})`);
+    }
   }
   for (const c of plan.candidates) {
     if (c.strategy === "solo_baseline" && !c.baselinePrompt) {
