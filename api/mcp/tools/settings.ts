@@ -1,9 +1,8 @@
 // MCP tools: get_settings / set_default_model — account settings from the
 // desktop chat, so the user never has to open the web app for basics.
 // get_settings shows tier, capabilities, providers (never API keys), and
-// the default model; set_default_model writes users.defaultModel (and
-// optionally users.defaultProviderId) — the same fields the web Settings
-// page edits.
+// the default model; set_default_model saves an owned, enabled model/provider
+// route atomically, optionally updating that provider's default model too.
 
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
@@ -32,11 +31,40 @@ async function settingsSnapshot(ctx: McpAuthContext) {
     .from(llmProviders)
     .where(eq(llmProviders.userId, ctx.userId));
 
+  // Resolve only against this account's rows, never a global/system provider.
+  const selected = providers.find((provider) => provider.id === user?.defaultProviderId);
+  const enabled = selected?.isEnabled === true;
+  const accountModel = user?.defaultModel?.trim() || null;
+  const providerModel = selected?.defaultModel?.trim() || null;
+  const model = enabled ? accountModel ?? providerModel : null;
+  const source = model ? (accountModel ? "account" : "provider") : "unset";
+  const warnings: string[] = [];
+  const nextSteps: string[] = [];
+  if (!selected || !enabled) {
+    warnings.push(!selected
+      ? "No owned default provider is selected; no default route can be resolved."
+      : "The selected default provider is disabled; no default route can be resolved.");
+    nextSteps.push("Call get_settings to find an enabled provider you own, then call set_default_model with its providerId and your chosen model. If none exists, configure or enable your own provider first.");
+  } else if (!model) {
+    warnings.push("Neither the account nor its selected provider has a default model.");
+    nextSteps.push("Call set_default_model with your chosen model and the selected providerId.");
+  }
+  if (enabled && accountModel && accountModel !== providerModel) {
+    warnings.push("The account model differs from the selected provider's default; operations reading the provider default may use that model instead.");
+    nextSteps.push("To align both defaults, call set_default_model with the same model and providerId and explicitly set setProviderDefault: true.");
+  }
+  warnings.push("Model access is not verified until a provider call. Saving settings makes no LLM request, and catalog listings do not prove access for your API key.");
+  nextSteps.push("On your next intended provider call, if access is denied, confirm that this provider's key has access to the exact model, then explicitly choose an accessible model/provider pair. No model is silently substituted and no provider organization privacy settings are changed.");
+
   return {
     tier,
     capabilities,
     defaultModel: user?.defaultModel ?? null,
-    defaultProviderId: user?.defaultProviderId ?? null,
+    defaultProviderId: selected?.id ?? null,
+    resolvedDefault: { model, providerId: enabled ? selected.id : null, source },
+    modelAccessVerified: false,
+    warnings,
+    nextSteps,
     providers,
     desktopLlm: {
       // MCP sampling: can pipeline work run on the connected app's own LLM?
@@ -51,7 +79,7 @@ async function settingsSnapshot(ctx: McpAuthContext) {
 export const getSettings: McpTool = {
   name: "get_settings",
   description:
-    "Show your DeeWaanAI settings: plan/tier, what you can do, configured LLM providers (keys never shown), default model, and whether your desktop app can run steps on its own LLM.",
+    "Show your DeeWaanAI settings: plan/tier, capabilities, owned providers (keys never shown), resolved default model and its account/provider/unset source, access warnings and next steps, and desktop sampling support.",
   inputSchema: z.object({}),
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
@@ -62,13 +90,15 @@ const setModelSchema = z.object({
   model: z.string().trim().min(1).max(100)
     .describe("Model name, e.g. gemini-2.0-flash, gpt-4o-mini, deepseek-chat"),
   providerId: z.number().int().min(1).optional()
-    .describe("Also switch the default provider (must be one of your configured provider ids from get_settings)"),
+    .describe("An enabled provider you own from get_settings; omitted means your currently selected provider, never an automatic choice"),
+  setProviderDefault: z.boolean().optional()
+    .describe("Explicitly set true to also update only the chosen provider's default model for operations that read provider defaults; otherwise leave it unchanged"),
 });
 
 export const setDefaultModel: McpTool = {
   name: "set_default_model",
   description:
-    "Set your preferred LLM model (and optionally which of your configured providers to use by default). Applies to new pipeline design and runs.",
+    "Save an exact model and owned, enabled default provider together. Optionally setProviderDefault also updates that provider's default. No test LLM call or silent substitution; model access is not verified until a provider call.",
   inputSchema: setModelSchema,
   requiredScopes: ["mcp:write"],
   annotations: { readOnlyHint: false },
@@ -76,25 +106,44 @@ export const setDefaultModel: McpTool = {
     const input = setModelSchema.parse(args);
     const db = getDb();
 
-    if (input.providerId !== undefined) {
-      const [owned] = await db
-        .select({ id: llmProviders.id })
-        .from(llmProviders)
-        .where(and(eq(llmProviders.id, input.providerId), eq(llmProviders.userId, ctx.userId)))
-        .limit(1);
-      if (!owned) {
-        throw new Error(
-          `Provider ${input.providerId} is not one of your configured providers. Call get_settings to list your provider ids.`,
-        );
+    await db.transaction(async (tx) => {
+      const [user] = await tx
+        .select({ defaultProviderId: users.defaultProviderId })
+        .from(users)
+        .where(eq(users.id, ctx.userId))
+        .limit(1)
+        .for("update");
+      if (!user) throw new Error("Account not found. Reconnect before updating settings.");
+      const providerId = input.providerId ?? user.defaultProviderId;
+      if (providerId == null) {
+        throw new Error("No default provider is selected. Call get_settings, then supply an explicit providerId for an enabled provider you own; no provider will be guessed.");
       }
-    }
+      const [owned] = await tx
+        .select({ id: llmProviders.id, isEnabled: llmProviders.isEnabled })
+        .from(llmProviders)
+        .where(and(eq(llmProviders.id, providerId), eq(llmProviders.userId, ctx.userId)))
+        .limit(1)
+        .for("update");
+      if (!owned) {
+        throw new Error("The supplied or selected provider is not one of your configured providers. Call get_settings and explicitly choose an enabled providerId you own.");
+      }
+      if (owned.isEnabled !== true) {
+        throw new Error("The supplied or selected provider is disabled. Enable it in Settings or call get_settings and explicitly choose another enabled providerId you own.");
+      }
 
-    await db.update(users)
-      .set({
-        defaultModel: input.model,
-        ...(input.providerId !== undefined ? { defaultProviderId: input.providerId } : {}),
-      })
-      .where(eq(users.id, ctx.userId));
+      await tx.update(users)
+        .set({ defaultModel: input.model, defaultProviderId: owned.id })
+        .where(eq(users.id, ctx.userId));
+      if (input.setProviderDefault === true) {
+        await tx.update(llmProviders)
+          .set({ defaultModel: input.model })
+          .where(and(
+            eq(llmProviders.id, owned.id),
+            eq(llmProviders.userId, ctx.userId),
+            eq(llmProviders.isEnabled, true),
+          ));
+      }
+    });
 
     return {
       updated: true,

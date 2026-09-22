@@ -6,7 +6,7 @@
 // entitlement resolution, the trusted-endpoint policy, the buyer-owned run
 // container, the authorized snapshot loader, and the buyer-visible projection.
 
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import mysql from "mysql2/promise";
 import { and, eq } from "drizzle-orm";
 
@@ -15,7 +15,6 @@ const ROOT_MYSQL = process.env.MYSQL_ROOT_URL || "mysql://root:rootpass@localhos
 const SELLER_PROMPT = "SELLER SECRET SYSTEM PROMPT: use the client's /vault folder and the key sk-SELLERKEY123456789";
 
 let ex: typeof import("./marketplaceExecutionService");
-let eg: typeof import("./protectedEgress");
 let schema: typeof import("@db/schema");
 let admin: mysql.Connection;
 
@@ -36,7 +35,6 @@ beforeAll(async () => {
     env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }, stdio: "ignore", timeout: 150_000,
   });
   ex = await import("./marketplaceExecutionService");
-  eg = await import("./protectedEgress");
   schema = await import("@db/schema");
 }, 300_000);
 
@@ -239,19 +237,56 @@ describe("protected marketplace execution (DB-backed)", () => {
     const v2Id = Number((v2 as { insertId: number }).insertId);
     await d.update(schema.marketplaceListingV2).set({ currentWorkflowVersionId: v2Id, evidenceSummaryRevision: 2 })
       .where(eq(schema.marketplaceListingV2.listingId, f.listingId));
-    // A grant that names version 1 must not keep executing it behind the
-    // listing's back, and must not lend version 1's scores to version 2.
     await d.insert(schema.executionGrants).values({
       subjectType: "user", subjectId: f.buyerId, listingId: f.listingId,
       workflowVersionId: f.versionId, source: "purchase", state: "active",
     });
-    await expect(start(f)).rejects.toThrow(/version_superseded/);
+    const retained = await start(f);
+    const [retainedRun] = await d.select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, retained.swarmRunId)).limit(1);
+    expect((retainedRun.runParams as { snapshotVersionId: number }).snapshotVersionId).toBe(f.versionId);
 
-    // The unversioned purchase path follows the listing: it runs version 2.
+    // Unversioned legacy purchases keep their existing current-version behavior.
     await d.delete(schema.executionGrants).where(eq(schema.executionGrants.subjectId, f.buyerId));
     const receipt = await start(f);
     const [run] = await d.select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, receipt.swarmRunId)).limit(1);
     expect((run.runParams as { snapshotVersionId: number }).snapshotVersionId).toBe(v2Id);
+  });
+
+  it("delisting and replacement preserve purchased versions, but not refunded or expired rights", async () => {
+    const f = await seed();
+    const d = await db();
+    await d.update(schema.marketplacePurchases).set({ workflowVersionId: f.versionId })
+      .where(eq(schema.marketplacePurchases.listingId, f.listingId));
+    const queued = await start(f);
+    const [replacement] = await d.insert(schema.pipelineVersions).values({
+      ownerId: f.sellerId, sourceProjectId: f.sellerProjectId, versionNumber: 2,
+      definition: JSON.stringify({ steps: [], sourceAgentIds: [] }), definitionHash: "d".repeat(64),
+    });
+    const replacementId = Number((replacement as { insertId: number }).insertId);
+    await d.update(schema.marketplaceListingV2).set({ currentWorkflowVersionId: replacementId })
+      .where(eq(schema.marketplaceListingV2.listingId, f.listingId));
+    await d.update(schema.marketplaceListings).set({ status: "unpublished" }).where(eq(schema.marketplaceListings.id, f.listingId));
+    const right = await ex.resolveProtectedExecutionRight({ buyerId: f.buyerId, listingId: f.listingId, purpose: "buyer_execution" });
+    expect(right.soldVersionId).toBe(f.versionId);
+    expect(right.versionBinding).toBe("purchase_receipt");
+    await expect(start(f)).resolves.toHaveProperty("swarmRunId");
+    const [run] = await d.select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, queued.swarmRunId));
+    const params = (run.runParams as { protectedRun: import("./marketplaceExecutionService").ProtectedRunParams }).protectedRun;
+    const loaded = await ex.loadAuthorizedSnapshotSteps({ runRow: run, callerId: f.buyerId, params, versionId: f.versionId });
+    expect(loaded.steps).toHaveLength(2);
+    await expect(ex.resolveProtectedExecutionRight({ buyerId: f.buyerId, listingId: f.listingId, purpose: "buyer_execution", workflowVersionId: replacementId }))
+      .rejects.toThrow(/not_entitled/);
+    await expect(start(f, { buyerId: f.sellerId })).rejects.toThrow(/not_entitled/);
+    await d.update(schema.marketplacePurchases).set({ status: "refunded" }).where(eq(schema.marketplacePurchases.listingId, f.listingId));
+    await expect(start(f)).rejects.toThrow(/not_entitled/);
+    await d.update(schema.marketplacePurchases).set({ status: "active", isSubscription: true, subscriptionEnd: new Date("2020-01-01T00:00:00Z") })
+      .where(eq(schema.marketplacePurchases.listingId, f.listingId));
+    await expect(start(f)).rejects.toThrow(/not_entitled/);
+    await d.insert(schema.executionGrants).values({
+      subjectType: "user", subjectId: f.buyerId, listingId: f.listingId, workflowVersionId: f.versionId,
+      source: "manual", state: "active", expiresAt: new Date("2020-01-01T00:00:00Z"),
+    });
+    await expect(start(f)).rejects.toThrow(/not_entitled/);
   });
 
   it("the buyer view contains step metadata only, never the seller's prompts (A12)", async () => {

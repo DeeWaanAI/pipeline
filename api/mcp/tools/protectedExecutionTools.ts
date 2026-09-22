@@ -58,7 +58,7 @@ const rightInputSchema = z.object({ listingId: z.number().int().positive() });
 export const marketplaceExecutionRightTool: McpTool = {
   name: "marketplace_execution_right",
   description:
-    "Whether you may run a listing, which workflow version that entitles you to (an old purchase cannot keep running a superseded version), how the right was obtained, when it expires, and which evidence hash currently backs it.",
+    "Whether you may run a listing and the version your purchase or grant covers. Delisting stops new sales, not existing purchased access. A version-bound right keeps its original version instead of inheriting a later version's evidence.",
   inputSchema: rightInputSchema,
   requiredScopes: ["mcp:read"],
   featureFlag: "v2ProtectedExecution",
@@ -73,7 +73,10 @@ export const marketplaceExecutionRightTool: McpTool = {
       viaGrant: !!right.grant,
       grantExpiresAt: right.grant?.expiresAt ?? null,
       soldWorkflowVersionId: right.soldVersionId,
-      note: "The definition itself is not part of any buyer-facing response by design (§8.1).",
+      versionBinding: right.versionBinding,
+      evidencePublicationId: right.purchase?.evidencePublicationId ?? null,
+      listingStatus: right.listing.status,
+      note: "The definition is withheld. Use get_public_evidence with this listingId for purchased evidence, including after delisting.",
     };
   },
 };

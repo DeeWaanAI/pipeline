@@ -18,7 +18,7 @@
 > failing. Prose between the generated blocks is hand-written; the generator owns this file
 > (`scripts/mcp-tools-wiki.mjs`), so edit it there or the next run will overwrite the edit.
 
-## 69 tools, 11 groups
+## 74 tools, 11 groups
 
 | Group | What it is for |
 | --- | --- |
@@ -656,7 +656,7 @@ _11 tools._ Buy, sell and certify. Includes the blind-reviewer pair that perform
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
 | [`start_protected_run`](#start_protected_run) | Run a pipeline you bought WITHOUT getting its definition | `mcp:run` | `v2ProtectedExecution` |
-| [`marketplace_execution_right`](#marketplace_execution_right) | Whether you may run a listing, exactly which workflow version that covers (an old purchase cannot keep running a superseded version), how the right was obtained, when it expires, and which evidence hash currently backs it. | `mcp:read` | `v2ProtectedExecution` |
+| [`marketplace_execution_right`](#marketplace_execution_right) | Whether you may run a listing and which version your purchase or grant covers | `mcp:read` | `v2ProtectedExecution` |
 | [`protected_run_status`](#protected_run_status) | Progress and final output of a protected run: step states, names, tokens and latency plus the answer — never the workflow's prompts or intermediate content. | `mcp:read` | `v2ProtectedExecution` |
 | [`enroll_reviewer`](#enroll_reviewer) | Join the marketplace reviewer pool | `mcp:write` | — |
 | [`get_next_review_task`](#get_next_review_task) | Claim the next blind review task as an enrolled reviewer: one anonymized input/output pair plus the rubric, with the listing's identity never revealed | `mcp:write` | — |
@@ -686,7 +686,7 @@ Run a purchased v2 listing server-side WITHOUT ever receiving its definition. Th
 
 ### `marketplace_execution_right`
 
-Whether you may run a listing, which workflow version that entitles you to (an old purchase cannot keep running a superseded version), how the right was obtained, when it expires, and which evidence hash currently backs it.
+Whether you may run a listing and the version your purchase or grant covers. Delisting stops new sales, not existing purchased access. A version-bound right keeps its original version instead of inheriting a later version's evidence.
 
 **Scopes `mcp:read` · flag `v2ProtectedExecution` (protected marketplace execution; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
@@ -817,7 +817,7 @@ _No arguments._
 
 ## Publish
 
-_10 tools._ Evidence publication and protected marketplace execution (v2 P3): what becomes public, exactly which version was tested, and what it is like to run a purchased workflow under your own credentials.
+_15 tools._ Evidence publication and protected marketplace execution (v2 P3): what becomes public, exactly which version was tested, and what it is like to run a purchased workflow under your own credentials.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
@@ -827,7 +827,12 @@ _10 tools._ Evidence publication and protected marketplace execution (v2 P3): wh
 | [`supersede_evidence`](#supersede_evidence) | Replace published evidence with a new measurement: a NEW immutable row that records what it supersedes, with the original test date preserved | `mcp:write` | `v2Publication` |
 | [`withdraw_evidence`](#withdraw_evidence) | Withdraw a publication you authored, with a logged reason | `mcp:write` | `v2Publication` |
 | [`listing_publication_state`](#listing_publication_state) | Which version a listing sells, which evidence backs it, whether it is legacy or v2, and the revision number to send so you cannot clobber a concurrent change. | `mcp:read` | `v2Publication` |
-| [`get_public_evidence`](#get_public_evidence) | Read any listing's published evidence: scores with their bounds and weights, judge agreement, attempts, costs and disclosure class | `mcp:read` | — |
+| [`get_public_evidence`](#get_public_evidence) | Read evidence by listing, publication id or manifest hash, including standalone community reports | `mcp:read` | — |
+| [`preview_external_evidence`](#preview_external_evidence) | Preview a user-declared community report about a public v2 listing without writing anything: the exact disclosure, its consent hash, and any credential it would leak | `mcp:read` | — |
+| [`report_external_evidence`](#report_external_evidence) | Publish the exact previewed external report after the user consents to its hash | `mcp:write` | `v2Publication` |
+| [`get_external_evidence`](#get_external_evidence) | Read one user-declared community report by id: declared inputs/outputs/model/date, the conspicuous not-verified notice, and when it was submitted (which is NOT when anything was tested). | `mcp:read` | — |
+| [`list_external_evidence`](#list_external_evidence) | List a listing's community reports, newest first, separately labelled from seller evidence | `mcp:read` | — |
+| [`withdraw_external_evidence`](#withdraw_external_evidence) | Withdraw a community report you authored, with a logged reason | `mcp:write` | — |
 | [`model_retest_suggestions`](#model_retest_suggestions) | Your model-freshness suggestions from admin-reviewed release events | `mcp:read` | `v2Publication` |
 | [`respond_retest_suggestion`](#respond_retest_suggestion) | Dismiss, snooze, or note that you intend to retest | `mcp:write` | `v2Publication` |
 | [`listing_model_freshness`](#listing_model_freshness) | Which provider/model/version a listing's published evidence was tested on and when, whether the provider has since deprecated it, and the reviewed successor — explicit lineage, never a name match. | `mcp:read` | `v2Publication` |
@@ -933,7 +938,7 @@ Where one of your listings stands under the v2 rules: legacy or v2 publication m
 
 ### `get_public_evidence`
 
-The public evidence record for a listing: the manifest as published — version identity, models, per-dimension scores with bounds and weights, judge panel and agreement, attempts, cost with unknowns, and the disclosure class. Returns only what was already made public (manifest DTOs), never the seller's private benchmark rows, prompts or credentials. Deliberately NOT flag-gated: evidence published under v2 stays readable.
+Read evidence by listingId, publicationId or manifestHash, including standalone community reports. Listing reads include separately labeled purchased evidence. Withdrawn reports remain available only to their author or an entitled buyer of that version. Returns validated disclosure manifests, never private workflow prompts or credentials. Not feature-gated: existing evidence stays readable.
 
 > Say something like: "Show me the evidence behind listing 7 before I buy it."
 
@@ -941,8 +946,89 @@ The public evidence record for a listing: the manifest as published — version 
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
-| `listingId` | integer | **required** | > 0 |
-| `includeCommunity` | boolean | optional | Also list community reports about this listing (summaries only) |
+| `listingId` | integer | optional | > 0 |
+| `publicationId` | integer | optional | > 0 — Read a specific publication, including a standalone community report |
+| `manifestHash` | string | optional | matches /^[a-f0-9]{64}$/ |
+| `includeCommunity` | boolean | optional | Also list community reports when addressing a listing |
+
+
+### `preview_external_evidence`
+
+Preview an external community report without writing or running anything. All declared inputs, outputs, model, date and rubric remain user-reported and not independently verified. Only public v2 listings and their current sold version are accepted. No attachments or fetched URLs. Returns the exact disclosure, consent version, hash and secret findings.
+
+> Say something like: "Preview my report: I ran listing 7 on these five inputs and got these outputs."
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `listingId` | integer | **required** | ≤ 2147483647, > 0 |
+| `workflowVersionId` | integer \| null | optional | — |
+| `declaredInputs` | string | **required** | length ≤ 32000 |
+| `declaredOutputs` | string | **required** | length ≤ 32000 |
+| `declaredModel` | string \| null | optional | — |
+| `declaredDate` | string \| null | optional | Author-declared date text; never interpreted as a platform test timestamp |
+| `declaredRubric` | string \| null | optional | — |
+| `notes` | string \| null | optional | — |
+| `consentVersion` | string | **required** | — |
+
+
+### `report_external_evidence`
+
+Publish the exact previewed external community report after explicit user consent. Requires previewHash, consentVersion and publishConsent=true. Refuses secrets, stale hashes and unavailable listing/version pairs. Stores only user declarations: no benchmark, execution, judgment, score, attestation or seller certification is created.
+
+**Scopes `mcp:write` · flag `v2Publication` (evidence publication; hidden from `tools/list` and rejected as an unknown tool when off) · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `listingId` | integer | **required** | ≤ 2147483647, > 0 |
+| `workflowVersionId` | integer \| null | optional | — |
+| `declaredInputs` | string | **required** | length ≤ 32000 |
+| `declaredOutputs` | string | **required** | length ≤ 32000 |
+| `declaredModel` | string \| null | optional | — |
+| `declaredDate` | string \| null | optional | Author-declared date text; never interpreted as a platform test timestamp |
+| `declaredRubric` | string \| null | optional | — |
+| `notes` | string \| null | optional | — |
+| `consentVersion` | string | **required** | — |
+| `previewHash` | string | **required** | matches /^[a-f0-9]{64}$/ |
+| `publishConsent` | boolean | **required** | Explicit user consent to publish the exact previewed content publicly |
+
+
+### `get_external_evidence`
+
+Read a user-reported external community report for a public v2 listing. The report is not independently verified; declaredDate is author-supplied text and reportedAt is only the submission time, never a platform test time. Returns no private workflow definition or attachments.
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `reportId` | integer | **required** | ≤ 2147483647, > 0 |
+
+
+### `list_external_evidence`
+
+List external community reports for a public v2 listing, newest report first. Every report is user-reported and not independently verified, separate from seller evidence. Use the last reportId as beforeId for the next page. Unavailable listings return an empty list.
+
+> Say something like: "What have other users reported about listing 7?"
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `listingId` | integer | **required** | ≤ 2147483647, > 0 |
+| `limit` | integer | optional | ≥ 1, ≤ 50, default `20` |
+| `beforeId` | integer | optional | ≤ 2147483647, > 0 |
+
+
+### `withdraw_external_evidence`
+
+Withdraw your own external community report from public reads. Author-only and idempotent; retains the report and durable consent proof without deleting or republishing anything. Available even when publication is disabled or the listing is no longer public.
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `reportId` | integer | **required** | ≤ 2147483647, > 0 |
 
 
 ### `model_retest_suggestions`
@@ -1031,7 +1117,7 @@ Add a new LLM provider to your account so you can design and run pipelines. Prov
 
 ### `get_settings`
 
-Show your DeeWaanAI settings: plan/tier, what you can do, configured LLM providers (keys never shown), default model, and whether your desktop app can run steps on its own LLM.
+Show your DeeWaanAI settings: plan/tier, capabilities, owned providers (keys never shown), resolved default model and its account/provider/unset source, access warnings and next steps, and desktop sampling support.
 
 **Scopes `mcp:read` · annotated read-only**
 
@@ -1040,14 +1126,15 @@ _No arguments._
 
 ### `set_default_model`
 
-Set your preferred LLM model (and optionally which of your configured providers to use by default). Applies to new pipeline design and runs.
+Save an exact model and owned, enabled default provider together. Optionally setProviderDefault also updates that provider's default. No test LLM call or silent substitution; model access is not verified until a provider call.
 
 **Scopes `mcp:write` · not read-only — it writes, spends or changes state**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
 | `model` | string | **required** | length ≥ 1, length ≤ 100 — Model name, e.g. gemini-2.0-flash, gpt-4o-mini, deepseek-chat |
-| `providerId` | integer | optional | ≥ 1 — Also switch the default provider (must be one of your configured provider ids from get_settings) |
+| `providerId` | integer | optional | ≥ 1 — An enabled provider you own from get_settings; omitted means your currently selected provider, never an automatic choice |
+| `setProviderDefault` | boolean | optional | Explicitly set true to also update only the chosen provider's default model for operations that read provider defaults; otherwise leave it unchanged |
 
 
 ### `upgrade_tier`

@@ -11,7 +11,7 @@
 //      fail CLOSED (tool hidden + warning logged).
 //   3. Args are validated+parsed by the SDK against tool.inputSchema
 //      (zod object schema; invalid input → McpError InvalidParams).
-//   4. Result is wrapped as { content: [{ type: "text", text: JSON }] }.
+//   4. Result gets a readable Markdown preview plus exact structuredContent.
 //   5. Every call is recorded in mcp_audit_log (latency + status) and
 //      counted in usage_counters (metric "mcp_tool_call", period yyyymm).
 //      Telemetry is fire-and-forget and never fails the tool call.
@@ -31,6 +31,7 @@ import { msg } from "../lib/messages";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { TOOLS } from "./tools/index";
 import type { McpAuthContext, McpTool } from "./types";
+import { renderToolResult } from "./renderResult";
 
 const SERVER_NAME = "deewaanai-companion";
 const SERVER_VERSION = "0.1.0";
@@ -109,9 +110,7 @@ function registerToolOnServer(server: McpServer, tool: McpTool, auth: McpAuthCon
         }
 
         const result = await tool.handler(args, auth);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result ?? null) }],
-        };
+        return renderToolResult(tool.name, result);
       } catch (err) {
         if (status !== "denied") status = "error";
         errorText = err instanceof Error ? err.message : String(err);

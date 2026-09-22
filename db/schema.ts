@@ -757,8 +757,13 @@ export const marketplacePurchases = mysqlTable("marketplace_purchases", {
   // Stripe references (Phase 1): fulfillment + refund matching
   stripeSessionId: varchar("stripe_session_id", { length: 100 }),
   stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 100 }),
+  workflowVersionId: int("workflow_version_id"),
+  evidencePublicationId: int("evidence_publication_id"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  versionFk: foreignKey({ name: "fk_purchase_workflow_version", columns: [table.workflowVersionId], foreignColumns: [pipelineVersions.id] }).onDelete("restrict"),
+  evidenceFk: foreignKey({ name: "fk_purchase_evidence_publication", columns: [table.evidencePublicationId], foreignColumns: [evidencePublications.id] }).onDelete("restrict"),
+}));
 
 // ─── TEST PROMPT INTERMEDIATE RESPONSES ──────────────────────────
 // Stores every agent step's output for every test prompt run
@@ -1826,6 +1831,11 @@ export const externalEvidenceReports = mysqlTable("external_evidence_reports", {
   declaredRubric: text("declared_rubric"),
   attachments: json("attachments").$type<Array<{ ref: string; name: string; mime: string; sizeBytes: number; safetyScan: string }>>(),
   notes: text("notes"),
+  publicationState: mysqlEnum("publication_state", ["draft", "published", "withdrawn"]).default("draft").notNull(),
+  consentVersion: varchar("consent_version", { length: 40 }),
+  previewHash: varchar("preview_hash", { length: 64 }),
+  publishedAt: timestamp("published_at"),
+  withdrawnAt: timestamp("withdrawn_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   listingIdx: index("idx_external_evidence_reports_listing").on(table.listingId),

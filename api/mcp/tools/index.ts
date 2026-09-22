@@ -43,6 +43,7 @@ import { exportRun } from "./exportRun";
 import { runBatch } from "./runBatch";
 import { batchStatus } from "./batchStatus";
 import { PUBLICATION_TOOLS } from "./publicationTools";
+import { EXTERNAL_EVIDENCE_TOOLS } from "./externalEvidenceTools";
 import { PROTECTED_EXECUTION_TOOLS } from "./protectedExecutionTools";
 import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
 import { resumeBatchTool } from "./resumeBatch";
@@ -65,6 +66,9 @@ export const TOOLS: McpTool[] = [
   // Offering redesign v2 — evidence publication (hidden unless v2Publication
   // flag). The seller half of the D9 workbench: preview, consent, publish.
   ...PUBLICATION_TOOLS,
+  // Offering redesign v2 — user-declared community reports (A09). Writes are
+  // flag-gated; the public reads are not, like every other published record.
+  ...EXTERNAL_EVIDENCE_TOOLS,
   // Offering redesign v2 — protected buyer execution (hidden unless
   // v2ProtectedExecution). Buyer-side half of §8.
   ...PROTECTED_EXECUTION_TOOLS,

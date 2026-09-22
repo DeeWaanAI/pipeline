@@ -26,6 +26,7 @@ import { isFeatureEnabled } from "../plugins/featureFlags";
 import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
+  getEvidenceForViewer, getPurchasedEvidenceForListing,
 } from "../services/evidenceService";
 import { logger } from "../lib/logger";
 import { env, isAiTriageConfigured } from "../lib/env";
@@ -1691,6 +1692,14 @@ export const marketplaceRouter = createRouter({
   getEvidenceByHash: publicQuery
     .input(z.object({ manifestHash: z.string().length(64) }))
     .query(async ({ input }) => ({ manifest: await getPublishedManifestByHash(input.manifestHash) })),
+
+  getPurchasedEvidence: authedQuery
+    .input(z.object({ listingId: z.number().int().positive() }))
+    .query(({ input, ctx }) => getPurchasedEvidenceForListing({ userId: ctx.user.id, listingId: input.listingId })),
+
+  getEvidenceReceipt: authedQuery
+    .input(z.object({ publicationId: z.number().int().positive() }))
+    .query(({ input, ctx }) => getEvidenceForViewer({ userId: ctx.user.id, publicationId: input.publicationId })),
 
   // ── Creator: Delete a listing ──────────────────────────────────
   // Reviewers keep their earned points. Only removes the listing.

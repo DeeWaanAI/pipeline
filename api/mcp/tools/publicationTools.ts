@@ -16,7 +16,7 @@ import { marketplaceListings, marketplaceListingV2 } from "@db/schema";
 import {
   DEFAULT_CONSENT_VERSION, buildEvidencePreview, getPublicEvidenceForListing,
   listPublicEvidenceForListing, publishCommunityEvidence, publishVersion,
-  supersedePublication, withdrawPublication,
+  supersedePublication, withdrawPublication, getEvidenceForViewer, getPurchasedEvidenceForListing,
 } from "../../services/evidenceService";
 
 const listingInputSchema = z.object({ listingId: z.number().int().positive() });
@@ -190,26 +190,37 @@ export const listingPublicationStateTool: McpTool = {
 };
 
 const publicEvidenceInputSchema = z.object({
-  listingId: z.number().int().positive(),
-  includeCommunity: z.boolean().optional().describe("Also list community reports about this listing (summaries only)"),
+  listingId: z.number().int().positive().optional(),
+  publicationId: z.number().int().positive().optional().describe("Read a specific publication, including a standalone community report"),
+  manifestHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  includeCommunity: z.boolean().optional().describe("Also list community reports when addressing a listing"),
+}).refine((v) => [v.listingId, v.publicationId, v.manifestHash].filter((x) => x !== undefined).length === 1, {
+  message: "Provide exactly one of listingId, publicationId or manifestHash",
 });
 
 export const getPublicEvidenceTool: McpTool = {
   name: "get_public_evidence",
   description:
-    "The public evidence record for a listing: the manifest as published — version identity, models, per-dimension scores with bounds and weights, judge panel and agreement, attempts, cost with unknowns, and the disclosure class. Returns only what was already made public (manifest DTOs), never the seller's private benchmark rows, prompts or credentials. Deliberately NOT flag-gated: evidence published under v2 stays readable.",
+    "Read evidence by listingId, publicationId or manifestHash, including standalone community reports. Listing reads include separately labeled purchased evidence. Withdrawn reports remain available only to their author or an entitled buyer of that version. Returns validated disclosure manifests, never private workflow prompts or credentials. Not feature-gated: existing evidence stays readable.",
   inputSchema: publicEvidenceInputSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
-  handler: async (args: unknown) => {
+  handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = publicEvidenceInputSchema.parse(args);
+    if (!input.listingId) {
+      const publication = await getEvidenceForViewer({ userId: ctx.userId, publicationId: input.publicationId, manifestHash: input.manifestHash });
+      if (!publication) throw new Error("not_found_or_not_authorized");
+      return publication;
+    }
     const manifest = await getPublicEvidenceForListing(input.listingId);
+    const purchasedEvidence = await getPurchasedEvidenceForListing({ userId: ctx.userId, listingId: input.listingId });
     return {
       manifest,
+      purchasedEvidence,
       community: input.includeCommunity ? await listPublicEvidenceForListing(input.listingId, { kind: "community" }) : undefined,
-      readingHint: manifest
-        ? "testedAt is when the work ran; publishedAt is when it was disclosed. Scores are descriptive measurements under a stated rubric — not a quality certification, and no confidence interval or ranking is implied."
-        : "No current v2 evidence is published for this listing. That is not a negative finding — it means none was disclosed.",
+      readingHint: manifest || purchasedEvidence
+        ? "Public listing evidence and purchased-version evidence are labeled separately. Scores apply only to that version and test conditions, not a quality certification. Delisting does not erase an existing buyer's evidence."
+        : "No public or purchased-version evidence is available to this account for this listing. That is not a negative quality finding.",
     };
   },
 };

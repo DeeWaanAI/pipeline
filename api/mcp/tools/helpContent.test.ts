@@ -144,11 +144,18 @@ describe("buildHelp", () => {
     const off = buildHelp(base({ flags: { v2Publication: false } }));
     const publishTools = (help: typeof off) =>
       help.sections.find((s) => s.group === "Publish")?.tools.map((t) => t.name) ?? [];
-    expect(publishTools(off)).toEqual(["get_public_evidence"]);
+    // Reads of already-published reports, and the author's own withdrawal
+    // route, stay visible even while publication is disabled.
+    expect(publishTools(off)).toEqual([
+      "get_public_evidence", "get_external_evidence", "list_external_evidence", "withdraw_external_evidence",
+    ]);
 
     const on = buildHelp(base({ flags: { v2Publication: true } }));
     expect(publishTools(on)).toContain("publish_evidence_version");
     expect(publishTools(on)).toContain("preview_evidence");
+    expect(publishTools(on)).toContain("preview_external_evidence");
+    expect(publishTools(on)).toContain("report_external_evidence");
+    expect(publishTools(on)).toContain("withdraw_external_evidence");
   });
 
   it("shows locked tools in a separate section for upsell", () => {

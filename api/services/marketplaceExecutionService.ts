@@ -16,7 +16,7 @@
 // right at dispatch time. A grant revoked between "start" and "execute" stops
 // the run there rather than being honored from a stale run_params blob.
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import {
   agentResponses, agentRuns, executionGrants, llmProviders, marketplaceListings, marketplaceListingV2,
   marketplacePurchases, pipelineVersions, projects, swarmRuns,
@@ -54,19 +54,19 @@ export class ProtectedExecutionError extends Error {
   }
 }
 
-/** The listing's currently-sold v2 version, plus the buyer's right to it.
- *  Legacy listings are deliberately NOT routed here: they have no immutable
- *  version to protect, so a v2 protected run cannot exist for them. */
+// Delisting stops new sales, not an existing buyer's version-bound right.
 export async function resolveProtectedExecutionRight(opts: {
   buyerId: number;
   listingId: number;
   purpose: ExecutionPurpose;
+  workflowVersionId?: number;
 }): Promise<{
   listing: typeof marketplaceListings.$inferSelect;
   soldVersionId: number;
   sellerId: number;
   grant: typeof executionGrants.$inferSelect | null;
   purchase: typeof marketplacePurchases.$inferSelect | null;
+  versionBinding: "purchase_receipt" | "grant" | "legacy_current";
 }> {
   const db = getDb();
   const [listing] = await db.select().from(marketplaceListings)
@@ -75,9 +75,7 @@ export async function resolveProtectedExecutionRight(opts: {
   if (opts.purpose !== "buyer_execution" && opts.purpose !== "trial") {
     throw new ProtectedExecutionError("purpose_not_permitted", `'${opts.purpose}' is not a buyer execution purpose`);
   }
-  // §10.2: a v2 listing is buyable only while it publishes evidence; the
-  // "certifying" stage belongs to the legacy flow and grants nothing here.
-  if (listing.status !== "published") {
+  if (listing.status !== "published" && (listing.status !== "unpublished" || opts.purpose === "trial")) {
     throw new ProtectedExecutionError("listing_not_published", "this listing is not currently available to run");
   }
   const [v2] = await db.select().from(marketplaceListingV2)
@@ -85,39 +83,35 @@ export async function resolveProtectedExecutionRight(opts: {
   if (v2?.publicationMode !== "v2" || !v2.currentWorkflowVersionId) {
     throw new ProtectedExecutionError("not_a_v2_listing", "protected execution requires a listing published with a v2 workflow version and evidence");
   }
-  const soldVersionId = v2.currentWorkflowVersionId;
-
-  const [grant] = await db.select().from(executionGrants)
+  const now = new Date();
+  const grants = await db.select().from(executionGrants)
     .where(and(
       eq(executionGrants.subjectType, "user"),
       eq(executionGrants.subjectId, opts.buyerId),
       eq(executionGrants.listingId, listing.id),
       eq(executionGrants.state, "active"),
-    ))
-    .orderBy(desc(executionGrants.grantedAt)).limit(1);
+      or(isNull(executionGrants.expiresAt), gt(executionGrants.expiresAt, now)),
+    )).orderBy(desc(executionGrants.grantedAt), desc(executionGrants.id));
   const [purchase] = await db.select().from(marketplacePurchases)
     .where(and(
       eq(marketplacePurchases.buyerId, opts.buyerId),
       eq(marketplacePurchases.listingId, listing.id),
       eq(marketplacePurchases.status, "active"),
-    )).limit(1);
-  const subscriptionLive = purchase?.isSubscription
-    ? !!purchase.subscriptionEnd && new Date(purchase.subscriptionEnd).getTime() > Date.now()
-    : true;
-
-  if (!grant && !(purchase && subscriptionLive)) {
-    throw new ProtectedExecutionError("not_entitled", "no active execution right for this listing");
+      or(eq(marketplacePurchases.isSubscription, false), isNull(marketplacePurchases.isSubscription), gt(marketplacePurchases.subscriptionEnd, now)),
+    )).orderBy(desc(marketplacePurchases.id)).limit(1);
+  const soldVersionId = opts.workflowVersionId ?? purchase?.workflowVersionId
+    ?? grants.find((g) => g.workflowVersionId)?.workflowVersionId ?? v2.currentWorkflowVersionId;
+  const grant = grants.find((g) => (g.workflowVersionId ?? v2.currentWorkflowVersionId) === soldVersionId);
+  // Unversioned legacy receipts retain their existing current-version semantics.
+  const purchaseMatches = purchase && (purchase.workflowVersionId ?? v2.currentWorkflowVersionId) === soldVersionId;
+  if (!grant && !purchaseMatches) {
+    throw new ProtectedExecutionError("not_entitled", "no active execution right for this workflow version");
   }
-  // A grant that names a version must name THE version being sold: an old
-  // purchase must not keep running a superseded workflow, and a revoked grant
-  // (state != active above) never reaches here.
-  if (grant?.workflowVersionId && grant.workflowVersionId !== soldVersionId) {
-    throw new ProtectedExecutionError("version_superseded", "the version this right covers is no longer the one the listing sells");
-  }
-  if (grant?.expiresAt && new Date(grant.expiresAt).getTime() <= Date.now()) {
-    throw new ProtectedExecutionError("right_expired", "the execution right has expired");
-  }
-  return { listing, soldVersionId, sellerId: listing.creatorId, grant: grant ?? null, purchase: purchase ?? null };
+  return {
+    listing, soldVersionId, sellerId: listing.creatorId,
+    grant: grant ?? null, purchase: purchaseMatches ? purchase : null,
+    versionBinding: purchaseMatches && purchase.workflowVersionId ? "purchase_receipt" : grant?.workflowVersionId ? "grant" : "legacy_current",
+  };
 }
 
 /**
@@ -285,7 +279,7 @@ export async function loadAuthorizedSnapshotSteps(args: {
   if (params.workflowVersionId !== versionId) {
     throw new ProtectedExecutionError("version_mismatch", "the run's snapshot pointer does not match its protected context");
   }
-  const right = await resolveProtectedExecutionRight({ buyerId: callerId, listingId: params.listingId, purpose: params.purpose });
+  const right = await resolveProtectedExecutionRight({ buyerId: callerId, listingId: params.listingId, purpose: params.purpose, workflowVersionId: versionId });
 
   const [provider] = await db.select().from(llmProviders)
     .where(and(eq(llmProviders.id, params.providerId), eq(llmProviders.userId, callerId))).limit(1);

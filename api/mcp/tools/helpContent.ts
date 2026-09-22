@@ -288,8 +288,30 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "get_public_evidence", group: "Publish", scopes: ["mcp:read"],
-    summary: "Read any listing's published evidence: scores with their bounds and weights, judge agreement, attempts, costs and disclosure class. Public manifests only — never the seller's private prompts or benchmark rows.",
+    summary: "Read evidence by listing, publication id or manifest hash, including standalone community reports. Purchased evidence remains readable after withdrawal for entitled buyers. Only disclosure manifests — never private workflow prompts or benchmark rows.",
     example: "\"Show me the evidence behind listing 7 before I buy it.\"",
+  },
+  {
+    name: "preview_external_evidence", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
+    summary: "Preview a user-declared community report about a public v2 listing without writing anything: the exact disclosure, its consent hash, and any credential it would leak. Nothing is measured or run here, and no seller certification is created.",
+    example: "\"Preview my report: I ran listing 7 on these five inputs and got these outputs.\"",
+  },
+  {
+    name: "report_external_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
+    summary: "Publish the exact previewed external report after the user consents to its hash. Stored as user-reported and not independently verified — it can never be shown as platform-recorded evidence or become a listing's required seller proof.",
+  },
+  {
+    name: "get_external_evidence", group: "Publish", scopes: ["mcp:read"],
+    summary: "Read one user-declared community report by id: declared inputs/outputs/model/date, the conspicuous not-verified notice, and when it was submitted (which is NOT when anything was tested).",
+  },
+  {
+    name: "list_external_evidence", group: "Publish", scopes: ["mcp:read"],
+    summary: "List a listing's community reports, newest first, separately labelled from seller evidence. Every entry is user-reported and not independently verified.",
+    example: "\"What have other users reported about listing 7?\"",
+  },
+  {
+    name: "withdraw_external_evidence", group: "Publish", scopes: ["mcp:write"],
+    summary: "Withdraw a community report you authored, with a logged reason. Author-only, idempotent and available even while publication is disabled — a user must always be able to retract their own disclosed data. The row and its consent proof are retained; withdrawal is not a quality verdict.",
   },
   {
     name: "start_protected_run", group: "Marketplace", scopes: ["mcp:run"], flag: "v2ProtectedExecution",
@@ -298,7 +320,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "marketplace_execution_right", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",
-    summary: "Whether you may run a listing, exactly which workflow version that covers (an old purchase cannot keep running a superseded version), how the right was obtained, when it expires, and which evidence hash currently backs it.",
+    summary: "Whether you may run a listing and which version your purchase or grant covers. Delisting stops new sales, not existing purchased access; purchased versions do not inherit a later version's evidence.",
   },
   {
     name: "protected_run_status", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",

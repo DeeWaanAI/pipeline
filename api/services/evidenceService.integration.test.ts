@@ -386,6 +386,53 @@ describe("evidence publication (DB-backed)", () => {
   });
 
 
+  it("retains the purchased evidence after delisting without exposing it to strangers or refund recipients", async () => {
+    const seller = await seedFixture();
+    const buyer = await seedFixture();
+    const stranger = await seedFixture();
+    const { benchmarkId } = await completedBenchmark(seller);
+    const { listingId } = await seedListing(seller);
+    const preview = await ev.buildEvidencePreview({ userId: seller.userId, benchmarkId, publicationKind: "seller", listingId, consentVersion: "consent-v1" });
+    const versionId = Number(preview.manifest.versionIdentity.workflowVersionId);
+    const publication = await ev.publishVersion({
+      userId: seller.userId, listingId, workflowVersionId: versionId, benchmarkId,
+      previewHash: preview.previewHash, consentVersion: "consent-v1",
+    });
+    const { fulfillMarketplacePurchase } = await import("./entitlementSync");
+    const { purchaseId } = await fulfillMarketplacePurchase({
+      userId: buyer.userId, listingId, amountPaid: 4.99, stripeSessionId: `test-receipt-${listingId}`,
+      stripePaymentIntentId: null,
+    });
+    const db = await connection();
+    const [purchase] = await db.select().from(schema.marketplacePurchases).where(eq(schema.marketplacePurchases.id, purchaseId));
+    expect(purchase.workflowVersionId).toBe(versionId);
+    expect(purchase.evidencePublicationId).toBe(publication.publicationId);
+    const original = (await publicationRow(publication.publicationId)).publicManifest;
+    await ev.withdrawPublication({ userId: seller.userId, publicationId: publication.publicationId, reason: "Seller no longer offers this version" });
+    expect(await ev.getPublishedManifestByHash(publication.manifestHash)).toBeNull();
+    expect(await ev.getPublicEvidenceForListing(listingId)).toBeNull();
+    expect(await ev.getEvidenceForViewer({ userId: stranger.userId, publicationId: publication.publicationId })).toBeNull();
+    expect(await ev.getPurchasedEvidenceForListing({ userId: stranger.userId, listingId })).toBeNull();
+    const receipt = await ev.getPurchasedEvidenceForListing({ userId: buyer.userId, listingId });
+    expect(receipt?.state).toBe("withdrawn");
+    expect(receipt?.withdrawnAt).toBeTruthy();
+    expect(receipt?.manifestHash).toBe(publication.manifestHash);
+    expect(receipt?.versionBinding).toBe("purchase_receipt");
+    expect(receipt?.manifest).toEqual(JSON.parse(String(original)));
+    expect((await publicationRow(publication.publicationId)).publicManifest).toBe(original);
+    const { getPublicEvidenceTool } = await import("../mcp/tools/publicationTools");
+    const context = { userId: buyer.userId, scopes: new Set(["mcp:read"]), clientId: "test", requestId: "receipt", locale: "en" as const };
+    expect(await getPublicEvidenceTool.handler({ listingId }, context)).toMatchObject({ purchasedEvidence: { state: "withdrawn", manifestHash: publication.manifestHash } });
+    expect(await getPublicEvidenceTool.handler({ publicationId: publication.publicationId }, context)).toMatchObject({ state: "withdrawn" });
+    await expect(getPublicEvidenceTool.handler({ publicationId: publication.publicationId }, { ...context, userId: stranger.userId })).rejects.toThrow(/not_found_or_not_authorized/);
+    await expect(fulfillMarketplacePurchase({ userId: stranger.userId, listingId, amountPaid: 4.99, stripeSessionId: "test-delisted", stripePaymentIntentId: null }))
+      .rejects.toThrow(/not buyable/);
+    await db.update(schema.marketplacePurchases).set({ status: "refunded" }).where(eq(schema.marketplacePurchases.id, purchaseId));
+    expect(await ev.getPurchasedEvidenceForListing({ userId: buyer.userId, listingId })).toBeNull();
+    expect(await ev.getEvidenceForViewer({ userId: buyer.userId, manifestHash: publication.manifestHash })).toBeNull();
+    expect(await ev.getEvidenceForViewer({ userId: seller.userId, publicationId: publication.publicationId })).not.toBeNull();
+  });
+
   it("a stranger cannot publish someone else's benchmark, and cannot read its manifest", async () => {
     const owner = await seedFixture();
     const intruder = await seedFixture();

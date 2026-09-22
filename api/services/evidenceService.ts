@@ -34,6 +34,7 @@ import {
   type EvidenceProvenance,
 } from "../../contracts/offeringV2";
 import type { BenchmarkCallPlan, RubricSpec, SnapshotStep } from "./benchmark/benchmarkTypes";
+import { ProtectedExecutionError, resolveProtectedExecutionRight } from "./marketplaceExecutionService";
 
 export const PUBLICATION_POLICY_VERSION = "v2-p3-1";
 export const DEFAULT_CONSENT_VERSION = "consent-v1";
@@ -922,4 +923,56 @@ export async function getPublishedManifestByHash(manifestHash: string): Promise<
     .limit(1);
   if (!row) return null;
   return decodeManifest(row.publicManifest, row.id);
+}
+
+export async function getEvidenceForViewer(opts: {
+  userId: number; publicationId?: number; manifestHash?: string;
+}) {
+  if (!opts.publicationId && !opts.manifestHash) return null;
+  const [row] = await getDb().select().from(evidencePublications).where(
+    opts.publicationId ? eq(evidencePublications.id, opts.publicationId) : eq(evidencePublications.manifestHash, opts.manifestHash!),
+  ).limit(1);
+  if (!row || row.state === "draft_preview") return null;
+  if (row.state === "withdrawn" && row.authorId !== opts.userId) {
+    if (!row.listingId || !row.listingWorkflowVersionId) return null;
+    try {
+      await resolveProtectedExecutionRight({
+        buyerId: opts.userId, listingId: row.listingId, purpose: "buyer_execution",
+        workflowVersionId: row.listingWorkflowVersionId,
+      });
+    } catch (err) {
+      if (err instanceof ProtectedExecutionError) return null;
+      throw err;
+    }
+  }
+  const manifest = decodeManifest(row.publicManifest, row.id);
+  if (!manifest) return null;
+  return {
+    publicationId: row.id, manifestHash: row.manifestHash, manifest,
+    state: row.state, withdrawnAt: row.withdrawnAt?.toISOString() ?? null,
+    notice: row.state === "withdrawn"
+      ? "Withdrawn from public publication. This unchanged evidence remains available to its author and entitled buyers; withdrawal is not a quality verdict."
+      : "Published evidence. Scores apply only to the recorded version and test conditions.",
+  };
+}
+
+export async function getPurchasedEvidenceForListing(opts: { userId: number; listingId: number }) {
+  let right: Awaited<ReturnType<typeof resolveProtectedExecutionRight>>;
+  try {
+    right = await resolveProtectedExecutionRight({ buyerId: opts.userId, listingId: opts.listingId, purpose: "buyer_execution" });
+  } catch (err) {
+    if (err instanceof ProtectedExecutionError) return null;
+    throw err;
+  }
+  const db = getDb();
+  const [row] = await db.select({ id: evidencePublications.id }).from(evidencePublications).where(and(
+    eq(evidencePublications.listingId, opts.listingId),
+    eq(evidencePublications.listingWorkflowVersionId, right.soldVersionId),
+    eq(evidencePublications.publicationKind, "seller"),
+    inArray(evidencePublications.state, ["published", "withdrawn"]),
+    right.purchase?.evidencePublicationId ? eq(evidencePublications.id, right.purchase.evidencePublicationId) : undefined,
+  )).orderBy(desc(evidencePublications.publishedAt), desc(evidencePublications.id)).limit(1);
+  if (!row) return null;
+  const evidence = await getEvidenceForViewer({ userId: opts.userId, publicationId: row.id });
+  return evidence ? { ...evidence, versionBinding: right.versionBinding } : null;
 }

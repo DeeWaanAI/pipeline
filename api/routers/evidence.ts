@@ -13,6 +13,10 @@ import {
   DEFAULT_CONSENT_VERSION, PUBLICATION_POLICY_VERSION, buildEvidencePreview,
   publishCommunityEvidence, supersedePublication, withdrawPublication,
 } from "../services/evidenceService";
+import {
+  previewExternalInputSchema, reportExternalInputSchema, getExternalInputSchema, listExternalInputSchema,
+  previewExternal, reportExternal, getExternal, listExternal, withdrawExternalInputSchema, withdrawExternal,
+} from "../services/externalEvidenceService";
 
 const previewInput = z.object({
   benchmarkId: z.number().int().positive(),
@@ -36,6 +40,18 @@ export const evidenceRouter = createRouter({
 });
 
 export const communityEvidenceRouter = createRouter({
+  previewExternal: authedQuery.input(previewExternalInputSchema).query(({ input, ctx }) =>
+    previewExternal(ctx.user.id, input),
+  ),
+  reportExternal: authedQuery.input(reportExternalInputSchema).mutation(({ input, ctx }) =>
+    reportExternal(ctx.user.id, input),
+  ),
+  getExternal: authedQuery.input(getExternalInputSchema).query(({ input }) => getExternal(input)),
+  listExternal: authedQuery.input(listExternalInputSchema).query(({ input }) => listExternal(input)),
+  withdrawExternal: authedQuery.input(withdrawExternalInputSchema).mutation(({ input, ctx }) =>
+    withdrawExternal(ctx.user.id, input),
+  ),
+
   publish: authedQuery.input(previewInput.extend({
     previewHash: z.string().length(64),
   })).mutation(async ({ input, ctx }) =>

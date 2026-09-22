@@ -13,7 +13,7 @@
 // counter, and the entitlement grant/revoke.
 
 import { getDb } from "../queries/connection";
-import { marketplacePurchases, marketplaceListings } from "@db/schema";
+import { evidencePublications, marketplaceListingV2, marketplacePurchases, marketplaceListings } from "@db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import * as entitlementService from "./entitlements";
 import { logger } from "../lib/logger";
@@ -78,11 +78,26 @@ export async function fulfillMarketplacePurchase(opts: {
     return { purchaseId: existing.id, duplicate: true };
   }
 
+  const [v2] = await db.select().from(marketplaceListingV2)
+    .where(eq(marketplaceListingV2.listingId, opts.listingId)).limit(1);
+  if (v2?.publicationMode === "v2") {
+    const [evidence] = v2.currentEvidencePublicationId
+      ? await db.select().from(evidencePublications).where(and(
+        eq(evidencePublications.id, v2.currentEvidencePublicationId),
+        eq(evidencePublications.listingId, opts.listingId),
+        eq(evidencePublications.state, "published"),
+      )).limit(1) : [];
+    if (!v2.currentWorkflowVersionId || !evidence || evidence.listingWorkflowVersionId !== v2.currentWorkflowVersionId) {
+      throw new Error("Listing has no matching published version and evidence");
+    }
+  }
   const platformFee = opts.amountPaid * PLATFORM_FEE_RATE;
   const creatorEarnings = opts.amountPaid - platformFee;
 
   const insertResult = await db.insert(marketplacePurchases).values({
     buyerId: opts.userId,
+    workflowVersionId: v2?.publicationMode === "v2" ? v2.currentWorkflowVersionId : null,
+    evidencePublicationId: v2?.publicationMode === "v2" ? v2.currentEvidencePublicationId : null,
     listingId: opts.listingId,
     amountPaid: opts.amountPaid.toFixed(2),
     platformFee: platformFee.toFixed(2),
