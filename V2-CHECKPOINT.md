@@ -274,6 +274,23 @@ Plus the two pass-blocking usability items from the fix list: **F3 fixed** (prov
 default), **F4 fixed** (readable results). Neither has been re-observed from a real chat seat —
 see FIX INCREMENT 1's note on this session's `-32603` MCP binding.
 
+## D14 groundwork (#30) — measured, not assumed (2026-09-22, read-only local DB)
+
+The delivery bundle is small enough to be ONE response, so `deliver_work_data` does not need
+pagination or a streaming job. Sizeable private content in the local `swarm` DB today:
+`agent_responses.content` 57 rows / **116 KB** (the bulk of it), `swarm_runs.run_params`
+24 / 14 KB, `swarm_runs.user_prompt` 24 / 12 KB, `benchmark_judgments` rationales 28 / 13 KB,
+`benchmark_cases.input_text` 18 / 9 KB, `pipeline_versions.definition` 6 / 7 KB, against
+3 projects and 1 evidence publication. So the device-primary list in D14 is ~180 KB per
+account and the never-swept list (versions, manifests, purchases, ledger, consent) is the
+small remainder — which is the argument for keeping the verifiable records server-side and
+making only the bulk content sweepable. Two design consequences: a sweep must key off
+`agent_responses` + the two `swarm_runs` columns + the case/judgment text, and MUST NOT
+touch `pipeline_versions`, `evidence_publications`, `marketplace_purchases`,
+`execution_grants`, `call_attempts`, `spend_approvals`, or consent/withdrawal columns;
+and because a protected buyer run stores its input in `swarm_runs.user_prompt`, sweeping a
+buyer's copy cannot be offered while that run's evidence still matters to the seller.
+
 ## LOCAL DB STATE before the D13 removals (2026-09-22, read-only `information_schema` + counts)
 
 Migrations 028/029/030 are confirmed applied in the local `swarm` DB by column and
@@ -346,6 +363,35 @@ upgrade), wiki regenerated from the live registry.
 Gates: `npm test` 474 pass / 4 fail = the documented `providerThrottle` baseline
 only; `npx tsc -b` clean outside `src/` (the frontend half of D13 lands
 separately); `node --check` on the wiki generator.
+
+## D13 CLOSED (2026-09-22, `c6fe3c6`) — the screen half, and what a browser caught that grep did not
+
+Frontend: `TeamDashboard`/`TeamConnect`, both routes, the nav section and the `teamsync`
+namespace deleted from **both** locales; `useCapabilities` deleted rather than hollowed
+out (every consumer used it only for `pipeline:custom`/`pipeline:autodesign`); tier
+columns, per-tier stats, `setUserTier`, the dev tier-cycling mutations and every upgrade
+CTA gone; `Pricing.tsx` rewritten to the truth (flat per-account subscription, 7-day
+trial from signup, BYOK, no per-run fees) with the checkout control **disabled and
+labelled** and a line saying the gateway is not connected. `npx tsc -b` 0 errors,
+`npm run build` green, `node scripts/check-i18n.cjs` green, and `/pricing` was loaded in
+the browser (no console errors, no Team entry in the nav).
+
+Two things only the browser and a second read found, both now fixed:
+1. **Live code still named a dead plan.** The ≤3-providers-per-pipeline limit — enforced
+   for *every* account at `api/routers/pipeline.ts:147` and `api/routers/project.ts:322`,
+   so a platform limit and never a paid gate — threw `"Pro Designer allows up to 3
+   different LLMs per pipeline"`, and two comments promised tier-gated upgrades. The
+   refusal now states the limit and the remedy; `grep` confirms no stale plan string is
+   left in a live path, and no test had pinned the old wording.
+2. **The pricing page advertises the 7-day trial and no code implements it.**
+   `trialing` still comes only from Stripe, so this is deferred task #29, not a bug to
+   patch quietly — recorded because the copy is currently a promise the code cannot keep.
+
+**Still open after #26/#28 close:** the voucher generator needs an API change to stop
+naming tiers (`api/routers/voucher.ts` still requires a `tier` value and
+`voucher_redemptions` holds the history), so it stays as-is with a visible legacy notice;
+and **what a purchased voucher grants under one flat subscription remains an owner
+decision.**
 
 ## Watchdog status
 The cron task `v2-phase-watchdog` is DISABLED (failure circuit, 3× `session-failed`) and its
