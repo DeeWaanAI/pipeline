@@ -204,7 +204,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "list_benchmarks", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
-    summary: "Your benchmarks, newest first, with state and evidence availability.",
+    summary: "Your benchmarks, newest first, with state, evidence availability, child progress, best descriptive score and observed cost — the cheap poll. benchmark_status is the one with the summary.",
   },
   {
     name: "cancel_benchmark", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",

@@ -108,6 +108,9 @@ export async function recordCallAttempt(input: RecordAttemptInput): Promise<numb
 export interface LedgerTotals {
   totalCalls: number;
   uncertainCalls: number;
+  /** Rows with a dollar figure at all. `totalCalls - pricedOperations` is the
+   *  part of the bill that is still UNKNOWN, and UNKNOWN is never 0 (§9). */
+  pricedOperations: number;
   /** Ledger rows are ONE PER LOGICAL OPERATION (a generation run, a judge
    *  call) with that operation's summed usage — NOT one per provider LLM call.
    *  A pipeline generation that made 6 provider calls is one `generation`
@@ -122,6 +125,13 @@ export interface LedgerTotals {
   pricingBases: string[];
 }
 
+/** The part of `LedgerTotals` a disclosure needs, so a grouped query over many
+ *  benchmarks can produce the same sentence as the per-benchmark totals. */
+export type CostDisclosureInput = Pick<
+  LedgerTotals,
+  "totalCalls" | "uncertainCalls" | "pricedOperations" | "knownCostUsd" | "costCompleteness" | "pricingBases"
+>;
+
 export async function benchmarkLedgerTotals(benchmarkId: number): Promise<LedgerTotals> {
   const db = getDb();
   const rows = await db.select({
@@ -134,6 +144,7 @@ export async function benchmarkLedgerTotals(benchmarkId: number): Promise<Ledger
   let known = 0;
   let anyUnknown = false;
   let uncertain = 0;
+  let priced = 0;
   let generationOperations = 0;
   let judgmentOperations = 0;
   const pricingBases: string[] = [];
@@ -143,15 +154,55 @@ export async function benchmarkLedgerTotals(benchmarkId: number): Promise<Ledger
     if (r.operationKind === "judgment") judgmentOperations++;
     if (r.costCompleteness !== "complete") anyUnknown = true;
     if (r.costBasis && !pricingBases.includes(r.costBasis)) pricingBases.push(r.costBasis);
-    if (r.estimatedCostUsd != null) known += Number(r.estimatedCostUsd);
+    if (r.estimatedCostUsd != null) {
+      known += Number(r.estimatedCostUsd);
+      priced++;
+    }
   }
   return {
     totalCalls: rows.length,
     uncertainCalls: uncertain,
+    pricedOperations: priced,
     generationOperations,
     judgmentOperations,
     knownCostUsd: known.toFixed(8),
     costCompleteness: rows.length === 0 ? "unknown" : anyUnknown ? "partial" : "complete",
     pricingBases,
+  };
+}
+
+/**
+ * The ledger reduced to something a user can read without misreading it.
+ * `knownUsd` is a FACT only when every recorded operation is priced; otherwise
+ * it is `null` and the partial sum appears as `pricedSoFarUsd` inside a
+ * sentence that says it is a floor. An earlier build answered "19 calls,
+ * $0.00000000" for a benchmark whose 19 calls had simply not been priced yet,
+ * which a user reads as "nothing owed" (D9 finding 1) — and "not known" is one
+ * encoding, not `null` in one field and `0` in another.
+ */
+export function costDisclosure(totals: CostDisclosureInput) {
+  const unpriced = totals.totalCalls - totals.pricedOperations;
+  const bases = totals.pricingBases.length ? ` priced from ${totals.pricingBases.join(" + ")}` : "";
+  if (totals.totalCalls === 0) {
+    return {
+      knownUsd: null, pricedSoFarUsd: null, unpricedOperations: 0, uncertainOperations: 0,
+      completeness: totals.costCompleteness, pricingBases: totals.pricingBases,
+      display: "No provider call recorded against this benchmark yet — nothing has been spent.",
+    };
+  }
+  if (unpriced === 0) {
+    return {
+      knownUsd: totals.knownCostUsd, pricedSoFarUsd: totals.knownCostUsd,
+      unpricedOperations: 0, uncertainOperations: totals.uncertainCalls,
+      completeness: totals.costCompleteness, pricingBases: totals.pricingBases,
+      display: `$${totals.knownCostUsd} across ${totals.totalCalls} recorded operations, all of them priced${bases}.`
+        + (totals.uncertainCalls ? ` ${totals.uncertainCalls} of those calls returned an uncertain outcome, so the true figure may be higher.` : ""),
+    };
+  }
+  return {
+    knownUsd: null, pricedSoFarUsd: totals.knownCostUsd,
+    unpricedOperations: unpriced, uncertainOperations: totals.uncertainCalls,
+    completeness: totals.costCompleteness, pricingBases: totals.pricingBases,
+    display: `At least $${totals.knownCostUsd} of ${totals.totalCalls} recorded operations is priced${bases}; ${unpriced} have no price yet, so this is a FLOOR and not the total owed.`,
   };
 }

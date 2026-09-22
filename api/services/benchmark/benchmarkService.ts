@@ -17,10 +17,10 @@
 //   observed cost. No CIs, significance, or certification language.
 
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import {
   agentResponses, benchmarkCandidates, benchmarkCases, benchmarkJudgments, benchmarkRuns,
-  benchmarks, llmProviders, pipelineVersions, projects, spendApprovals, swarmRuns,
+  benchmarks, callAttempts, llmProviders, pipelineVersions, projects, spendApprovals, swarmRuns,
 } from "@db/schema";
 import { getDb } from "../../queries/connection";
 import { logger } from "../../lib/logger";
@@ -43,7 +43,7 @@ import {
   JUDGE_PROMPT_VERSION, buildPairwiseJudgePrompt, buildRubricJudgePrompt,
   generateJudgeCall, parseAndValidatePairwiseVerdict, parseAndValidateRubricVerdict,
 } from "./judgeService";
-import { benchmarkLedgerTotals, recordCallAttempt } from "./benchmarkLedger";
+import { benchmarkLedgerTotals, costDisclosure, recordCallAttempt } from "./benchmarkLedger";
 
 const LEASE_MS = 15 * 60_000;
 
@@ -1144,8 +1144,8 @@ export async function computeSummary(benchmarkId: number): Promise<Record<string
     judgeAgreement,
     perCandidate,
     costObserved: {
-      knownUsd: totals.knownCostUsd, completeness: totals.costCompleteness,
-      totalCalls: totals.totalCalls, uncertainCalls: totals.uncertainCalls, currency: "USD",
+      ...costDisclosure(totals),
+      totalCalls: totals.totalCalls, currency: "USD",
       // Different UNITS, stated rather than left for a reader to assume (§9:
       // uncertainty is disclosed, never hidden).
       observedOperations: { generation: totals.generationOperations, judgment: totals.judgmentOperations },
@@ -1240,20 +1240,115 @@ async function finalize(benchmarkId: number, leaseToken: string, state: "complet
 
 // ─── Status / cancel / heal ─────────────────────────────────────────
 
-export async function getBenchmarkProgress(opts: { userId: number; benchmarkId: number }) {
+export async function getBenchmarkProgress(opts: {
+  userId: number; benchmarkId: number; includePlan?: boolean;
+}) {
   const db = getDb();
   const [b] = await db.select().from(benchmarks)
     .where(and(eq(benchmarks.id, opts.benchmarkId), eq(benchmarks.ownerId, opts.userId))).limit(1);
   if (!b) return null;
   const runs = await db.select({ status: benchmarkRuns.status }).from(benchmarkRuns).where(eq(benchmarkRuns.benchmarkId, b.id));
+  const by = (s: string) => runs.filter((r) => r.status === s).length;
+  const plan = b.plan ? JSON.parse(String(b.plan)) as BenchmarkCallPlan : null;
+  // Cost comes from the ledger, not the cached column: `totalObservedCost` is
+  // written when the benchmark finalises, so a running one reported either
+  // `null` or a stale zero while its calls were already being billed.
+  const totals = await benchmarkLedgerTotals(b.id);
   return {
     id: b.id, state: b.state, executionMode: b.executionMode, aggregateAvailability: b.aggregateAvailability,
-    runs: { total: runs.length, completed: runs.filter((r) => r.status === "completed").length, failed: runs.filter((r) => r.status === "failed").length },
+    runs: {
+      total: runs.length, completed: by("completed"), failed: by("failed"),
+      pending: by("pending"), running: by("running"),
+    },
     summary: b.summary ? JSON.parse(String(b.summary)) : null,
-    plan: b.plan ? JSON.parse(String(b.plan)) : null, planHash: b.planHash,
-    costObservedUsd: b.totalObservedCost, costCompleteness: b.costCompleteness,
+    // The frozen plan's SHAPE, so a poll can answer "what am I waiting on"
+    // without re-sending every case text (D9 finding 2). `includePlan: true`
+    // returns the full plan; `preview_evidence` already prints it verbatim.
+    planRef: plan ? {
+      planHash: b.planHash, executionMode: plan.executionMode, judgmentKind: plan.judgmentKind,
+      cases: plan.cases.length, candidates: plan.candidates.length,
+      generationRepeats: plan.generationRepeats,
+      judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model })),
+      rubric: plan.rubric.versionRef,
+      plannedCalls: { generation: plan.counts.generationCalls, judging: plan.counts.judgingCalls },
+    } : null,
+    planHash: b.planHash,
+    cost: costDisclosure(totals),
+    ...(opts.includePlan && plan ? { plan } : {}),
     createdAt: b.createdAt, finishedAt: b.finishedAt,
   };
+}
+
+/**
+ * The compact "how is it going, and what has it cost" answer for every
+ * benchmark at once (D9 finding 2): `benchmark_status` was the only route to
+ * progress and cost, and it carried the whole frozen plan; `list_benchmarks`
+ * was cheap but had neither. Three grouped queries, whatever the page size.
+ */
+export async function listBenchmarkSummaries(opts: { userId: number; limit: number }) {
+  const db = getDb();
+  const rows = await db.select({
+    id: benchmarks.id, executionMode: benchmarks.executionMode, state: benchmarks.state,
+    aggregateAvailability: benchmarks.aggregateAvailability, summary: benchmarks.summary,
+    createdAt: benchmarks.createdAt, finishedAt: benchmarks.finishedAt,
+  }).from(benchmarks).where(eq(benchmarks.ownerId, opts.userId)).orderBy(desc(benchmarks.id)).limit(opts.limit);
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+
+  const runRows = await db.select({
+    benchmarkId: benchmarkRuns.benchmarkId, status: benchmarkRuns.status, n: count(),
+  }).from(benchmarkRuns).where(inArray(benchmarkRuns.benchmarkId, ids))
+    .groupBy(benchmarkRuns.benchmarkId, benchmarkRuns.status);
+  const costRows = await db.select({
+    benchmarkId: callAttempts.benchmarkId,
+    total: count(),
+    priced: sql<number>`COALESCE(SUM(CASE WHEN ${callAttempts.estimatedCostUsd} IS NULL THEN 0 ELSE 1 END), 0)`,
+    known: sql<string>`COALESCE(SUM(${callAttempts.estimatedCostUsd}), 0)`,
+    uncertain: sql<number>`COALESCE(SUM(CASE WHEN ${callAttempts.outcome} = 'uncertain' THEN 1 ELSE 0 END), 0)`,
+    incomplete: sql<number>`COALESCE(SUM(CASE WHEN ${callAttempts.costCompleteness} <> 'complete' THEN 1 ELSE 0 END), 0)`,
+  }).from(callAttempts).where(inArray(callAttempts.benchmarkId, ids)).groupBy(callAttempts.benchmarkId);
+
+  const runsById = new Map<number, Record<string, number>>();
+  for (const r of runRows) {
+    const bucket = runsById.get(r.benchmarkId) ?? {};
+    bucket[r.status] = Number(r.n);
+    runsById.set(r.benchmarkId, bucket);
+  }
+  const costById = new Map(costRows.map((r) => [r.benchmarkId, r]));
+
+  return rows.map((r) => {
+    const runs = runsById.get(r.id) ?? {};
+    const ledger = costById.get(r.id);
+    const totalCalls = Number(ledger?.total ?? 0);
+    const pricedOperations = Number(ledger?.priced ?? 0);
+    let bestScore0to1: number | null = null;
+    if (r.summary) {
+      try {
+        const parsed = JSON.parse(String(r.summary)) as { perCandidate?: Array<{ meanNormalizedScore0to1?: number | null }> };
+        const scores = (parsed.perCandidate ?? []).map((p) => p.meanNormalizedScore0to1).filter((s) => typeof s === "number") as number[];
+        if (scores.length) bestScore0to1 = Math.max(...scores);
+      } catch { /* a summary that will not parse is simply no headline score */ }
+    }
+    return {
+      id: r.id, state: r.state, executionMode: r.executionMode,
+      aggregateAvailability: r.aggregateAvailability,
+      runs: {
+        total: Object.values(runs).reduce((a, b) => a + b, 0),
+        completed: runs.completed ?? 0, failed: runs.failed ?? 0,
+        pending: runs.pending ?? 0, running: runs.running ?? 0,
+      },
+      // Descriptive only: the best candidate's mean under THIS rubric and panel,
+      // not a quality verdict — the full summary stays on `benchmark_status`.
+      bestScore0to1,
+      cost: costDisclosure({
+        totalCalls, uncertainCalls: Number(ledger?.uncertain ?? 0), pricedOperations,
+        knownCostUsd: Number(ledger?.known ?? 0).toFixed(8),
+        costCompleteness: totalCalls === 0 ? "unknown" : Number(ledger?.incomplete ?? 0) > 0 ? "partial" : "complete",
+        pricingBases: [],
+      }),
+      createdAt: r.createdAt, finishedAt: r.finishedAt,
+    };
+  });
 }
 
 export async function cancelBenchmark(opts: { userId: number; benchmarkId: number }): Promise<{ ok: boolean; state: string }> {

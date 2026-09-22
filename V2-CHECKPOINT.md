@@ -211,6 +211,35 @@ already public must remain readable and retractable after a rollback.
 
 Gates: 102 MCP tests pass (7 files), `npm run check` ✅, wiki regenerated (74 tools, 83174 bytes).
 
+## FIX INCREMENT 3 (same day) — desktop findings 1 and 2: cost that cannot be misread, and a poll that fits on a screen
+
+**Finding 1 (`$0.00000000` for "unknown"):** the ledger now counts
+`pricedOperations`, and every dollar figure a user sees goes through
+`costDisclosure()` in `api/services/benchmark/benchmarkLedger.ts`. `knownUsd` is
+non-null **only** when every recorded operation is priced; otherwise it is
+`null`, the partial sum appears as `pricedSoFarUsd`, and `display` says
+"at least $X of N recorded operations is priced… this is a FLOOR and not the
+total owed". One encoding of "not known" instead of two, and the source of the
+price (`provider_list` / `price_vector`) is named in the sentence. The same
+disclosure replaced the raw fields in the benchmark summary's `costObserved`
+block, so a published manifest inherits it. 5 new pure tests, including
+benchmark 5's exact 19-operations/0-priced shape.
+
+**Finding 2 (no cheap way to ask "how is it going / what has it cost"):**
+`benchmark_status` no longer returns the frozen plan's texts — it returns
+`planRef` (counts, judges, rubric, planned calls, `planHash`) and the full plan
+only when the caller passes `includePlan: true`, which is what
+`preview_evidence` already prints verbatim. `list_benchmarks` gained what it
+lacked: per-benchmark child progress (`completed/failed/pending/running`), the
+best descriptive score under its own rubric, and the cost disclosure — three
+grouped queries regardless of page size, in `listBenchmarkSummaries()`.
+`benchmark_status` also stopped trusting `benchmarks.total_observed_cost`,
+which is only written at finalisation: it reads the live ledger, so a running
+benchmark now reports what it has already spent instead of `null`/stale zero.
+
+Gates: `npm run check` ✅ · 455 tests pass, 4 failures = the documented
+`providerThrottle` baseline only · wiki regenerated (74 tools).
+
 ## Watchdog status
 The cron task `v2-phase-watchdog` is DISABLED (failure circuit, 3× `session-failed`) and its
 executionScope cwd was `app 25` — the frozen prod folder — while its instructions target this

@@ -10,13 +10,10 @@
 // call is appended to call_attempts.
 
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
-import { getDb } from "../../queries/connection";
-import { benchmarks } from "@db/schema";
 import {
   approveBenchmarkSpend, cancelBenchmark, createBenchmarkDraft, getBenchmarkProgress,
-  prepareCasesDraft, prepareRubricDraft, quoteBenchmark, resumeBenchmark, startBenchmark,
+  listBenchmarkSummaries, prepareCasesDraft, prepareRubricDraft, quoteBenchmark, resumeBenchmark, startBenchmark,
   RUBRIC_PRESETS,
 } from "../../services/benchmark/benchmarkService";
 import { dispatchBenchmarkStart } from "../../workers/benchmarkWorker";
@@ -24,6 +21,10 @@ import { dispatchBenchmarkStart } from "../../workers/benchmarkWorker";
 const RUBRIC_PRESET_NAMES = Object.keys(RUBRIC_PRESETS) as [string, ...string[]];
 
 const idSchema = z.object({ benchmarkId: z.number().int().positive() });
+
+const statusInputSchema = idSchema.extend({
+  includePlan: z.boolean().default(false).describe("Return the entire frozen plan, case texts included. Off by default: the plan is already on `preview_evidence`, and a poll should not re-send it."),
+});
 
 const rubricDimensionSchema = z.object({
   dimension: z.string().min(1).max(60).describe("Dimension name, e.g. 'accuracy'"),
@@ -226,14 +227,14 @@ export const startBenchmarkTool: McpTool = {
 export const benchmarkStatusTool: McpTool = {
   name: "benchmark_status",
   description:
-    "One benchmark: state, child progress, the frozen plan it runs, observed cost with its completeness, and the descriptive summary once final. 'completed' means every planned output and judgment exists — it is NOT a quality verdict, and no confidence interval, ranking or certification language is produced. Grade-only results carry no winning-model field at all.",
-  inputSchema: idSchema,
+    "One benchmark: state, child progress, the SHAPE of the frozen plan it runs (counts, judges, rubric, planHash — not every case text; pass includePlan:true for the full plan), observed cost with its completeness, and the descriptive summary once final. 'completed' means every planned output and judgment exists — it is NOT a quality verdict, and no confidence interval, ranking or certification language is produced. Grade-only results carry no winning-model field at all.",
+  inputSchema: statusInputSchema,
   requiredScopes: ["mcp:read"],
   featureFlag: "v2Benchmarks",
   annotations: { readOnlyHint: true },
   handler: async (args: unknown, ctx: McpAuthContext) => {
-    const { benchmarkId } = idSchema.parse(args);
-    const progress = await getBenchmarkProgress({ userId: ctx.userId, benchmarkId });
+    const { benchmarkId, includePlan } = statusInputSchema.parse(args);
+    const progress = await getBenchmarkProgress({ userId: ctx.userId, benchmarkId, includePlan });
     if (!progress) throw new Error("not_found_or_not_authorized");
     return progress;
   },
@@ -243,19 +244,14 @@ const listInputSchema = z.object({ limit: z.number().int().min(1).max(50).defaul
 
 export const listBenchmarksTool: McpTool = {
   name: "list_benchmarks",
-  description: "Your own benchmarks, newest first: id, mode, state, evidence availability, dates. Private to you.",
+  description: "Your own benchmarks, newest first: state, evidence availability, child progress (completed/failed/pending/running of the planned children), the best descriptive score under its own rubric, and observed cost with its completeness — so 'how is it going and what has it cost' has one cheap answer. Private to you.",
   inputSchema: listInputSchema,
   requiredScopes: ["mcp:read"],
   featureFlag: "v2Benchmarks",
   annotations: { readOnlyHint: true },
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const { limit } = listInputSchema.parse(args);
-    const db = getDb();
-    return db.select({
-      id: benchmarks.id, executionMode: benchmarks.executionMode, state: benchmarks.state,
-      aggregateAvailability: benchmarks.aggregateAvailability,
-      createdAt: benchmarks.createdAt, finishedAt: benchmarks.finishedAt,
-    }).from(benchmarks).where(eq(benchmarks.ownerId, ctx.userId)).orderBy(desc(benchmarks.id)).limit(limit);
+    return listBenchmarkSummaries({ userId: ctx.userId, limit });
   },
 };
 

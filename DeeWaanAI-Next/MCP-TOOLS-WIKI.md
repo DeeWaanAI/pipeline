@@ -491,7 +491,7 @@ _10 tools._ Private evaluation (offering redesign v2, P2). The whole journey is 
 | [`approve_benchmark_spend`](#approve_benchmark_spend) | Authorize spending on exactly the plan you were quoted, on your own enabled credentials | `mcp:write` | `v2Benchmarks` |
 | [`start_benchmark`](#start_benchmark) | Freeze the approved plan and queue it | `mcp:write` | `v2Benchmarks` |
 | [`benchmark_status`](#benchmark_status) | Progress and the descriptive summary: counts, spread, judge agreement, failures, observed cost | `mcp:read` | `v2Benchmarks` |
-| [`list_benchmarks`](#list_benchmarks) | Your benchmarks, newest first, with state and evidence availability. | `mcp:read` | `v2Benchmarks` |
+| [`list_benchmarks`](#list_benchmarks) | Your benchmarks, newest first, with state, evidence availability, child progress, best descriptive score and observed cost — the cheap poll | `mcp:read` | `v2Benchmarks` |
 | [`cancel_benchmark`](#cancel_benchmark) | Stop a queued or running benchmark | `mcp:write` | `v2Benchmarks` |
 | [`resume_benchmark`](#resume_benchmark) | Continue a partial or cancelled plan under its frozen hash | `mcp:write` | `v2Benchmarks` |
 
@@ -605,18 +605,19 @@ Freeze the approved plan and queue it: your workflow is captured as an immutable
 
 ### `benchmark_status`
 
-One benchmark: state, child progress, the frozen plan it runs, observed cost with its completeness, and the descriptive summary once final. 'completed' means every planned output and judgment exists — it is NOT a quality verdict, and no confidence interval, ranking or certification language is produced. Grade-only results carry no winning-model field at all.
+One benchmark: state, child progress, the SHAPE of the frozen plan it runs (counts, judges, rubric, planHash — not every case text; pass includePlan:true for the full plan), observed cost with its completeness, and the descriptive summary once final. 'completed' means every planned output and judgment exists — it is NOT a quality verdict, and no confidence interval, ranking or certification language is produced. Grade-only results carry no winning-model field at all.
 
 **Scopes `mcp:read` · flag `v2Benchmarks` (private evaluation; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
 | `benchmarkId` | integer | **required** | > 0 |
+| `includePlan` | boolean | optional | default `false` — Return the entire frozen plan, case texts included. Off by default: the plan is already on `preview_evidence`, and a poll should not re-send it. |
 
 
 ### `list_benchmarks`
 
-Your own benchmarks, newest first: id, mode, state, evidence availability, dates. Private to you.
+Your own benchmarks, newest first: state, evidence availability, child progress (completed/failed/pending/running of the planned children), the best descriptive score under its own rubric, and observed cost with its completeness — so 'how is it going and what has it cost' has one cheap answer. Private to you.
 
 **Scopes `mcp:read` · flag `v2Benchmarks` (private evaluation; hidden from `tools/list` and rejected as an unknown tool when off) · annotated read-only**
 
