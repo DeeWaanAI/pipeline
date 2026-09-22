@@ -21,9 +21,10 @@ const benchmarkQueue: AppQueue = createQueue(BENCHMARK_QUEUE_NAME);
 let worker: AppWorker | null = null;
 let healTimer: ReturnType<typeof setInterval> | null = null;
 
-export async function enqueueBenchmark(benchmarkId: number): Promise<string> {
+export async function enqueueBenchmark(benchmarkId: number, opts?: { force?: boolean }): Promise<string> {
   return benchmarkQueue.enqueue(BENCHMARK_JOB_RUN, { benchmarkId } satisfies BenchmarkJobPayload, {
     idempotencyKey: `benchmark-${benchmarkId}`,
+    force: opts?.force,
   });
 }
 
@@ -72,7 +73,14 @@ export function startBenchmarkReconciler(periodMs = 60_000): void {
       const db = getDb();
       const queued = await db.select({ id: benchmarks.id }).from(benchmarks).where(inArray(benchmarks.state, ["queued"]));
       for (const row of queued) {
-        try { await enqueueBenchmark(row.id); } catch { /* queue dedupe + next pass cover it */ }
+        // Forced: the 24h dedupe window outlives the job it was meant to
+        // protect, so a plain re-enqueue of a row the reconciler has PROVED is
+        // still `queued` is silently swallowed and the row never runs
+        // (D9 finding 24). Double execution is prevented by the lease in
+        // `acquireBenchmark`, not by this key.
+        try {
+          await enqueueBenchmark(row.id, { force: true });
+        } catch { /* next pass covers a queue that is briefly down */ }
       }
       if (healed > 0) logger.info("benchmarkReconciler: healed stale leases", { healed });
     } catch (err) {

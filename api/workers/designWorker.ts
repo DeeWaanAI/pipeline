@@ -30,6 +30,12 @@ let reconcilerTimer: ReturnType<typeof setInterval> | null = null;
 async function enqueueDesignJob(designJobId: number, userId: number): Promise<string> {
   return designQueue.enqueue(DESIGN_JOB_RUN, { designJobId, userId } satisfies DesignJobPayload, {
     idempotencyKey: `design-job-${designJobId}`,
+    // Forced, and the same reasoning as the benchmark reconciler: every call
+    // here comes from the durable outbox, which only hands over rows the DB
+    // still records as undispatched, and `acquireDesignJob` is what makes a
+    // duplicate delivery a no-op. The 24h queue dedupe can therefore only ever
+    // suppress the self-heal.
+    force: true,
   });
 }
 

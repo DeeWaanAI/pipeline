@@ -18,6 +18,16 @@ const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60; // 24h
 interface EnqueueOptions {
   idempotencyKey?: string;
   delayMs?: number;
+  /**
+   * Dispatch even when a dedupe key for this job is still live. The window is
+   * 24h, which is longer than any job's life, so a reconciler that finds work
+   * abandoned cannot re-dispatch it without this: a benchmark left `queued` by
+   * a restart stayed `queued` for a day while the reconciler ran every 60
+   * seconds and logged nothing (D9 finding 24). Only callers that have already
+   * proved the work is unfinished should use it, and only where the consumer
+   * dedupes by lease — which is what makes a forced re-add harmless.
+   */
+  force?: boolean;
 }
 
 export interface AppQueue {
@@ -154,7 +164,7 @@ class MemoryAppQueue implements AppQueue {
   }
 
   async enqueue(jobName: string, payload: unknown, opts?: EnqueueOptions): Promise<string> {
-    if (opts?.idempotencyKey) {
+    if (opts?.idempotencyKey && !opts.force) {
       sweepMemoryIdempotency();
       const key = `${this.name}:${opts.idempotencyKey}`;
       if (memoryIdempotency.has(key)) {
@@ -208,7 +218,7 @@ class BullAppQueue implements AppQueue {
   }
 
   async enqueue(jobName: string, payload: unknown, opts?: EnqueueOptions): Promise<string> {
-    if (opts?.idempotencyKey) {
+    if (opts?.idempotencyKey && !opts.force) {
       const dedupeKey = `idem:${this.name}:${opts.idempotencyKey}`;
       const set = await bullConnection!.set(
         dedupeKey, "1", "EX", IDEMPOTENCY_TTL_SECONDS, "NX",
