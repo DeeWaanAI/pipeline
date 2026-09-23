@@ -10,7 +10,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listPricing = vi.fn();
-let providerLookups = 0;
 
 vi.mock("../../queries/connection", () => ({
   getDb: () => ({
@@ -18,7 +17,6 @@ vi.mock("../../queries/connection", () => ({
       from: () => ({
         where: () => ({
           limit: async () => {
-            providerLookups += 1;
             return [{
               id: 7, slug: "openai", apiKeyRef: "ciphertext",
               baseUrl: "https://prices.test/v1", defaultModel: "cache-test-model",
@@ -46,7 +44,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   process.env.V2_PRICE_VECTOR_JSON = "{}";
   listPricing.mockReset();
-  providerLookups = 0;
   resetPricingCache();
 });
 
