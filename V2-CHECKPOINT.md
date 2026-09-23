@@ -466,3 +466,34 @@ both need migration 033 and are unblocked now that `db/schema.ts` is free. #21's
 screens are not browser-verified: reaching them needs admin credentials and the
 credential file is off-limits, so nothing was guessed. #23/#33/#34 need a live
 retest from the owner's chat seat. #29 stays deferred with the payment gateway.
+
+## Correction to the 2026-09-22 line "Still open after this increment"
+
+That line (item `Still open after this increment:` above) listed findings 2–25 and
+tasks #18, #21, #22, #24, #26, #28, #30, #32 as unfixed. It is stale as of
+2026-09-23 and is kept only as a dated record. Current state, each verified in
+this tree rather than recalled:
+
+- Fixed and committed: **#18, #20, #24, #26, #28, #31** (earlier this cycle),
+  **#32** `d76e6b5`, **#21** `5780174` (code, procedures and tests; the screens
+  are still not browser-verified — no admin credentials, the credential file is
+  off-limits), findings **8, 9, 19** `1a5b979`, **1, 2, 6, 7, 13, 15, 16** and
+  the root cause of **24** (earlier commits).
+- **F3 (#33) and F4 (#34)** are code- and test-complete (`settings.ts` 24 tests,
+  `renderResult.ts` 33 tests, both green). What was never possible from inside
+  this session is re-observing them from a live desktop seat, because in-session
+  `mcp_call` returns `-32603` while the server itself answers. That block belongs
+  to **#23**, and #23 is what remains open — not the fixes.
+- Fixed on 2026-09-23 as their own increment: **#35** the four
+  `providerThrottle` failures (`31c21b9`, tests were stale against a deliberate
+  config change; two of them had been passing for the wrong reason), and **#36**
+  the correlated-count pinhole in five admin fields (`99ffa9b`, `projectCount`
+  came back `0` for a user with three projects before the fix, and the new
+  fixture proves it fails against the old code).
+- **In progress now, by two agents with disjoint file ownership:** #22
+  consented feedback attachments (owns `db/schema.ts`, `feedback.ts`, `admin.ts`,
+  `api/mcp/tools/*`, locales, migration 033) and #30's server half
+  (owns `api/services/dataDelivery.ts`, `api/routers/dataDelivery.ts`, the
+  `api/router.ts` mount line, and its own test — no schema change, no MCP tool
+  in that increment). Neither is trusted until re-gated and committed here.
+- Next free migration number is **034**.
