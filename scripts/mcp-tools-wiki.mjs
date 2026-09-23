@@ -86,7 +86,9 @@ function toolSection(t) {
   const gates = [];
   gates.push(`Scopes \`${t.scopes.join("`, `")}\``);
   if (t.featureFlag) gates.push(`flag \`${t.featureFlag}\` (${FLAG_NOTE[t.featureFlag] ?? "gated"}; hidden from \`tools/list\` and rejected as an unknown tool when off)`);
-  if (t.capability) gates.push(`tier capability \`${t.capability}\``);
+  // No `capability` line: the account tier ladder and its capability gates were
+  // deleted, and no tool in the registry declares one any more. Rendering it
+  // conditionally kept a retired concept alive in the prose.
   gates.push(t.readOnly ? "annotated read-only" : "not read-only — it writes, spends or changes state");
   const example = t.example ? `\n> Say something like: ${t.example}\n` : "";
   return `### \`${t.name}\`\n\n${t.description}\n${example}\n**${gates.join(" · ")}**\n\n${argsTable(t.schema)}\n`;
@@ -214,9 +216,12 @@ activates whatever live payment and email credentials the file holds.
   scopes an OAuth consent can grant (\`MCP_SCOPES\` in \`api/mcp/auth.ts\`).
 - **Flag** is what the *deployment* must enable for this user. Defaults are OFF for every
   \`v2*\` flag: the offering-redesign surface ships dark.
-- **Capability** is the account *tier* gate (\`pipeline:autodesign\`, \`marketplace:publish\`),
-  enforced inside the service rather than at registration, so the failure is a refusal with a
-  reason — not a vanished tool.
+- **Ownership and lineage** is what is left where a plan gate used to be. Selling
+  a workflow is reserved to the account that originally created the work it
+  derives from (lineage, recorded as data and enforced at the publish boundary),
+  and everything else is refused because the row belongs to someone else — never
+  because of a subscription. The refusal arrives with a reason and the alternative,
+  not as a vanished tool or a dead end.
 - **read-only** is the MCP client annotation. Trust it as a hint about intent, not as a permission:
   \`quote_benchmark\` is read-only and writes nothing, while \`benchmark_status\` is read-only but
   still costs a database read on someone's evidence.
