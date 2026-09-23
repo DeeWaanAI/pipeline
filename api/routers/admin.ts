@@ -51,8 +51,13 @@ export const adminRouter = createRouter({
         role: users.role,
         createdAt: users.createdAt,
         lastSignInAt: users.lastSignInAt,
-        projectCount: sql<number>`(SELECT COUNT(*) FROM projects WHERE projects.user_id = ${users.id})`,
-        runCount: sql<number>`(SELECT COUNT(*) FROM swarm_runs WHERE swarm_runs.user_id = ${users.id})`,
+        // The outer table has to be spelled out. drizzle emits an UNQUALIFIED
+        // column for `${users.id}` inside raw sql — verified by `toSQL()`, which
+        // renders ``projects.user_id = `id` `` — and MySQL then resolves `id` to
+        // the subquery's own table, silently turning a correlated count into
+        // `projects.user_id = projects.id`.
+        projectCount: sql<number>`(SELECT COUNT(*) FROM projects WHERE projects.user_id = users.id)`,
+        runCount: sql<number>`(SELECT COUNT(*) FROM swarm_runs WHERE swarm_runs.user_id = users.id)`,
       }).from(users)
         .where(whereClause)
         .limit(input.pageSize).offset(offset);
@@ -384,8 +389,8 @@ export const adminRouter = createRouter({
       updatedAt: marketplaceListings.updatedAt,
       creatorId: marketplaceListings.creatorId,
       creatorUsername: users.username,
-      poolTotal: sql<number>`(SELECT COUNT(*) FROM blind_review_tasks t WHERE t.listing_id = ${marketplaceListings.id})`,
-      poolCompleted: sql<number>`(SELECT COUNT(*) FROM blind_review_tasks t WHERE t.listing_id = ${marketplaceListings.id} AND t.status = 'completed')`,
+      poolTotal: sql<number>`(SELECT COUNT(*) FROM blind_review_tasks t WHERE t.listing_id = marketplace_listings.id)`,
+      poolCompleted: sql<number>`(SELECT COUNT(*) FROM blind_review_tasks t WHERE t.listing_id = marketplace_listings.id AND t.status = 'completed')`,
     })
       .from(marketplaceListings)
       .leftJoin(users, eq(marketplaceListings.creatorId, users.id))
@@ -491,8 +496,8 @@ export const adminRouter = createRouter({
         referralCode: waitlistEntries.referralCode,
         invitedAt: waitlistEntries.invitedAt,
         createdAt: waitlistEntries.createdAt,
-        position: sql<number>`(SELECT COUNT(*) FROM waitlist_entries w2 WHERE w2.id <= ${waitlistEntries.id})`,
-        referralCount: sql<number>`(SELECT COUNT(*) FROM waitlist_entries w2 WHERE w2.ref = ${waitlistEntries.referralCode})`,
+        position: sql<number>`(SELECT COUNT(*) FROM waitlist_entries w2 WHERE w2.id <= waitlist_entries.id)`,
+        referralCount: sql<number>`(SELECT COUNT(*) FROM waitlist_entries w2 WHERE w2.ref = waitlist_entries.referral_code)`,
       })
         .from(waitlistEntries)
         .where(whereClause)

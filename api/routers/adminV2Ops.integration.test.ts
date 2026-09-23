@@ -603,3 +603,82 @@ const adminProcedureNames = {
   listEvidencePublications: "query", evidencePublicationDetail: "query",
   spendSummary: "query", listSpendApprovals: "query",
 };
+
+// ─── the correlated-count pinhole (task #36) ─────────────────────────
+//
+// drizzle emits an UNQUALIFIED column name when a Column is interpolated into a
+// raw `sql` fragment — verified against `toSQL()`, which renders
+// `projects.user_id = \`id\`` for `${users.id}`. MySQL resolves that bare name to
+// the SUBQUERY's own table, so a correlated count silently becomes
+// `projects.user_id = projects.id` and every row of the admin screen reports the
+// same wrong number (or 0). These fixtures give each row a DIFFERENT true count,
+// which is the only shape that distinguishes a correlation from a constant.
+describe("admin counts that must correlate per row", () => {
+  it("reports per-user project/run counts, per-listing review pools and per-entry waitlist positions", async () => {
+    const heavy = await actor("heavy@countspinhole.test", "user");
+    const light = await actor("light@countspinhole.test", "user");
+
+    for (let i = 0; i < 3; i++) {
+      await db().insert(schema.projects).values({ userId: heavy.id, name: `heavy project ${i}` });
+    }
+    const [lightProject] = await db().insert(schema.projects).values({ userId: light.id, name: "light project" });
+    const heavyProjects = await db().select({ id: schema.projects.id }).from(schema.projects)
+      .where(eq(schema.projects.userId, heavy.id));
+    for (let i = 0; i < 2; i++) {
+      await db().insert(schema.swarmRuns).values({
+        userId: heavy.id, projectId: heavyProjects[i]!.id, userPrompt: `run ${i}`,
+      });
+    }
+    void lightProject;
+
+    const listed = await as(await actor("counter@countspinhole.test", "admin")).listUsers({ page: 1, search: "@countspinhole.test" });
+    const byEmail = new Map(listed.users.map((u) => [u.email, u]));
+    expect(Number(byEmail.get("heavy@countspinhole.test")!.projectCount)).toBe(3);
+    expect(Number(byEmail.get("light@countspinhole.test")!.projectCount)).toBe(1);
+    expect(Number(byEmail.get("heavy@countspinhole.test")!.runCount)).toBe(2);
+    expect(Number(byEmail.get("light@countspinhole.test")!.runCount)).toBe(0);
+
+    // Two listings whose review pools are deliberately different sizes.
+    const [template] = await db().insert(schema.pipelineTemplates).values({
+      userId: heavy.id, name: "countspinhole-template", steps: [{ name: "Draft", role: "builder", systemPrompt: "p" }],
+    });
+    const templateId = insertId(template);
+    const [bigListing] = await db().insert(schema.marketplaceListings).values({
+      creatorId: heavy.id, templateId, title: "Big pool", price: "1.00", status: "pending_review",
+    });
+    const [smallListing] = await db().insert(schema.marketplaceListings).values({
+      creatorId: heavy.id, templateId, title: "Small pool", price: "2.00", status: "pending_review",
+    });
+    const bigId = insertId(bigListing), smallId = insertId(smallListing);
+    await db().insert(schema.blindReviewTasks).values([
+      { listingId: bigId, promptIndex: 0, status: "completed" },
+      { listingId: bigId, promptIndex: 1, status: "completed" },
+      { listingId: bigId, promptIndex: 2, status: "pooled" },
+      { listingId: smallId, promptIndex: 0, status: "pooled" },
+    ]);
+
+    const queue = await as(await actor("queue@countspinhole.test", "admin")).certificationQueue();
+    const big = queue.find((l: { id: number }) => l.id === bigId);
+    const small = queue.find((l: { id: number }) => l.id === smallId);
+    expect(Number(big!.poolTotal)).toBe(3);
+    expect(Number(big!.poolCompleted)).toBe(2);
+    expect(Number(small!.poolTotal)).toBe(1);
+    expect(Number(small!.poolCompleted)).toBe(0);
+
+    // Three waitlist entries: distinct positions, and one code referred twice.
+    const totalBefore = (await db().select({ id: schema.waitlistEntries.id }).from(schema.waitlistEntries)).length;
+    const codes = ["PINHOLE-A", "PINHOLE-B", "PINHOLE-C"];
+    for (const [i, code] of codes.entries()) {
+      await db().insert(schema.waitlistEntries).values({
+        email: `waitlist${i}@countspinhole.test`, role: "creator", referralCode: code,
+        ref: i === 0 ? null : "PINHOLE-A",
+      });
+    }
+    const waitlist = await as(await actor("wl@countspinhole.test", "admin")).listWaitlist({ page: 1, search: "@countspinhole.test" });
+    const rows = waitlist.items.filter((w: { email: string }) => w.email.endsWith("@countspinhole.test"));
+    expect(rows.map((w: { position: number }) => Number(w.position)))
+      .toEqual([totalBefore + 1, totalBefore + 2, totalBefore + 3]);
+    expect(Number(rows[0]!.referralCount)).toBe(2);
+    expect(Number(rows[1]!.referralCount)).toBe(0);
+  });
+});
