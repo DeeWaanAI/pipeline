@@ -585,4 +585,46 @@ describe("pipeline sharing between two accounts + publish lineage (isolated loca
     expect(listed.incoming.map((s) => s.shareId)).toEqual([f.grant.shareId]);
     expect(listed.incoming[0].originCreatorId).toBe(f.owner.id);
   });
+
+  // The predicate is unit-pinned elsewhere; this is the rendered surface. A
+  // `run_only` recipient may see that a step ran and how it went, never WHICH
+  // model the grantor pinned to it — that is part of the definition they were
+  // not given, and `debug.getRunStats` is a read that bypasses the export
+  // projection entirely. The `full` control matters as much: without it, a
+  // blanket "always withheld" would pass this file.
+  it("withholds the grantor's per-step model from a run_only reader in debug stats, and not from a full one", async () => {
+    const restricted = await fixture("run_only");
+    const ranRestricted = await runShared(restricted);
+    const callerFor = (user: UserRow) => appMod.appRouter.createCaller({
+      user, remoteIp: "test-fixture",
+    } as unknown as Parameters<typeof appMod.appRouter.createCaller>[0]);
+
+    const asGrantee = await callerFor(restricted.grantee).debug.getRunStats({
+      swarmRunId: ranRestricted.receipt.swarmRunId,
+    });
+    expect(asGrantee.steps.length).toBeGreaterThan(0);
+    for (const step of asGrantee.steps) {
+      expect(step.modelUsed).toBe("withheld_run_only_share");
+    }
+    expect(JSON.stringify(asGrantee)).not.toMatch(SECRET_MARKERS);
+
+    const entitled = await fixture("full");
+    const ranEntitled = await runShared(entitled);
+    const asFull = await callerFor(entitled.grantee).debug.getRunStats({
+      swarmRunId: ranEntitled.receipt.swarmRunId,
+    });
+    // The control is that a `full` recipient sees a REAL model name at all —
+    // the withholding marker must be mode-specific, not blanket. Measured, not
+    // assumed: the value here is the recipient's own resolved model
+    // (`grantee-model`), because a shared run executes on the grantee's
+    // provider and this fixture's step model does not survive that pairing. So
+    // what the run_only marker actually protects is the configuration where the
+    // grantor's pinned model DOES ride along — see the note in
+    // V2-CHECKPOINT.md and the open question it raises.
+    expect(asFull.steps.map((s: { modelUsed: string }) => s.modelUsed)).toContain("grantee-model");
+    for (const step of asFull.steps) {
+      expect(step.modelUsed).not.toBe("withheld_run_only_share");
+    }
+  });
+
 });

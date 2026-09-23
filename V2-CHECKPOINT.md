@@ -600,3 +600,26 @@ per session, so the dev server that is already running will not show
 `share_pipeline`, `send_feedback` or the three `*_work_data` tools until it is
 restarted. That is a restart, not a bug — but it will look like the workbench
 "lost" the new tools otherwise.
+
+## Correction to my own #32 "model leak" finding — measured, not assumed
+
+I shipped `withholdsModel` (marker `withheld_run_only_share`) on the reasoning
+that a `run_only` recipient could read the grantor's per-step model off
+`debug.getRunStats` and the export projection. The new rendered-surface case in
+`pipelineSharing.integration.test.ts` proves the withholding is mode-specific,
+and in doing so corrects the premise:
+
+* a shared run executes on the **grantee's** provider, and in this fixture the
+  step's recorded model comes back as `grantee-model` — the recipient's own
+  resolved default, not the grantor's pinned model;
+* so the value withheld from a `run_only` reader is, in that configuration, the
+  reader's own routing information, and the grantor's model never appeared.
+
+What is actually true: `model_used` is *ambiguous by construction* — it holds
+whatever the executor resolved, which is the grantor's id when that id survives
+the provider pairing and the recipient's default when it does not. Withholding
+one field that sometimes carries the grantor's definition choice is the defensible
+side of the "run_only never reads the definition" rule, but it is a judgement
+call, not a demonstrated leak, and it costs the recipient visibility of their own
+routing. **Open question for the owner (#40): keep the marker, or show the
+resolved model and accept that it is the recipient's own.**
