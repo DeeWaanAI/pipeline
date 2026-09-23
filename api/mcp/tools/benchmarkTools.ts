@@ -199,7 +199,10 @@ export const approveBenchmarkSpendTool: McpTool = {
   handler: async (args: unknown, ctx: McpAuthContext) => {
     const input = approveInputSchema.parse(args);
     const spendApprovalId = await approveBenchmarkSpend({ userId: ctx.userId, ...input });
-    return { spendApprovalId, next: "start_benchmark with the same planHash and this spendApprovalId." };
+    // Echo the hash back: the approval binds to it, the next call must repeat
+    // it, and until now only the quote showed it — so a mismatch was discovered
+    // only by being refused (D9 finding 8).
+    return { spendApprovalId, planHash: input.planHash, next: `start_benchmark with this spendApprovalId and planHash ${input.planHash}.` };
   },
 };
 
@@ -223,6 +226,13 @@ export const startBenchmarkTool: McpTool = {
     const res = await startBenchmark({ userId: ctx.userId, ...input });
     if (!res.ok) throw new Error(res.error);
     await dispatchBenchmarkStart(input.benchmarkId).catch(() => { /* reconciler re-dispatches queued rows */ });
+    if (res.alreadyStarted) {
+      return {
+        benchmarkId: input.benchmarkId, state: res.state, alreadyStarted: true, nothingNewStarted: true,
+        meaning: `This benchmark was already ${res.state} — this call started nothing, spent nothing and consumed no approval. It is not evidence that a new run is queued.`,
+        next: "Poll benchmark_status for real progress; use resume_benchmark only for a benchmark that stopped (cancelled/partial/failed).",
+      };
+    }
     return { benchmarkId: input.benchmarkId, state: res.state, next: "Poll benchmark_status. Results stay private until you publish them." };
   },
 };

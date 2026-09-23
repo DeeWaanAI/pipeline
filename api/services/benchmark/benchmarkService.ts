@@ -642,12 +642,15 @@ function collectBindings(plan: BenchmarkCallPlan): Array<{ providerId: number; m
 
 export async function startBenchmark(opts: {
   userId: number; benchmarkId: number; planHash: string; spendApprovalId: number; idempotencyKey?: string;
-}): Promise<{ ok: true; state: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; state: string; alreadyStarted?: boolean } | { ok: false; error: string }> {
   const db = getDb();
   const [b] = await db.select().from(benchmarks)
     .where(and(eq(benchmarks.id, opts.benchmarkId), eq(benchmarks.ownerId, opts.userId))).limit(1);
   if (!b) return { ok: false, error: "not_found_or_not_authorized" };
-  if (b.state !== "draft") return { ok: true, state: b.state }; // idempotent
+  // Idempotent, but never *indistinguishable*: a replay used to answer
+  // `{state:"running"}` exactly like a real start, so a client could not tell
+  // that nothing had been consumed and no work had been queued (D9 finding 9).
+  if (b.state !== "draft") return { ok: true, state: b.state, alreadyStarted: true };
 
   const [approval] = await db.select().from(spendApprovals)
     .where(and(eq(spendApprovals.id, opts.spendApprovalId), eq(spendApprovals.actorId, opts.userId))).limit(1);
@@ -1543,7 +1546,19 @@ export async function resumeBenchmark(opts: {
   const judged = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
     .where(and(eq(benchmarkJudgments.benchmarkId, b.id), inArray(benchmarkJudgments.status, ["completed", "parse_failed", "validation_failed"])));
   const missingJudgments = expectedJudgmentCount(plan, children) - judged.length;
-  if (unfinished.length === 0 && missingJudgments <= 0) return { ok: false, error: "nothing_left_to_do" };
+  if (unfinished.length === 0 && missingJudgments <= 0) {
+    // "nothing_left_to_do" used to be said to a caller whose benchmark had
+    // failed children, without mentioning the argument that exists for exactly
+    // that case (D9 finding 19): the status line said `failed:1`, the refusal
+    // said there was nothing to do, and `retryFailed` never appeared.
+    const failedChildren = children.filter((r) => r.status === "failed").length;
+    return {
+      ok: false,
+      error: failedChildren > 0 && !opts.retryFailed
+        ? `nothing_left_to_do: every child has finished and every judgment is recorded, but ${failedChildren} of them FAILED — a plain resume therefore has nothing to requeue. Pass retryFailed:true to re-run the failed children; that spends again and needs its own fresh approval.`
+        : `nothing_left_to_do: every planned child and judgment is already recorded${failedChildren > 0 ? ` (${failedChildren} failed, and retryFailed was set but no child was claimable)` : ""} — there is nothing to resume.`,
+    };
+  }
 
   await db.transaction(async (tx) => {
     for (const child of unfinished) {
