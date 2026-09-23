@@ -623,3 +623,26 @@ side of the "run_only never reads the definition" rule, but it is a judgement
 call, not a demonstrated leak, and it costs the recipient visibility of their own
 routing. **Open question for the owner (#40): keep the marker, or show the
 resolved model and accept that it is the recipient's own.**
+
+## What #37 is and is NOT proven to do
+
+`8f4f856`'s message said the benchmark suites "drive this recording path for
+real". They do drive it — but read the fixture before drawing comfort from that:
+`benchmarkExecution.integration.test.ts` seeds a **single-model** pipeline
+(`stepModel` applies to every step), so its priced row comes out identically
+whether it is summed segment-by-segment or priced once from `pricingRoute`, and
+its unpriceable row (`model-nobody-lists`) is unpriceable under both paths. The
+suite therefore proves **no regression and that the code executes**, not the
+multi-model sum, which is the entire point of the change.
+
+Precise state of the evidence:
+* the sum, the void-on-partial rule, `mixed`, the two-provider case and the empty
+  breakdown are pinned by 6 unit cases with an injected resolver
+  (`benchmarkLedger.test.ts`) — real, but not end-to-end;
+* the recording path executes inside a real run (integration green);
+* **nothing yet shows one ledger row carrying two different models' rates.**
+  Tracked as #41, which needs `seedFixture` to accept a per-step model list.
+
+Same lesson as finding 25 and the ICC error, from the other direction: a green
+integration suite next to a new code path is not evidence that the path does what
+was claimed. Assert the distinguishing case or say it is unproven.
