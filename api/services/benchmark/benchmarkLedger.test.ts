@@ -66,3 +66,74 @@ describe("costDisclosure", () => {
     expect(c.display).toContain("uncertain outcome");
   });
 });
+
+// ─── pricing an aggregate that spans several models (#37) ────────────
+//
+// `compare_models` is the flow where cost matters most and it produced nothing
+// but `unknown`: a run whose steps use different models has no single
+// (provider, model) route, so the ledger row had no number to hold even though
+// every model in it is individually priced by its host. These pin the sum — and
+// especially the refusal to sum partially.
+
+import { priceSegments, type PricingSegment } from "./benchmarkLedger";
+import type { AttemptRate } from "./modelPricing";
+
+const rate = (inp: number, out: number, basis: "provider_list" | "price_vector" = "provider_list", asOf: Date | null = null): AttemptRate =>
+  ({ rates: { in: inp, out }, basis, asOf });
+
+const seg = (model: string, prompt: number, completion: number, providerRefId: number | null = 1): PricingSegment =>
+  ({ model, providerRefId, promptTokens: prompt, completionTokens: completion });
+
+describe("priceSegments", () => {
+  it("sums each model at its own rate, to the ledger's 8 decimals", async () => {
+    // 1,000 prompt + 500 completion at 1.00/4.00 per 1K = 3.00
+    // plus 1,000 prompt + 0 completion at 0.10/0.20 per 1K = 0.10
+    const priced = await priceSegments(
+      [seg("model-a", 1000, 500), seg("model-b", 1000, 0, 2)],
+      async (_p, m) => (m === "model-a" ? rate(1, 4) : rate(0.1, 0.2)),
+    );
+    expect(priced?.estimatedCostUsd).toBe("3.1");
+    expect(priced?.costBasis).toBe("provider_list");
+  });
+
+  it("says nothing when ONE segment cannot be priced, because a partial sum is not a total", async () => {
+    const priced = await priceSegments(
+      [seg("model-a", 1000, 500), seg("ghost-model", 1000, 500)],
+      async (_p, m) => (m === "model-a" ? rate(1, 4) : null),
+    );
+    expect(priced).toBeNull();
+  });
+
+  it("treats a resolver that throws as unknown, never as zero", async () => {
+    const priced = await priceSegments([seg("model-a", 1000, 500)], async () => {
+      throw new Error("host unreachable");
+    });
+    expect(priced).toBeNull();
+  });
+
+  it("names a mixed source rather than picking one and misattributing it", async () => {
+    const priced = await priceSegments(
+      [seg("model-a", 1000, 0), seg("model-b", 1000, 0)],
+      async (_p, m) => (m === "model-a"
+        ? rate(1, 1, "provider_list", new Date("2026-09-20T00:00:00Z"))
+        : rate(0.5, 0.5, "price_vector")),
+    );
+    expect(priced?.costBasis).toBe("mixed");
+    expect(priced?.priceVectorVersion).toBeTruthy();
+    // The oldest reading is the conservative thing to disclose.
+    expect(priced?.costPricingAsOf?.toISOString()).toBe("2026-09-20T00:00:00.000Z");
+  });
+
+  it("prices a model served by two providers without inventing a route", async () => {
+    const seen: Array<number | null> = [];
+    await priceSegments(
+      [seg("shared-model", 1000, 0, null)],
+      async (p) => { seen.push(p); return rate(1, 1, "price_vector"); },
+    );
+    expect(seen).toEqual([null]);
+  });
+
+  it("returns nothing for an empty breakdown, so the single-route path still applies", async () => {
+    expect(await priceSegments([], async () => rate(1, 1))).toBeNull();
+  });
+});

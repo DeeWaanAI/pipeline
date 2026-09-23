@@ -23,6 +23,7 @@ import {
   benchmarks, callAttempts, llmProviders, pipelineVersions, projects, spendApprovals, swarmRuns,
 } from "@db/schema";
 import { getDb } from "../../queries/connection";
+import { agentRuns } from "@db/schema";
 import { logger } from "../../lib/logger";
 import { executeSwarmRun } from "../swarmService";
 import { resolveModelPricing, type PricingSource, type ResolvedPricing } from "./modelPricing";
@@ -39,13 +40,13 @@ import { assessBenchmarkPanel, computeIcc, iccDesignNull } from "./judgePanel";
 import { resolveModelVendors } from "../modelCatalogService";
 import {
   captureVersionFromProject, createVersionRow, loadVersionDefinition, materializeOverrideVersion,
-  snapshotStepsFromProject, stepResolutionsFromSnapshot, singleRouteOfSnapshot,
+  snapshotStepsFromProject, stepResolutionsFromSnapshot, singleRouteOfSnapshot, resolveSnapshotSteps,
 } from "./versionService";
 import {
   buildPairwiseJudgePrompt, buildRubricJudgePrompt,
   generateJudgeCall, judgePromptVersionFor, parseAndValidatePairwiseVerdict, parseAndValidateRubricVerdict,
 } from "./judgeService";
-import { benchmarkLedgerTotals, costDisclosure, recordCallAttempt } from "./benchmarkLedger";
+import { benchmarkLedgerTotals, costDisclosure, recordCallAttempt, type PricingSegment } from "./benchmarkLedger";
 
 const LEASE_MS = 15 * 60_000;
 
@@ -909,6 +910,7 @@ export async function executeBenchmark(opts: { benchmarkId: number; leaseToken: 
         purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
         providerRefId: null, requestedModel: cand.requestedModel ?? "workflow-steps",
         pricingRoute: singleRouteOfSnapshot(definition),
+        pricingSegments: await runModelSegments(swarmRunId, definition),
         outcome: ok ? "success" : "failed",
         promptTokens: usage.promptTokens, completionTokens: usage.completionTokens,
         errorMessage: ok ? null : finalRun?.error ?? null,
@@ -990,6 +992,60 @@ async function resolveImportedChild(
     executorMetadata: { stepModels: [], providerRoute: undefined, revisionExposed: undefined },
     usageSummary: { promptTokens: 0, completionTokens: 0 },
   }).where(eq(benchmarkRuns.id, runId));
+}
+
+/**
+ * One run's usage, split by MODEL — the only way a pipeline whose steps use
+ * different models can have its actuals priced at all (desktop finding 3:
+ * `compare_models` reported `unknown` for every generation row because the
+ * aggregate had no single (provider, model) route).
+ *
+ * Deliberately conservative in the two ways that matter for money: a response
+ * whose tokens cannot be attributed to a model aborts the whole breakdown (a
+ * partial sum is not a total), and a model served by more than one provider in
+ * the same run gets `providerRefId: null`, so it is priced from what can be
+ * named rather than from a guessed route.
+ */
+async function runModelSegments(
+  swarmRunId: number, definition: VersionDefinition,
+): Promise<PricingSegment[]> {
+  const db = getDb();
+  const steps = await db.select({ id: agentRuns.id, modelUsed: agentRuns.modelUsed })
+    .from(agentRuns).where(eq(agentRuns.swarmRunId, swarmRunId));
+  if (!steps.length) return [];
+
+  const responses = await db.select({
+    agentRunId: agentResponses.agentRunId, metadata: agentResponses.metadata,
+  }).from(agentResponses).where(inArray(agentResponses.swarmRunId, [swarmRunId]));
+
+  const modelOf = new Map(steps.map((s) => [s.id, (s.modelUsed ?? "").trim()]));
+  const byModel = new Map<string, { prompt: number; completion: number }>();
+  for (const r of responses) {
+    const model = r.agentRunId ? modelOf.get(r.agentRunId) : undefined;
+    const tokens = (r.metadata as { tokensUsed?: { prompt?: number; completion?: number } } | null)?.tokensUsed;
+    if (!model || !tokens) return [];
+    const acc = byModel.get(model) ?? { prompt: 0, completion: 0 };
+    acc.prompt += tokens.prompt ?? 0;
+    acc.completion += tokens.completion ?? 0;
+    byModel.set(model, acc);
+  }
+
+  const providersByModel = new Map<string, Set<number>>();
+  for (const step of resolveSnapshotSteps(definition)) {
+    const model = (step.model ?? "").trim();
+    if (!model || typeof step.providerId !== "number") continue;
+    const set = providersByModel.get(model) ?? new Set<number>();
+    set.add(step.providerId);
+    providersByModel.set(model, set);
+  }
+
+  return [...byModel].map(([model, usage]) => ({
+    model,
+    providerRefId: providersByModel.get(model)?.size === 1
+      ? [...providersByModel.get(model)!][0]! : null,
+    promptTokens: usage.prompt,
+    completionTokens: usage.completion,
+  }));
 }
 
 async function runTokenUsage(swarmRunId: number): Promise<{ promptTokens: number; completionTokens: number }> {

@@ -8,6 +8,7 @@ import { getDb } from "../../queries/connection";
 import type { ExecutionPurpose } from "../../../contracts/offeringV2";
 import { PRICE_VECTOR_VERSION } from "./benchmarkTypes";
 import { rateForAttempt } from "./modelPricing";
+import type { AttemptRate, PricingSource } from "./modelPricing";
 
 export interface RecordAttemptInput {
   operationKind: "generation" | "judgment" | "design" | "narrative" | "preparation";
@@ -34,6 +35,83 @@ export interface RecordAttemptInput {
    * was billed against", which an aggregate of several calls does not have.
    */
   pricingRoute?: { providerRefId: number; model: string } | null;
+  /**
+   * Per-model breakdown of an aggregate's usage, when the caller has one. Used
+   * FIRST: a multi-model run is priced by summing these, which is the only way
+   * its actuals can be a number rather than `unknown`. An unpriceable segment
+   * makes the whole row unknown — never a partial sum.
+   */
+  pricingSegments?: PricingSegment[] | null;
+}
+
+/**
+ * One priced slice of an aggregate row: the calls a pipeline run made on ONE
+ * model, summed. A `generation` ledger row covers a whole run, and a run whose
+ * steps use different models has no single (provider, model) rate to price it
+ * with — which is why `compare_models` actuals read `unknown` today even though
+ * every model in the run is individually known to the provider's own price list.
+ * `providerRefId` is null when the same model was served by more than one
+ * provider in the run, because then no route can be named for it honestly.
+ */
+export interface PricingSegment {
+  model: string;
+  providerRefId: number | null;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+export type RateResolver = (providerRefId: number | null, model: string) => Promise<AttemptRate | null>;
+
+/**
+ * Sum the segments, or say nothing. Every segment must resolve a rate: a partial
+ * total presented as the whole would be the exact lie `costDisclosure` exists to
+ * prevent, so one unpriceable model makes the entire row UNKNOWN.
+ *
+ * `mixed` appears when the parts came from different sources, because the
+ * disclosure has to be able to say "some of this is the provider's list and some
+ * is our vector" rather than pick one and misattribute it.
+ */
+export async function priceSegments(
+  segments: PricingSegment[], resolve: RateResolver = rateForAttempt,
+): Promise<PricedAttempt | null> {
+  if (!segments.length) return null;
+  let usd = 0;
+  const bases = new Set<PricingSource>();
+  let oldestAsOf: Date | null = null;
+  for (const segment of segments) {
+    const model = segment.model.trim();
+    if (!model) return null;
+    const rate = await rateForAttemptSafely(resolve, segment.providerRefId, model);
+    if (!rate) return null;
+    usd += (segment.promptTokens / 1000) * rate.rates.in + (segment.completionTokens / 1000) * rate.rates.out;
+    bases.add(rate.basis);
+    // The EARLIEST reading is the conservative one to disclose: it is the oldest
+    // claim in the sum.
+    if (rate.asOf && (!oldestAsOf || rate.asOf < oldestAsOf)) oldestAsOf = rate.asOf;
+  }
+  const basis = bases.size === 1 ? [...bases][0]! : "mixed";
+  return {
+    costBasis: basis,
+    costPricingAsOf: oldestAsOf,
+    priceVectorVersion: bases.has("price_vector") ? PRICE_VECTOR_VERSION : null,
+    estimatedCostUsd: String(Math.round(usd * 1e8) / 1e8),
+  };
+}
+
+async function rateForAttemptSafely(resolve: RateResolver, providerRefId: number | null, model: string) {
+  try {
+    return await resolve(providerRefId, model);
+  } catch {
+    return null;
+  }
+}
+
+/** What `priceAttempt` produces, and what a ledger row's cost columns hold. */
+export interface PricedAttempt {
+  costBasis: PricingSource | "mixed" | null;
+  costPricingAsOf: Date | null;
+  priceVectorVersion: string | null;
+  estimatedCostUsd: string | null;
 }
 
 /**
@@ -44,7 +122,13 @@ export interface RecordAttemptInput {
  * requested id too, so the pair stays comparable instead of splitting into
  * "$ quoted" against "unknown actual". An unresolvable id is UNKNOWN, never 0.
  */
-async function priceAttempt(input: RecordAttemptInput) {
+async function priceAttempt(input: RecordAttemptInput): Promise<PricedAttempt> {
+  // A run with a per-model breakdown is priced FROM it, which is the only way a
+  // multi-model pipeline can produce a real number at all. No segments (or an
+  // unpriceable one) falls through to the single-route path below, which is what
+  // a one-model run has always used.
+  const segmented = await priceSegments(input.pricingSegments ?? []);
+  if (segmented) return segmented;
   const models = [...new Set([
     input.returnedModel, input.requestedModel, input.pricingRoute?.model,
   ].map((m) => (m ?? "").trim()).filter(Boolean))];
