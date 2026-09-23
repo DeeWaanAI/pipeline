@@ -55,6 +55,12 @@ import {
   benchmarks, feedback, feedbackAttachments, pipelineShares, projects, swarmRuns,
 } from "@db/schema";
 import { getDb } from "../queries/connection";
+
+/** A transaction, when the caller opens one: a feedback row and its consent
+ *  receipts are written together or not at all. Only `insert` is needed, which
+ *  is what lets a `MySqlTransaction` and the plain pool stand in for each
+ *  other here — drizzle's full database type also demands `$client`. */
+type DbLike = Pick<ReturnType<typeof getDb>, "insert">;
 import { logger } from "../lib/logger";
 import { DEFAULT_CONSENT_VERSION, scanForSecrets } from "./evidenceService";
 import {
@@ -128,6 +134,11 @@ function capStrings<T>(value: T): T {
       : value) as unknown as T;
   }
   if (Array.isArray(value)) return value.map((v) => capStrings(v)) as unknown as T;
+  // A Date has no enumerable own properties, so the generic object branch below
+  // would rebuild it as `{}` and silently destroy every timestamp in the
+  // snapshot — `startedAt`, `completedAt` and each step's `createdAt` are the
+  // first things support asks for, and the author did consent to sending them.
+  if (value instanceof Date) return value;
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = capStrings(v);
@@ -437,16 +448,18 @@ export async function summarizeAttachments(feedbackIds: number[]): Promise<Map<n
   return byFeedback;
 }
 
-/** Write the prepared rows and return the receipts. */
+/** Write the prepared rows and return the receipts. Takes the caller's
+ *  transaction when there is one, so a feedback row and its receipts are
+ *  written atomically — see `submitFeedbackWithAttachments`. */
 export async function createConsentedAttachments(
   userId: number, feedbackId: number, built: BuiltAttachment[],
+  executor: DbLike = getDb(),
 ): Promise<AttachmentReceipt[]> {
   if (built.length === 0) return [];
-  const db = getDb();
   const out: AttachmentReceipt[] = [];
   for (const item of built) {
     const row = attachmentReceiptRows(userId, feedbackId, [item])[0];
-    const [inserted] = await db.insert(feedbackAttachments).values(row);
+    const [inserted] = await executor.insert(feedbackAttachments).values(row);
     out.push({
       id: Number((inserted as { insertId: number }).insertId),
       kind: item.kind,
@@ -544,26 +557,33 @@ export async function submitFeedbackWithAttachments(
 ): Promise<{ id: number; success: true; attachments: AttachmentReceipt[] }> {
   const prepared = await prepareConsentedAttachments(userId, input.attachments ?? []);
   const db = getDb();
-
-  // The team auto-detect arm is gone with ticket #26: `feedback.team_id`
-  // stays a nullable column (historical rows keep their value) but new
-  // submissions are attributed to the project and the submitting account.
-  const [result] = await db.insert(feedback).values({
-    teamId: null,
-    projectId: input.projectId || null,
-    userId,
-    targetType: input.targetType,
-    targetMessageId: input.targetMessageId || null,
-    feedbackType: input.feedbackType,
-    severity: input.severity,
-    content: input.content,
-    screenshotUrl: input.screenshotUrl || null,
-    contextJson: input.context || null,
-    tagsJson: input.tags || null,
-    status: "new",
+  let id = 0;
+  let attachments: AttachmentReceipt[] = [];
+  // One transaction, because a receipt that names a feedback row which failed
+  // to exist — or a feedback row whose author's opt-ins only half-written — is
+  // a consent record nobody can trust. The snapshots are all built above,
+  // outside this, so no provider or file read happens while the lock is held.
+  await db.transaction(async (tx) => {
+    // The team auto-detect arm is gone with ticket #26: `feedback.team_id`
+    // stays a nullable column (historical rows keep their value) but new
+    // submissions are attributed to the project and the submitting account.
+    const [result] = await tx.insert(feedback).values({
+      teamId: null,
+      projectId: input.projectId || null,
+      userId,
+      targetType: input.targetType,
+      targetMessageId: input.targetMessageId || null,
+      feedbackType: input.feedbackType,
+      severity: input.severity,
+      content: input.content,
+      screenshotUrl: input.screenshotUrl || null,
+      contextJson: input.context || null,
+      tagsJson: input.tags || null,
+      status: "new",
+    });
+    id = Number((result as { insertId: number }).insertId);
+    attachments = await createConsentedAttachments(userId, id, prepared, tx);
   });
-  const id = Number((result as { insertId: number }).insertId);
-  const attachments = await createConsentedAttachments(userId, id, prepared);
   return { id, success: true, attachments };
 }
 

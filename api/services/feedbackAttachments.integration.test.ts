@@ -1085,22 +1085,18 @@ describe("D11 consented feedback attachments at the service boundary (isolated l
     expect(await attachmentRows(res.id)).toHaveLength(1);
   });
 
-  // ─── CHARACTERISATION, NOT AN APPROVAL ─────────────────────────────
-  // `capStrings` walks plain objects and arrays and passes anything else through,
-  // but a `Date` IS an object with no own enumerable properties, so
-  // `Object.entries(new Date())` is `[]` and every timestamp in a snapshot
-  // collapses to `{}`. The stored receipt therefore says nothing about WHEN the
-  // run started or finished, which is information support needs and which the
-  // author consented to send. This is a genuine defect in
-  // api/services/feedbackAttachments.ts:124-137 (`capStrings`, reached from
-  // `finalize` at :279). It is pinned as-is so the suite stays green and so the
-  // test flips the moment the walker learns about dates — INVERT THIS ASSERTION
-  // (an ISO string or epoch number) rather than deleting it when that happens.
-  it("pins today's lossy timestamp handling — a known bug, see the report", async () => {
+  // ─── timestamps survive the size cap ───────────────────────────────
+  // This case was written as "CHARACTERISATION, NOT AN APPROVAL" for a real
+  // defect: `capStrings` walked plain objects and arrays, and a `Date` is an
+  // object with no own enumerable properties, so `Object.entries(new Date())` is
+  // `[]` and EVERY timestamp in a stored snapshot collapsed to `{}` — support
+  // could not see when the run happened, though the author had consented to
+  // sending exactly that. The walker now passes a Date through untouched and
+  // this asserts the value, per that comment's own instruction to invert it
+  // rather than delete it.
+  it("keeps every timestamp of the run the user consented to send", async () => {
     const [run] = await db().select().from(schema.swarmRuns)
       .where(eq(schema.swarmRuns.id, ownerRunId)).limit(1);
-    // The row itself carries real timestamps, so nothing asserted below can be
-    // blamed on an empty column.
     expect(run.startedAt).toBeInstanceOf(Date);
     expect(run.completedAt).toBeInstanceOf(Date);
 
@@ -1108,13 +1104,20 @@ describe("D11 consented feedback attachments at the service boundary (isolated l
       { kind: "run", refId: ownerRunId, consent: true },
     ]);
     const snap = built.detail as Record<string, unknown>;
-    expect(snap.startedAt).toEqual({});
-    expect(snap.completedAt).toEqual({});
-    expect(JSON.parse(built.snapshot).startedAt).toEqual({});
-    // The loss is specific to dates: the fields beside them survived, and the
-    // response rows lose their own `createdAt` the same way.
-    expect(snap.status).toBe("completed");
-    expect(snap.stepCount).toBe(1);
-    expect((snap.responses as Array<Record<string, unknown>>)[0].createdAt).toEqual({});
+    const stored = JSON.parse(built.snapshot) as Record<string, unknown>;
+
+    expect(snap.startedAt).toBeInstanceOf(Date);
+    expect(snap.completedAt).toBeInstanceOf(Date);
+    // In the JSON that is actually written to the column, a date is its ISO
+    // string — never an empty object, which is what used to be stored.
+    expect(stored.startedAt).toBe((run.startedAt as Date).toISOString());
+    expect(stored.completedAt).toBe((run.completedAt as Date).toISOString());
+    const firstResponse = (stored.responses as Array<Record<string, unknown>>)[0];
+    expect(firstResponse.createdAt).toBeTruthy();
+    expect(firstResponse.createdAt).not.toEqual({});
+    // And the fields around them are still intact, so this is preservation
+    // rather than a different kind of loss.
+    expect(stored.status).toBe("completed");
+    expect(stored.stepCount).toBe(1);
   });
 });
