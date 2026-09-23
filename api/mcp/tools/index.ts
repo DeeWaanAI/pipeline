@@ -38,6 +38,7 @@ import { runBatch } from "./runBatch";
 import { batchStatus } from "./batchStatus";
 import { PUBLICATION_TOOLS } from "./publicationTools";
 import { EXTERNAL_EVIDENCE_TOOLS } from "./externalEvidenceTools";
+import { PIPELINE_SHARING_TOOLS } from "./pipelineSharingTools";
 import { PROTECTED_EXECUTION_TOOLS } from "./protectedExecutionTools";
 import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
 import { resumeBatchTool } from "./resumeBatch";
@@ -63,6 +64,11 @@ export const TOOLS: McpTool[] = [
   // Offering redesign v2 — user-declared community reports (A09). Writes are
   // flag-gated; the public reads are not, like every other published record.
   ...EXTERNAL_EVIDENCE_TOOLS,
+  // Pipeline sharing between two individual accounts + the lineage rule that
+  // keeps publishing with the original creator (owner decisions 2026-09-22).
+  // Not flag-gated: it is gated on ownership and on the grant row, and no new
+  // OAuth scope exists to gate it with.
+  ...PIPELINE_SHARING_TOOLS,
   // Offering redesign v2 — protected buyer execution (hidden unless
   // v2ProtectedExecution). Buyer-side half of §8.
   ...PROTECTED_EXECUTION_TOOLS,

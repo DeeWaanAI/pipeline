@@ -15,16 +15,20 @@ import {
   ledgerToCsvFiles,
   signLedger,
 } from "../services/auditExport";
-import { isProtectedRun, PROMPT_BEARING_RUN_COLUMNS } from "../services/runAccess";
+import { isProtectedRun, MODEL_BEARING_RUN_COLUMNS, PROMPT_BEARING_RUN_COLUMNS, withholdsModel } from "../services/runAccess";
 
 export const PROTECTED_EXPORT_NOTE =
   "Protected marketplace run: the workflow definition belongs to the seller, so step prompts are stored as lengths only and intermediate step outputs are not part of the buyer's export.";
 
 /** §8.1's second bar: the writer already refuses to store a protected run's
  *  prompt text, and the export does not return those columns either. */
-function redactProtectedAgentRun(row: typeof agentRuns.$inferSelect) {
+function redactProtectedAgentRun(row: typeof agentRuns.$inferSelect, withholdModel = false) {
   const copy: Record<string, unknown> = { ...row };
   for (const column of PROMPT_BEARING_RUN_COLUMNS) delete copy[column];
+  // A `run_only` share additionally withholds which model each of the
+  // grantor's steps pins: that is definition, and it is the one step column the
+  // write-side redaction does not already cover.
+  if (withholdModel) for (const column of MODEL_BEARING_RUN_COLUMNS) delete copy[column];
   return copy;
 }
 
@@ -100,7 +104,7 @@ export const exportRouter = createRouter({
           version: 1,
           exportedAt: new Date().toISOString(),
           run,
-          agentRuns: runs.map(redactProtectedAgentRun),
+          agentRuns: runs.map((r) => redactProtectedAgentRun(r, withholdsModel(run))),
           agentResponses: responses.filter((r) => r.id === run.finalResponseId),
           protection: PROTECTED_EXPORT_NOTE,
         };
@@ -197,13 +201,15 @@ export const exportRouter = createRouter({
       // The buyer's marketplace container is project-exportable like any other
       // project, so the same protected-run projection applies here (§8.1).
       const protectedFinals = new Map(runs.filter(isProtectedRun).map((r) => [r.id, r.finalResponseId]));
+      const modelWithheldOn = new Set(runs.filter(withholdsModel).map((r) => r.id));
       return {
         version: 1,
         exportedAt: new Date().toISOString(),
         project,
         pipelineSteps: steps,
         swarmRuns: runs,
-        agentRuns: allAgentRuns.map((r) => (protectedFinals.has(r.swarmRunId ?? -1) ? redactProtectedAgentRun(r) : r)),
+        agentRuns: allAgentRuns.map((r) => (protectedFinals.has(r.swarmRunId ?? -1)
+          ? redactProtectedAgentRun(r, modelWithheldOn.has(r.swarmRunId ?? -1)) : r)),
         agentResponses: allResponses.filter((r) =>
           !protectedFinals.has(r.swarmRunId ?? -1) || r.id === protectedFinals.get(r.swarmRunId ?? -1)),
       };

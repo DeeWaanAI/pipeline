@@ -29,6 +29,7 @@ import { designJobsRouter } from "./routers/designJobs";
 import { benchmarkRouter } from "./routers/benchmark";
 import { communityEvidenceRouter, evidenceRouter } from "./routers/evidence";
 import { marketplaceExecutionRouter } from "./routers/marketplaceExecution";
+import { pipelineShareRouter } from "./routers/pipelineShare";
 import { modelCatalogRouter } from "./routers/modelCatalog";
 import { PLUGINS } from "./plugins/registry";
 
@@ -73,6 +74,7 @@ export const appRouter = createRouter({
   evidence: evidenceRouter,
   communityEvidence: communityEvidenceRouter,
   marketplaceExecution: marketplaceExecutionRouter,
+  pipelineShare: pipelineShareRouter,
   modelCatalog: modelCatalogRouter,
   // Plugin routes are namespaced under their plugin ID
   ...pluginRouters,

@@ -38,6 +38,7 @@ import { panelVariants } from "./benchmark/benchmarkTypes";
 import { assessBenchmarkPanel } from "./benchmark/judgePanel";
 import { judgePromptVersionFor, VARIANT_FRAMING } from "./benchmark/judgeService";
 import { ProtectedExecutionError, resolveProtectedExecutionRight } from "./marketplaceExecutionService";
+import { assertOriginalCreatorMaySellVersion } from "./workflowLineage";
 
 export const PUBLICATION_POLICY_VERSION = "v2-p3-1";
 export const DEFAULT_CONSENT_VERSION = "consent-v1";
@@ -682,6 +683,13 @@ export async function publishVersion(opts: {
     sourceProjectId: pipelineVersions.sourceProjectId, definitionHash: pipelineVersions.definitionHash,
   }).from(pipelineVersions).where(eq(pipelineVersions.id, opts.workflowVersionId)).limit(1);
   if (!version || version.ownerId !== opts.userId) throw new Error("not_found_or_not_authorized");
+  // ONLY THE ORIGINAL CREATOR MAY SELL A VERSION (owner decision 2026-09-22).
+  // Owning the version row is not authorship of the work: a `full` share
+  // recipient, an importer or a cloner can hold a version they did not
+  // originate, and the lineage columns record whose work it actually is. This
+  // runs AFTER the ownership check above on purpose, so an outsider still learns
+  // only "not found" and nothing about the version existing.
+  await assertOriginalCreatorMaySellVersion({ userId: opts.userId, workflowVersionId: version.id });
 
   const [template] = await db.select({
     sourceProjectId: pipelineTemplates.sourceProjectId,

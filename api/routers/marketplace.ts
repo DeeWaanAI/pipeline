@@ -24,6 +24,7 @@ import { extractJson } from "../lib/extractJson";
 import { withTimeout } from "../lib/withTimeout";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
+import { assertOriginalCreatorMayList } from "../services/workflowLineage";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
   getEvidenceForViewer, getPurchasedEvidenceForListing,
@@ -1051,6 +1052,14 @@ export const marketplaceRouter = createRouter({
         ));
 
       if (!template) throw new Error("Pipeline template not found or not owned by you");
+
+      // ONLY THE ORIGINAL CREATOR MAY PUBLISH (owner decision 2026-09-22), and
+      // the web boundary must apply the identical rule the MCP tool applies —
+      // see `assertOriginalCreatorMayList`, which resolves the template's
+      // source project and that project's recorded `origin_creator_id`. A
+      // share recipient's or a cloner's template therefore cannot be listed,
+      // while every pre-lineage template keeps resolving to its own creator.
+      await assertOriginalCreatorMayList({ userId, templateId: input.templateId });
 
       // Create the listing
       const [listing] = await getDb().insert(marketplaceListings).values({

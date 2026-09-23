@@ -109,6 +109,13 @@ export const projects = mysqlTable("projects", {
     stopOnNoImprovement?: boolean;
   }>(),
   pipelineTemplateId: int("pipeline_template_id"), // References reusable template (nullable)
+  // ─── LINEAGE: the account that ORIGINALLY created the work this pipeline
+  // derives from. NULL (or equal to `user_id`) means "this account made it".
+  // Set when a pipeline is cloned out of a share or an import, so a copy can
+  // never launder provenance and a recipient can never sell what they were
+  // only lent. No FK by design: the name outlives the account, and an FK here
+  // would add a new delete constraint on `users`.
+  originCreatorId: int("origin_creator_id"),
   isArchived: boolean("is_archived").default(false),
   lastSyncedAt: timestamp("last_synced_at"),
   // Project Intelligence Card (compact JSON, not file contents)
@@ -235,6 +242,12 @@ export const swarmRuns = mysqlTable("swarm_runs", {
      *  to its own SwarmRunParams, and nothing is trusted from this blob — the
      *  right is re-resolved from current rows before a single call is made. */
     protectedRun?: object;
+    /** A pipeline ONE ACCOUNT shared with another (api/services/
+     *  pipelineSharing.ts): the grant that authorized this run, recorded so the
+     *  read surfaces can apply the same redaction they apply to a buyer run.
+     *  Nothing is trusted from this blob — the grant row is re-read before a
+     *  single provider call, so a revoked share stops an already-queued run. */
+    sharedRun?: object;
   } | null>(),
   startedAt: timestamp("started_at").defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -1381,6 +1394,21 @@ export const pipelineVersions = mysqlTable("pipeline_versions", {
   designerModel: varchar("designer_model", { length: 120 }),
   designerPromptVersion: varchar("designer_prompt_version", { length: 60 }),
   parentVersionId: int("parent_version_id"),
+  // ─── LINEAGE (owner decision 2026-09-22: only the ORIGINAL creator may
+  // publish on the marketplace). Provenance is DATA, never a name or a prompt
+  // similarity: a version copied out of a shared/imported pipeline carries the
+  // account that originally created the work forward, and publishing evidence
+  // or listing a version requires the caller to BE that account.
+  // NULL means "predates lineage", and the reader falls back to `owner_id` —
+  // so every pre-existing version stays publishable by whoever created it.
+  // No FK on purpose (like `parentVersionId`/`sourceProjectId`): provenance
+  // must outlive the user rows it names, and adding a constraint here would
+  // silently change what account deletion is allowed to do.
+  originCreatorId: int("origin_creator_id"),
+  // The earliest known version this one derives from, when different from the
+  // version itself. Together with `origin_creator_id` this is the receipt that
+  // says where the work came from.
+  originVersionId: int("origin_version_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   ownerVersionUniq: uniqueIndex("uq_pipeline_versions_owner_version").on(table.ownerId, table.sourceProjectId, table.versionNumber),
@@ -1389,6 +1417,58 @@ export const pipelineVersions = mysqlTable("pipeline_versions", {
 
 export type PipelineVersion = typeof pipelineVersions.$inferSelect;
 export type InsertPipelineVersion = typeof pipelineVersions.$inferInsert;
+
+// ─── PIPELINE SHARES ────────────────────────────────────────────────
+// A per-object grant between TWO INDIVIDUAL ACCOUNTS (owner decision
+// 2026-09-22). This is NOT a team and carries no group, workspace or org
+// concept: one row says "account A lets account B use this one pipeline".
+//
+//  * `run_only` — B may RUN the workflow and read the RESULTS, and may not
+//    read the step prompts, the system prompts or the workflow definition.
+//    Reads of B's runs go through the same redacted projection the
+//    buyer-facing marketplace code already produces (api/services/runAccess).
+//  * `full` — B may also read the definition, and may edit it only while
+//    `can_modify` is true.
+//
+// A share is a row, never a transfer: `projects.user_id` and every version's
+// `owner_id` stay with the grantor, the grant is revocable, and no share —
+// at any privilege level — carries the right to publish on the marketplace
+// (see the lineage columns above).
+export const pipelineShares = mysqlTable("pipeline_shares", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  // The shared object. `cascade` because the grant is meaningless without the
+  // pipeline it names, and the pipeline's steps are already cascade-deleted
+  // with the project; runs and versions the grant produced are separate rows
+  // and are never touched by this.
+  projectId: int("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull(),
+  // Denormalized grantor, so "what have I shared out" is one indexed lookup
+  // and a re-share can be proven to come from the actual owner.
+  ownerId: int("owner_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  granteeId: int("grantee_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  accessMode: mysqlEnum("access_mode", ["run_only", "full"]).default("run_only").notNull(),
+  canModify: boolean("can_modify").default(false).notNull(),
+  // Revocation flips this instead of deleting: the row is the record that the
+  // access was ever granted, and an in-flight run re-reads it at dispatch.
+  state: mysqlEnum("state", ["active", "revoked"]).default("active").notNull(),
+  note: varchar("note", { length: 500 }),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at"),
+}, (table) => ({
+  // One grant per pair: "share with one named other user" is upserted, never
+  // stacked into several rows whose modes could disagree about who wins.
+  projectGranteeUniq: uniqueIndex("uq_pipeline_shares_project_grantee").on(table.projectId, table.granteeId),
+  granteeStateIdx: index("idx_pipeline_shares_grantee_state").on(table.granteeId, table.state),
+  ownerStateIdx: index("idx_pipeline_shares_owner_state").on(table.ownerId, table.state),
+}));
+
+export type PipelineShare = typeof pipelineShares.$inferSelect;
+export type InsertPipelineShare = typeof pipelineShares.$inferInsert;
 
 // ─── DESIGN JOBS (durable auto-design, spec §5/§6.1) ─────────────────
 export const designJobs = mysqlTable("design_jobs", {

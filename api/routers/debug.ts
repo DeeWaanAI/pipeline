@@ -3,7 +3,7 @@ import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { debugLogs, agentRuns, agentResponses, swarmRuns } from "@db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { assertProjectVisible, assertRunVisible } from "../services/runAccess";
+import { assertProjectVisible, assertRunVisible, withholdsModel } from "../services/runAccess";
 
 // Every procedure in this router used to query by swarmRunId/projectId alone,
 // with no check that the caller could see that run. `debugLogs` rows carry
@@ -75,6 +75,7 @@ export const debugRouter = createRouter({
         .orderBy(agentResponses.createdAt);
 
       // Build per-step stats
+      const hideModel = withholdsModel(run);
       const steps = agentRunList.map((ar) => ({
         agentRole: ar.agentRole,
         agentName: ar.agentName,
@@ -82,7 +83,10 @@ export const debugRouter = createRouter({
         iteration: ar.iteration,
         tokensUsed: ar.tokensUsed ?? 0,
         latencyMs: ar.latencyMs ?? 0,
-        modelUsed: ar.modelUsed ?? "unknown",
+        // Which model each step pins is part of a `run_only` grantor's
+        // definition, and this is the one read that reaches step rows without
+        // going through the export projection.
+        modelUsed: hideModel ? "withheld_run_only_share" : (ar.modelUsed ?? "unknown"),
         status: ar.status,
       }));
 

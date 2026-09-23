@@ -17,6 +17,7 @@ import {
   users,
 } from "@db/schema";
 import { encryptPipelineSteps } from "../../lib/marketplaceCrypto";
+import { assertOriginalCreatorMayList } from "../../services/workflowLineage";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { appRouter } from "../../router";
@@ -68,6 +69,18 @@ export const publishToMarketplace: McpTool = {
       .limit(1);
 
     if (!template) throw new Error("Template not found or not owned by you");
+
+    // ONLY THE ORIGINAL CREATOR MAY PUBLISH (owner decision 2026-09-22). The
+    // tier capability check that used to stand here was deleted with the tier
+    // ladder, which left this boundary with NO publish gate at all —
+    // desktop-pass finding 25. The replacement is lineage, not a plan: the
+    // project/template carries, as DATA, the account that originally created
+    // the work it derives from, and only that account may sell it. A `full`
+    // share recipient, an importer or a cloner is refused here even though they
+    // own the row in front of them.
+    await assertOriginalCreatorMayList({
+      userId: ctx.userId, projectId: project.id, templateId: template.id,
+    });
 
     const [listingResult] = await db.insert(marketplaceListings).values({
       creatorId: ctx.userId,

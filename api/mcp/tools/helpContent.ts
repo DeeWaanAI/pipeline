@@ -59,6 +59,11 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Show me pipeline 12.\"",
   },
   {
+    name: "get_shared_pipeline", group: "Discover", scopes: ["mcp:read"],
+    summary: "Read a pipeline someone shared with you, at exactly the level your grant allows: a full share returns the real steps with every system prompt, a run_only share returns step order, names, roles and enabled flags only and says what was withheld. No account with no grant gets further than 'not found'.",
+    example: "\"What did Ali share with me?\"",
+  },
+  {
     name: "project_context", group: "Discover", scopes: ["mcp:read"],
     summary: "Read a project's working context (goal, state summary, recent decisions).",
   },
@@ -80,6 +85,15 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   {
     name: "run_status", group: "Run", scopes: ["mcp:read"],
     summary: "Check a run: current step, agent outputs so far, whether it's waiting on your approval.",
+  },
+  {
+    name: "run_shared_pipeline", group: "Run", scopes: ["mcp:run"],
+    summary: "Run a pipeline that was shared with you, on YOUR provider. The definition never lands in your records: an immutable snapshot owned by the account that shared it executes inside a container of yours, and under a run_only grant the run's prompts are redacted at the write so there is nothing to leak later.",
+    example: "\"Run the pipeline Ali shared with me on this text.\"",
+  },
+  {
+    name: "shared_run_status", group: "Run", scopes: ["mcp:read"],
+    summary: "Progress and final output of a run of a shared pipeline: step states, names, tokens and latency plus the answer. Step prompt and context columns are not part of this projection, and on a run_only share the provider's error text is reported as a category because it can quote the owner's workflow.",
   },
   {
     name: "approve_step", group: "Run", scopes: ["mcp:run"],
@@ -180,6 +194,28 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   {
     name: "memory_append", group: "Author", scopes: ["mcp:write"],
     summary: "Add a note to your persistent project memory (survives across chats).",
+  },
+  {
+    name: "share_pipeline", group: "Author", scopes: ["mcp:write"],
+    summary: "Lend ONE pipeline to ONE named account: run_only lets them run it and keep the answer while their reads show step names and states only, full lets them read the definition, and canModify (full only) lets them edit it. This is a grant between two people, not a team, and never a transfer — you stay the owner and the only account that can publish it.",
+    example: "\"Share my contract pipeline with partner@example.com so they can run it but not read the prompts.\"",
+  },
+  {
+    name: "list_pipeline_shares", group: "Author", scopes: ["mcp:read"],
+    summary: "The shares involving your account: what you have lent out (revoked grants included, because the row is the record that access existed) and what is currently lent to you, each naming the original creator of the work so you can see that a shared pipeline is a loan.",
+  },
+  {
+    name: "revoke_pipeline_share", group: "Author", scopes: ["mcp:write"],
+    summary: "Take a share back, owner-only and idempotent. Access is re-read at dispatch, so a run that was already queued stops before its first provider call; completed runs stay with the account that ran them.",
+  },
+  {
+    name: "update_shared_pipeline", group: "Author", scopes: ["mcp:write"],
+    summary: "Edit the steps of a pipeline shared to you as full+canModify. The write lands on the owner's project, ownership does not move, and the recorded original creator is left exactly as it was — improving borrowed work cannot turn it into work you may sell.",
+  },
+  {
+    name: "clone_shared_pipeline", group: "Author", scopes: ["mcp:write"],
+    summary: "Copy a full-share pipeline into your own project with a template and a first immutable version. Your copy runs and reads like yours and stays ATTRIBUTED: the original creator is carried forward as data, so publishing stays refused for you. Refused for a run_only share.",
+    example: "\"Clone the pipeline Ali shared with me so I can adapt it for our Arabic market.\"",
   },
   // ── Marketplace ─────────────────────────────────────────────────
   {

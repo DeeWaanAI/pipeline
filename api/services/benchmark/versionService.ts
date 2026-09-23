@@ -8,10 +8,11 @@
 // apply to EVERY model-backed step including if/while gates (spec §4.2).
 
 import { createHash } from "node:crypto";
-import { asc, and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { asc, and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { customAgents, pipelineSteps, pipelineVersions, projects } from "@db/schema";
 import type { ResolvedStep } from "../swarmService";
 import { getDb } from "../../queries/connection";
+import { inheritLineage, resolveVersionLineage } from "../workflowLineage";
 import type { CandidateSpec, SnapshotStep, StepModelResolution, VersionDefinition } from "./benchmarkTypes";
 
 /** Read-only snapshot of a project's enabled steps with agent/project defaults
@@ -75,6 +76,17 @@ export async function captureVersionFromProject(userId: number, projectId: numbe
     pipelineConfig: project.pipelineConfig ?? null,
     sourceAgentIds: snapshot.sourceAgentIds,
   };
+  // LINEAGE: a snapshot of a project that was itself cloned from someone else's
+  // work records THAT account, not the account clicking "version". And when the
+  // project already has a version, the earliest known one keeps being named, so
+  // re-snapshotting a clone can never reset its provenance to the copier.
+  // `origin_creator_id` NULL on both means "predates lineage", and readers fall
+  // back to the owner — which is what keeps every pre-existing version
+  // publishable by whoever created it.
+  const [prior] = await db.select({ id: pipelineVersions.id }).from(pipelineVersions)
+    .where(and(eq(pipelineVersions.ownerId, userId), eq(pipelineVersions.sourceProjectId, projectId)))
+    .orderBy(desc(pipelineVersions.id)).limit(1);
+  const inherited = inheritLineage(prior ? await resolveVersionLineage(prior.id) : null);
   const created = await createVersionRow({
     ownerId: userId, sourceProjectId: projectId, definition,
     designerMethod: opts?.designerMethod ?? "manual",
@@ -82,6 +94,8 @@ export async function captureVersionFromProject(userId: number, projectId: numbe
     designerModel: opts?.designerModel ?? null,
     designerPromptVersion: opts?.designerPromptVersion ?? null,
     parentVersionId: opts?.parentVersionId ?? null,
+    originCreatorId: project.originCreatorId ?? inherited.originCreatorId ?? undefined,
+    originVersionId: inherited.originVersionId ?? undefined,
   });
   return { versionId: created.versionId, definition, hash: created.definitionHash };
 }
@@ -110,6 +124,19 @@ export interface NewVersion {
   designerModel?: string | null;
   designerPromptVersion?: string | null;
   parentVersionId?: number | null;
+  /**
+   * LINEAGE (owner decision 2026-09-22): the account that ORIGINALLY created
+   * the work this version is a snapshot of. Omit it only when the owner really
+   * is the origin — when it is omitted and a `parentVersionId` is present, the
+   * parent's lineage is inherited, so a materialized override or a re-snapshot
+   * of a clone can never quietly launder provenance into the cloner's name.
+   * The stored NULL means "predates lineage" and readers fall back to the
+   * owner, which is what keeps every pre-existing version publishable.
+   */
+  originCreatorId?: number | null;
+  /** The earliest known version of this work. Inherits the parent's origin
+   *  version, so the pointer survives a chain of derivatives. */
+  originVersionId?: number | null;
 }
 
 const VERSION_NUMBER_RETRIES = 8;
@@ -123,6 +150,13 @@ export async function createVersionRow(v: NewVersion): Promise<{ versionId: numb
   const db = getDb();
   const definition = stableJson(v.definition);
   const definitionHash = createHash("sha256").update(definition).digest("hex");
+  // Provenance is inherited, not re-decided: a derivative of a version whose
+  // work belongs to another account keeps belonging to that account.
+  const inherited = (v.originCreatorId === undefined || v.originVersionId === undefined) && v.parentVersionId
+    ? await resolveVersionLineage(v.parentVersionId)
+    : null;
+  const originCreatorId = v.originCreatorId ?? inherited?.originCreatorId ?? null;
+  const originVersionId = v.originVersionId ?? inherited?.originVersionId ?? null;
   let lastError: unknown = null;
   for (let attempt = 0; attempt < VERSION_NUMBER_RETRIES; attempt++) {
     const versionNumber = await nextVersionNumberFor(v.ownerId, v.sourceProjectId ?? null);
@@ -139,6 +173,11 @@ export async function createVersionRow(v: NewVersion): Promise<{ versionId: numb
         designerModel: v.designerModel ?? null,
         designerPromptVersion: v.designerPromptVersion ?? null,
         parentVersionId: v.parentVersionId ?? null,
+        // Written only when knowable: leaving it NULL keeps the documented
+        // "owner is the original creator" fallback intact for rows that were
+        // never part of a share or a clone.
+        originCreatorId,
+        originVersionId,
       });
       return { versionId: Number((res as { insertId: number }).insertId), definitionHash, definition: JSON.parse(definition) as VersionDefinition };
     } catch (err) {
