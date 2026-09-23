@@ -133,7 +133,7 @@ function resetFakes() {
 
 /** Owner + provider + workflow. `gated` adds an if-step so A02 can prove the
  *  override reaches gate calls as well as agent steps. */
-async function seedFixture(opts: { gated?: boolean; stepModel?: string } = {}) {
+async function seedFixture(opts: { gated?: boolean; stepModel?: string; stepModels?: string[] } = {}) {
   const db = await connection();
   const stamp = `${Date.now()}-${Math.random()}`;
   const [u] = await db.insert(schema.users).values({ name: "Runner", email: `r-${stamp}@example.test`, tier: "pro_auto" });
@@ -144,8 +144,9 @@ async function seedFixture(opts: { gated?: boolean; stepModel?: string } = {}) {
     userId, name: `fake-${stamp}`, slug: `fake-${stamp}`, baseUrl: "http://localhost:1", apiKeyRef: "dummy", defaultModel: "base-model",
   });
   const providerId = Number((prov as { insertId: number }).insertId);
+  const modelAt = (stepOrder: number) => opts.stepModels?.[stepOrder - 1] ?? opts.stepModel ?? "base-model";
   const plain = (stepOrder: number, name: string, role: string, stepType = "agent") => ({
-    projectId, stepOrder, stepType, name, role, systemPrompt: `${name} prompt`, isEnabled: true, providerId, model: opts.stepModel ?? "base-model",
+    projectId, stepOrder, stepType, name, role, systemPrompt: `${name} prompt`, isEnabled: true, providerId, model: modelAt(stepOrder),
   });
   await db.insert(schema.pipelineSteps).values(opts.gated
     ? [

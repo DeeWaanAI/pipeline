@@ -672,3 +672,28 @@ assertions listed) rather than trusting task names:
   `0bed35e`. So it is dead bookkeeping for legacy subscriptions on the payment
   path, not a live team arm. Deleting it edits money-handling code while #29 is
   deferred, so it is recorded (#42) rather than done here.
+
+## #41 attempt: why the two-model case could not be written yet (measured, not guessed)
+
+`benchmarkExecution.integration.test.ts`'s fixture can now seed a per-step model
+(`stepModels`), which is the only part of the attempt kept. The case itself was
+removed, because writing it turned up something more useful than a green test:
+
+- a two-model run there records **`agent_runs.model_used` = NULL**, so
+  `runModelSegments` finds no attributable model, returns no segments, and
+  `priceAttempt` falls through to the old single-route path. Asserting a summed
+  row there would have tested nothing.
+- yet in `pipelineSharing.integration.test.ts` the same column **is** populated —
+  the model-withholding case reads real values out of `debug.getRunStats`
+  (`grantee-model`), through `executeSwarmRun` with a mocked adapter.
+
+So the difference is in how the two fakes answer, not in the interpreter: the
+benchmark fake evidently returns no model for its completion, and `model_used` is
+written from what the adapter reports. **What this means for #37, precisely:** the
+sum is proven at the ledger unit level and the code path is proven to execute
+without harm; it is NOT yet proven to fire on a run whose steps report models,
+and it silently no-ops when `model_used` is empty. Whoever picks up #41 should
+make the benchmark fake report a model per step first — if it then still produces
+no segments, that is a real defect in `runModelSegments` and not a fixture
+problem. Do not "fix" it by asserting against the ledger row it is trying to
+check.
