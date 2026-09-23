@@ -18,7 +18,7 @@
 > failing. Prose between the generated blocks is hand-written; the generator owns this file
 > (`scripts/mcp-tools-wiki.mjs`), so edit it there or the next run will overwrite the edit.
 
-## 65 tools, 10 groups
+## 77 tools, 10 groups
 
 | Group | What it is for |
 | --- | --- |
@@ -29,8 +29,8 @@
 | [Evaluate](#evaluate) | Private evaluation (offering redesign v2, P2). The whole journey is behind the `v2Benchmarks` flag: draft, rubric, cases, quote, approve spend, start, watch, cancel, resume. |
 | [Marketplace](#marketplace) | Buy, sell and certify. Includes the blind-reviewer pair that performs the human half of certification. |
 | [Publish](#publish) | Evidence publication and protected marketplace execution (v2 P3): what becomes public, exactly which version was tested, and what it is like to run a purchased workflow under your own credentials. |
-| [Account](#account) | Your own tenancy: providers and keys, default model, tier, notifications. |
-| [Your data](#your-data) | Persistent project memory that survives across conversations. |
+| [Account](#account) | Your own tenancy: providers and keys, default model, notifications. |
+| [Your data](#your-data) | What stays yours: persistent project memory, and getting your own work off our servers — hand over one bundle, then sweep the server's copy once your client has written it. |
 | [Diagnostics](#diagnostics) | Connectivity probes, one per direction of the transport. |
 
 ## Connecting
@@ -163,12 +163,13 @@ them visible.
 
 ## Discover
 
-_5 tools._ Read-only orientation: what you own, what a pipeline contains, what is on the marketplace, and what the project remembers. Nothing here spends or writes.
+_6 tools._ Read-only orientation: what you own, what a pipeline contains, what is on the marketplace, and what the project remembers. Nothing here spends or writes.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
 | [`list_pipelines`](#list_pipelines) | List your pipelines: projects (with step counts), saved templates, and purchased marketplace pipelines. | `mcp:read` | — |
 | [`get_pipeline`](#get_pipeline) | Show one pipeline in full: agents, steps, if/while gates, approvals. | `mcp:read` | — |
+| [`get_shared_pipeline`](#get_shared_pipeline) | Read a pipeline someone shared with you, at exactly the level your grant allows: a full share returns the real steps with every system prompt, a run_only share returns step order, names, roles and enabled flags only and says what was withheld | `mcp:read` | — |
 | [`project_context`](#project_context) | Read a project's working context (goal, state summary, recent decisions). | `mcp:read` | — |
 | [`memory_get`](#memory_get) | Read your persistent memory notes for a project. | `mcp:read` | — |
 | [`search_marketplace`](#search_marketplace) | Search the marketplace for pre-built pipelines you can purchase and run. | `mcp:read` | — |
@@ -195,6 +196,19 @@ Get one pipeline project in full: name, description, default model, execution se
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
 | `id` | integer | **required** | ≥ 1 — Project id (from list_pipelines) |
+
+
+### `get_shared_pipeline`
+
+Read a pipeline that was shared with you, at exactly the level your grant allows. A 'full' share returns the real steps including every system prompt. A 'run_only' share returns step ORDER, NAMES, ROLES AND ENABLED FLAGS ONLY and states what was withheld — no prompts, no models, no provider references. An account with no grant gets 'not found', never 'forbidden'.
+
+> Say something like: "What did Ali share with me?"
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | **required** | > 0 |
 
 
 ### `project_context`
@@ -237,11 +251,13 @@ Search published marketplace pipeline listings by keyword (title/description) an
 
 ## Run
 
-_3 tools._ Execute a workflow and steer it while it runs.
+_5 tools._ Execute a workflow and steer it while it runs.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
 | [`run_pipeline`](#run_pipeline) | Start a pipeline run against a project, template, or purchased listing | `mcp:run` | — |
+| [`run_shared_pipeline`](#run_shared_pipeline) | Run a pipeline that was shared with you, on YOUR provider | `mcp:run` | — |
+| [`shared_run_status`](#shared_run_status) | Progress and final output of a run of a shared pipeline: step states, names, tokens and latency plus the answer | `mcp:read` | — |
 | [`run_status`](#run_status) | Check a run: current step, agent outputs so far, whether it's waiting on your approval. | `mcp:read` | — |
 | [`approve_step`](#approve_step) | Approve or reject a paused human-review step so the run continues. | `mcp:write` | — |
 
@@ -262,6 +278,33 @@ Start a new AI pipeline run on a project. Creates the run, enqueues it for the p
 | `chain` | object | optional | — |
 | `chain.targetProjectId` | integer | **required** | > 0 |
 | `chain.inputTemplate` | string | optional | length ≤ 500 |
+
+
+### `run_shared_pipeline`
+
+Run a pipeline that was shared with you. The definition never lands in your own records: an immutable snapshot owned by the account that shared it executes inside a container project of yours, on YOUR provider (you pay for your own calls, and the owner's stored provider is never the route). Under a run_only grant the run is redacted at the write, so no prompt text is ever stored for it; under a full grant you can also read the run normally.
+
+> Say something like: "Run the pipeline Ali shared with me on this text."
+
+**Scopes `mcp:run` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | **required** | > 0 |
+| `input` | string | **required** | length ≥ 1, length ≤ 200000 |
+| `providerId` | integer | **required** | > 0 — ONE OF YOUR OWN providers — you pay for your own calls, and the owner's stored provider is never the route |
+| `idempotencyKey` | string | optional | length ≥ 1, length ≤ 120 |
+
+
+### `shared_run_status`
+
+Your view of a run of a shared pipeline: status, per-step progress METADATA (step number, name, role, state, tokens, latency), totals, the final output when it completed, and the failure category. Step prompt and context columns are not part of this projection, and on a run_only share the provider's own error text is withheld because it can quote the owner's workflow.
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `swarmRunId` | integer | **required** | > 0 |
 
 
 ### `run_status`
@@ -363,7 +406,7 @@ Export the results of a completed batch run as CSV. Returns a CSV string with co
 
 ## Author
 
-_7 tools._ Build and edit pipelines, including the auto-designer that writes the workflow for you.
+_12 tools._ Build and edit pipelines, including the auto-designer that writes the workflow for you.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
@@ -373,6 +416,11 @@ _7 tools._ Build and edit pipelines, including the auto-designer that writes the
 | [`start_design_job`](#start_design_job) | Durable auto-design: queues the designer as a background job on your configured provider (no live session needed) and returns a job id | `mcp:write` | `v2DesignJobs` |
 | [`design_job_status`](#design_job_status) | Poll a design job: queued → running → succeeded/failed/cancelled, with the retained candidate and per-attempt records. | `mcp:read` | `v2DesignJobs` |
 | [`cancel_design_job`](#cancel_design_job) | Cancel a queued or running design job | `mcp:write` | `v2DesignJobs` |
+| [`share_pipeline`](#share_pipeline) | Lend ONE pipeline to ONE named account: run_only lets them run it and keep the answer while their reads show step names and states only, full lets them read the definition, and canModify (full only) lets them edit it | `mcp:write` | — |
+| [`list_pipeline_shares`](#list_pipeline_shares) | The shares involving your account: what you have lent out (revoked grants included, because the row is the record that access existed) and what is currently lent to you, each naming the original creator of the work so you can see that a shared pipeline is a loan. | `mcp:read` | — |
+| [`revoke_pipeline_share`](#revoke_pipeline_share) | Take a share back, owner-only and idempotent | `mcp:write` | — |
+| [`update_shared_pipeline`](#update_shared_pipeline) | Edit the steps of a pipeline shared to you as full+canModify | `mcp:write` | — |
+| [`clone_shared_pipeline`](#clone_shared_pipeline) | Copy a full-share pipeline into your own project with a template and a first immutable version | `mcp:write` | — |
 | [`memory_append`](#memory_append) | Add a note to your persistent project memory (survives across chats). | `mcp:write` | — |
 
 ### `create_pipeline`
@@ -463,6 +511,82 @@ Cancel a queued or running auto-design job. Queued jobs cancel immediately; runn
 | Argument | Type | Required | Constraints and meaning |
 | --- | --- | --- | --- |
 | `jobId` | integer | **required** | > 0 |
+
+
+### `share_pipeline`
+
+Grant ONE named other account access to ONE pipeline you own. mode='run_only' (default) lets them run it and keep the answer while their reads return step names and states only — never the step prompts, system prompts or workflow definition. mode='full' also lets them read the definition; pass canModify only with 'full' to let them edit it. A share is a loan between two accounts, never a transfer: you stay the owner, and publishing stays reserved to the original creator. Sharing the same pipeline with the same account again updates that grant.
+
+> Say something like: "Share my contract pipeline with partner@example.com so they can run it but not read the prompts."
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | **required** | > 0 — A pipeline YOU own |
+| `granteeId` | integer | optional | > 0 — The one account to grant access to |
+| `granteeEmail` | string | optional | length ≤ 320, matches /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/ — …or name them by their exact account email (must match exactly one account) |
+| `mode` | string: `run_only` \| `full` | optional | default `"run_only"` — run_only = they can run it and keep the result, never read the prompts or the definition; full = they can also read the definition |
+| `canModify` | boolean | optional | Only with mode='full': lets them edit THIS project. Never implies ownership or a right to publish |
+| `note` | string | optional | length ≤ 500 |
+
+
+### `list_pipeline_shares`
+
+List the pipeline shares involving your account: what you have lent out (including revoked grants, which are kept as the record that access existed) and what is currently lent to you. An incoming row names the ORIGINAL creator of the work, so you can see plainly that a shared pipeline is a loan: running and improving it is yours, publishing it is not.
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | optional | > 0 |
+
+
+### `revoke_pipeline_share`
+
+Take a share back. Owner-only and idempotent — re-revoking changes nothing and refuses nothing. The grant row is flipped to 'revoked' rather than deleted, and because access is re-read at dispatch a run that was already queued stops before it makes any provider call. Runs the recipient already completed stay theirs.
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `shareId` | integer | **required** | > 0 |
+
+
+### `update_shared_pipeline`
+
+Edit the steps of a pipeline someone shared with you, and only while their grant says canModify. Refused for a run_only grant and for a read-only full grant. The write lands on the OWNER's project (that is what editing a shared object means) — ownership does not move, and the project's recorded original creator is left exactly as it was, so improving borrowed work can never turn it into work you may sell.
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | **required** | > 0 |
+| `steps` | array<object> | **required** | — |
+| `steps[].name` | string | **required** | length ≥ 1, length ≤ 100 |
+| `steps[].role` | string | **required** | length ≥ 1, length ≤ 50 |
+| `steps[].systemPrompt` | string | **required** | length ≥ 1 |
+| `steps[].stepType` | string | optional | length ≤ 20 |
+| `steps[].model` | string \| null | optional | — |
+| `steps[].temperature` | string | optional | length ≤ 10 |
+| `steps[].maxTokens` | integer | optional | > 0 |
+| `steps[].isEnabled` | boolean | optional | — |
+| `steps[].ifConfig` | object \| null | optional | — |
+| `steps[].whileConfig` | object \| null | optional | — |
+
+
+### `clone_shared_pipeline`
+
+Copy a pipeline shared with you in 'full' mode into your own project, with a template and a first immutable version. Your copy runs and reads like yours, and it stays ATTRIBUTED: the new project and version record the account that originally created the work, and publishing remains refused for anyone but that account. Refused for a run_only grant, because you cannot copy what you were never allowed to read.
+
+> Say something like: "Clone the pipeline Ali shared with me so I can adapt it for our Arabic market."
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | **required** | > 0 — A pipeline shared with you in mode 'full' |
+| `name` | string | optional | length ≥ 1, length ≤ 200 — Name for your copy (defaults to '<source> (copy)') |
 
 
 ### `memory_append`
@@ -1069,15 +1193,50 @@ For a listing's current published evidence: which provider/model/version it was 
 
 ## Account
 
-_5 tools._ Your own tenancy: providers and keys, default model, tier, notifications.
+_6 tools._ Your own tenancy: providers and keys, default model, notifications.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
+| [`send_feedback`](#send_feedback) | Tell the team about a problem with a specific pipeline, run or benchmark and attach THAT object, so support sees what you saw | `mcp:write` | — |
 | [`deewaanai_help`](#deewaanai_help) | This guide — filtered to your scopes, what you own, and the connected app. | `mcp:read` | — |
 | [`suggest_llm_providers`](#suggest_llm_providers) | Show a curated list of free, cheap, and local LLM providers with signup links and setup instructions | `mcp:read` | — |
 | [`add_provider`](#add_provider) | Add an LLM provider from this chat — just paste the slug and API key | `mcp:write` | — |
 | [`get_settings`](#get_settings) | Show what you own (purchased pipelines and other entitlements), configured LLM providers, and your default model. | `mcp:read` | — |
 | [`set_default_model`](#set_default_model) | Set your preferred model (and optionally provider) used for new pipeline work. | `mcp:write` | — |
+
+### `send_feedback`
+
+Send feedback to the DeeWaanAI team about a specific pipeline, run or benchmark, and attach THAT object so support can see what you saw. Pass attachments[] as { kind: pipeline|run|benchmark, refId, consent: true } — ONE EXPLICIT OPT-IN PER ITEM: nothing is harvested automatically, consent is required on that one object (an unticked or unseen item refuses the whole submission and writes nothing), and the receipt stores the consent version (currently consent-v1). Find the ids with list_pipelines (a pipeline is a project id), run_status/run_pipeline (a run id) or list_benchmarks (a benchmark id). The attached snapshot is exactly what YOUR account can already read: for a pipeline someone shared with you as run_only, or a marketplace workflow you bought, that means the redacted view you already get — their prompts, model bindings and keys are never copied into it. Up to 5 items per submission.
+
+> Say something like: "Send feedback that run 42 stopped after step 2, and attach the run so they can see it."
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | optional | > 0 |
+| `targetType` | string: `message` \| `ui` \| `general` | optional | default `"general"` |
+| `targetMessageId` | integer | optional | > 0 |
+| `feedbackType` | string: `bug` \| `suggestion` \| `praise` \| `confusion` | **required** | — |
+| `severity` | string: `critical` \| `major` \| `minor` \| `cosmetic` | optional | default `"minor"` |
+| `content` | string | **required** | length ≥ 1, length ≤ 5000 |
+| `screenshotUrl` | string | optional | — |
+| `context` | object | optional | — |
+| `context.url` | string | optional | — |
+| `context.browser` | string | optional | — |
+| `context.os` | string | optional | — |
+| `context.consoleLogs` | array<string> | optional | — |
+| `context.activePipeline` | string | optional | — |
+| `context.activeStep` | string | optional | — |
+| `context.modelUsed` | string | optional | — |
+| `context.tokenCount` | number | optional | — |
+| `context.latencyMs` | number | optional | — |
+| `tags` | array<string> | optional | — |
+| `attachments` | array<object> | optional | — |
+| `attachments[].kind` | string: `pipeline` \| `run` \| `benchmark` | **required** | what is being attached: a pipeline, a run of one, or a benchmark |
+| `attachments[].refId` | integer | **required** | > 0 — the object's own id (projects.id / swarm_runs.id / benchmarks.id) |
+| `attachments[].consent` | boolean | **required** | the author's explicit opt-in for THIS item only. Nothing is attached without it, and it is not a global setting: each attachment is ticked on its own object. |
+
 
 ### `deewaanai_help`
 
@@ -1139,13 +1298,60 @@ Save an exact model and owned, enabled default provider together. Optionally set
 
 ## Your data
 
-_3 tools._ Persistent project memory that survives across conversations.
+_6 tools._ What stays yours: persistent project memory, and getting your own work off our servers — hand over one bundle, then sweep the server's copy once your client has written it.
 
 | Tool | One line | Scopes | Gate |
 | --- | --- | --- | --- |
+| [`preview_work_delivery`](#preview_work_delivery) | What a delivery of your own work data would contain — counts, volume, the bundle hash, and the runs excluded because another account's interest lives in them (a buyer run, a pipeline shared to you) | `mcp:read` | — |
+| [`deliver_work_data`](#deliver_work_data) | One complete bundle of your own work data — projects, runs, prompts, step outputs, private benchmark cases, judgments and rationales — with its sha256 and the signed receipt a sweep needs | `mcp:read` | — |
+| [`sweep_delivered_work`](#sweep_delivered_work) | Clear the server's copy of work you already delivered | `mcp:write` | — |
 | [`export_pipeline`](#export_pipeline) | Export any pipeline you own as portable JSON | `mcp:read` | — |
 | [`export_my_data`](#export_my_data) | Export everything you own (pipelines, agents, templates, settings) in one JSON bundle | `mcp:read` | — |
 | [`sync_to_github`](#sync_to_github) | Push a pipeline export to your connected GitHub repo. | `mcp:write` | — |
+
+### `preview_work_delivery`
+
+Show what a delivery of your own work data WOULD contain — project and run counts, the step-output volume, the bundle hash, and any runs deliberately excluded (a marketplace buyer run or a pipeline shared to you belongs to another account's interest, so it is never carried or cleared). Writes nothing and hands over no content; use it to size the folder before the user commits to a write.
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | optional | > 0 — Every sweepable run in ONE project of yours |
+| `swarmRunId` | integer | optional | > 0 — One run of yours |
+| `benchmarkId` | integer | optional | > 0 — One private evaluation benchmark of yours: case inputs, outputs, judge rationales |
+| `accountWide` | boolean | optional | Everything: all your projects' runs plus all your benchmarks. Provide exactly one of these four |
+
+
+### `deliver_work_data`
+
+Hand over ONE complete bundle of this account's own work data (projects, runs, step prompts and outputs, private benchmark cases, judgments and rationales) with a sha256 over it, plus the signed receipt a later sweep must present. Execution stays server-side and your chat client writes the folder the user chose — there is no upload and no background job. Delivering unchanged data returns the same hash, so a client can tell it already wrote these bytes.
+
+> Say something like: "Export everything I have run this month into ~/DeeWaan/backup so I hold the only copy."
+
+**Scopes `mcp:read` · annotated read-only**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `projectId` | integer | optional | > 0 — Every sweepable run in ONE project of yours |
+| `swarmRunId` | integer | optional | > 0 — One run of yours |
+| `benchmarkId` | integer | optional | > 0 — One private evaluation benchmark of yours: case inputs, outputs, judge rationales |
+| `accountWide` | boolean | optional | Everything: all your projects' runs plus all your benchmarks. Provide exactly one of these four |
+
+
+### `sweep_delivered_work`
+
+Clear the server's copy of work data that was already delivered. Needs the receipt from deliver_work_data AND the exact confirmation phrase, and it re-derives the bundle from the database before deleting: if anything was added or edited since delivery it refuses with bundle_changed rather than destroying a copy the user does not hold. Content is nulled, structure is not — rows keep their ids, timestamps, token counts and cost ledger, so published versions, evidence, purchases, execution rights, spend approvals and consent records stay exactly as they were. Runs belonging to another account (a buyer run, a shared pipeline) are refused outright.
+
+> Say something like: "The folder is written and verified — you can delete the server copies now."
+
+**Scopes `mcp:write` · not read-only — it writes, spends or changes state**
+
+| Argument | Type | Required | Constraints and meaning |
+| --- | --- | --- | --- |
+| `receipt` | string | optional | length ≤ 4096 — The exact `receipt` string a delivery returned, unchanged |
+| `confirmation` | string | optional | length ≤ 200 — Must be the literal phrase "delete-server-copy" |
+
 
 ### `export_pipeline`
 

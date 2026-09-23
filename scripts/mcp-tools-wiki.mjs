@@ -15,8 +15,8 @@ const GROUP_INTRO = {
   Evaluate: "Private evaluation (offering redesign v2, P2). The whole journey is behind the `v2Benchmarks` flag: draft, rubric, cases, quote, approve spend, start, watch, cancel, resume.",
   Marketplace: "Buy, sell and certify. Includes the blind-reviewer pair that performs the human half of certification.",
   Publish: "Evidence publication and protected marketplace execution (v2 P3): what becomes public, exactly which version was tested, and what it is like to run a purchased workflow under your own credentials.",
-  Account: "Your own tenancy: providers and keys, default model, tier, notifications.",
-  "Your data": "Persistent project memory that survives across conversations.",
+  Account: "Your own tenancy: providers and keys, default model, notifications.",
+  "Your data": "What stays yours: persistent project memory, and getting your own work off our servers — hand over one bundle, then sweep the server's copy once your client has written it.",
   Diagnostics: "Connectivity probes, one per direction of the transport.",
 };
 
