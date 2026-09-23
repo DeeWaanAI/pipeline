@@ -18,6 +18,16 @@ import { readPriceVector } from "./benchmarkTypes";
 import type { ModelRates } from "../../lib/providers/base";
 
 export const PRICING_CACHE_TTL_MS = 10 * 60 * 1000;
+/**
+ * How long an EMPTY retrieval is remembered. Deliberately far shorter than the
+ * positive TTL: an unreachable or slow host used to be cached as `{}` for the
+ * full ten minutes, so one 8-second timeout made every attempt in the next ten
+ * minutes report `unknown` for a model that had been priced minutes earlier —
+ * and a quote taken in that window could only ever say the cost was
+ * unretrievable. The measured evidence was the same (provider, model) pair
+ * appearing as `provider_list` on six ledger rows and `NULL` on thirteen.
+ */
+export const PRICING_MISS_TTL_MS = 15_000;
 const PROVIDER_TIMEOUT_MS = 8_000;
 
 export type PricingSource = "provider_list" | "price_vector";
@@ -41,7 +51,12 @@ export function resetPricingCache(): void {
 
 async function fetchProviderRates(providerId: number): Promise<Record<string, ModelRates>> {
   const hit = cache.get(providerId);
-  if (hit && Date.now() - hit.fetchedAt < PRICING_CACHE_TTL_MS) return hit.rates;
+  if (hit) {
+    // A remembered failure expires on its own clock, so the next caller retries
+    // instead of inheriting someone else's timeout for ten minutes.
+    const ttl = Object.keys(hit.rates).length ? PRICING_CACHE_TTL_MS : PRICING_MISS_TTL_MS;
+    if (Date.now() - hit.fetchedAt < ttl) return hit.rates;
+  }
 
   const db = getDb();
   const [provider] = await db.select().from(llmProviders).where(inArray(llmProviders.id, [providerId])).limit(1);
@@ -54,11 +69,19 @@ async function fetchProviderRates(providerId: number): Promise<Record<string, Mo
     );
     if (adapter.listPricing) {
       // A slow or unreachable host must not stall or fail a quote: the caller
-      // degrades to the local vector and says so.
-      rates = await Promise.race([
-        adapter.listPricing(),
-        new Promise<Record<string, ModelRates>>((resolve) => setTimeout(() => resolve({}), PROVIDER_TIMEOUT_MS)),
-      ]);
+      // degrades to the local vector and says so. The timer is cleared on
+      // purpose — an unrefused 8-second timer outlives the call it was guarding.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        rates = await Promise.race([
+          adapter.listPricing(),
+          new Promise<Record<string, ModelRates>>((resolve) => {
+            timer = setTimeout(() => resolve({}), PROVIDER_TIMEOUT_MS);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
     }
   } catch (err) {
     logger.warn("live pricing failed; falling back to the local price vector", {
