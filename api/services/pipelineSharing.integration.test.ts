@@ -544,13 +544,21 @@ describe("pipeline sharing between two accounts + publish lineage (isolated loca
     await expect(lineage.assertOriginalCreatorMaySellVersion({
       userId: owner.id, workflowVersionId: versionId,
     })).resolves.toMatchObject({ inferredFromOwner: true });
-    // And it refuses only a real provenance mismatch, not a missing row.
+    // A stranger gets the same answer as for a version that does not exist.
+    // This assertion used to demand `publish_origin_required:` here, which was
+    // the leak itself: it confirmed the row and named its creator to an account
+    // entitled to neither. The real provenance mismatch — a `full` recipient who
+    // owns the clone and is still not the original creator — is refused with
+    // `publish_origin_required` by the case above, which is what that code is for.
     const others = await db().select({ id: schema.users.id }).from(schema.users).limit(50);
     const strangerId = others.find((u) => u.id !== owner.id)?.id ?? 2_147_483_647;
     expect(strangerId).not.toBe(owner.id);
     await expect(lineage.assertOriginalCreatorMaySellVersion({
       userId: strangerId, workflowVersionId: versionId,
-    })).rejects.toThrow(/^publish_origin_required:/);
+    })).rejects.toThrow(/^not_found_or_not_authorized$/);
+    await expect(lineage.assertOriginalCreatorMayList({
+      userId: strangerId, templateId: Number((template as { insertId: number }).insertId),
+    })).rejects.toThrow(/^not_found_or_not_authorized$/);
   });
 
   it("grants a share to exactly one named account and refuses to invent one", async () => {
