@@ -3,9 +3,11 @@ import { createRouter, adminQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import {
   users, feedback, swarmRuns, featureFlags,
-  projects, ssoConnections, marketplaceListings, blindReviewTasks, waitlistEntries
+  projects, ssoConnections, marketplaceListings, blindReviewTasks, waitlistEntries,
+  trustedProviderEndpoints, modelCatalog, modelReleaseEvents,
+  evidencePublications, benchmarks, callAttempts, spendApprovals,
 } from "@db/schema";
-import { eq, sql, desc, and, or, like, inArray } from "drizzle-orm";
+import { eq, sql, desc, and, or, like, inArray, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { signScreenshotUrl } from "../lib/screenshotUrls";
 import { encryptClientSecret, maskSecret, normalizeDomain } from "../services/sso";
@@ -13,6 +15,11 @@ import { logAdminAction } from "../services/adminAudit";
 import { adminDemotionError } from "../lib/adminGuards";
 import { setLegacyListingStatus } from "../services/marketplacePublication";
 import { adminAuditLog } from "@db/schema";
+import {
+  PROTECTED_EGRESS_POLICY_VERSION, normalizeEndpointUrl, resolvedAdapterKind,
+} from "../services/protectedEgress";
+import { benchmarkLedgerTotals, costDisclosure, type CostDisclosureInput } from "../services/benchmark/benchmarkLedger";
+import { PublicEvidenceManifestSchema } from "../../contracts/offeringV2";
 
 export const adminRouter = createRouter({
   // ─── User Management ───────────────────────────────────────────────
@@ -538,5 +545,594 @@ export const adminRouter = createRouter({
         detail: { email: entry.email }, ip: ctx.remoteIp,
       });
       return { success: true };
+    }),
+
+  // ═══ V2 OPERATIONS (spec D10) ═══════════════════════════════════════
+  // Four areas that had no screen at all: trusted provider endpoints, the
+  // reviewed model catalog, evidence publications, and the spend ledger.
+  // Everything here is OPERATIONAL METADATA — no procedure reads or writes a
+  // user's private work content (prompts, definitions, outputs), and no read
+  // mutates a row.
+
+  // ─── Trusted provider endpoints (spec §8.2) ───────────────────────
+  // A protected buyer run may only reach an EXACT enabled row of this table,
+  // matched on provider slug + normalized base URL + adapter kind. The table
+  // ships empty, which is the only reason the drill stops before the egress
+  // gate — so the list below reports each row by the gate's own predicate,
+  // including whether the row could ever match at all.
+
+  listTrustedEndpoints: adminQuery
+    .input(z.object({
+      enabledOnly: z.boolean().optional(),
+      provider: z.string().max(80).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = getDb();
+      const conditions = [];
+      if (input?.enabledOnly) conditions.push(eq(trustedProviderEndpoints.enabled, true));
+      if (input?.provider) conditions.push(eq(trustedProviderEndpoints.provider, input.provider.trim().toLowerCase()));
+      const rows = await db.select({
+        id: trustedProviderEndpoints.id,
+        provider: trustedProviderEndpoints.provider,
+        baseUrl: trustedProviderEndpoints.baseUrl,
+        adapterKind: trustedProviderEndpoints.adapterKind,
+        endpointClass: trustedProviderEndpoints.endpointClass,
+        loggingDisclosure: trustedProviderEndpoints.loggingDisclosure,
+        protectionClass: trustedProviderEndpoints.protectionClass,
+        approvedBy: trustedProviderEndpoints.approvedBy,
+        approvedByUsername: users.username,
+        policyVersion: trustedProviderEndpoints.policyVersion,
+        enabled: trustedProviderEndpoints.enabled,
+        createdAt: trustedProviderEndpoints.createdAt,
+      })
+        .from(trustedProviderEndpoints)
+        .leftJoin(users, eq(trustedProviderEndpoints.approvedBy, users.id))
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(trustedProviderEndpoints.id));
+
+      return rows.map((r) => {
+        // `normalizeEndpointUrl` is the same function the gate runs on both
+        // sides of the comparison, so a row that will not normalize here is a
+        // row that can never be reached there — reported, not hidden.
+        let normalizedBaseUrl: string | null = null;
+        let urlUnusable: string | null = null;
+        try {
+          normalizedBaseUrl = normalizeEndpointUrl(r.baseUrl);
+        } catch (err) {
+          urlUnusable = (err as Error).message;
+        }
+        const expectedAdapterKind = resolvedAdapterKind(r.provider);
+        const adapterMatchesProvider = r.adapterKind === expectedAdapterKind;
+        return {
+          ...r,
+          normalizedBaseUrl,
+          urlUnusable,
+          expectedAdapterKind,
+          adapterMatchesProvider,
+          // The destination, named exactly as a protected run must match it.
+          matchKey: normalizedBaseUrl ? `${r.provider} ${normalizedBaseUrl} ${r.adapterKind}` : null,
+          liveForGate: !!normalizedBaseUrl && adapterMatchesProvider && r.enabled,
+        };
+      });
+    }),
+
+  approveTrustedEndpoint: adminQuery
+    .input(z.object({
+      provider: z.string().min(1).max(80).describe("The provider slug the adapter router serves (e.g. openai, anthropic, together)"),
+      baseUrl: z.string().min(8).max(512).describe("Stored normalized; https only, no credentials, query or fragment"),
+      // Optional: it defaults to the adapter this provider actually builds, and
+      // a mismatch is refused, because a row naming the wrong adapter is
+      // invisible to the gate and would read as "approved" to a human.
+      adapterKind: z.enum(["anthropic", "openai_compatible"]).optional(),
+      endpointClass: z.enum(["first_party", "approved_proxy"]).default("first_party"),
+      // MANDATORY disclosures (§8.2): the product's promise is that we name the
+      // destination AND record its logging posture before the run.
+      loggingDisclosure: z.string().min(20).max(2000)
+        .describe("What this provider records/retains about protected-run inputs — reviewer-verified, never a placeholder"),
+      protectionClass: z.enum(["standard", "reduced"])
+        .describe("No default on purpose: an admin must state the protection class for this destination"),
+      policyVersion: z.string().min(1).max(40).default(PROTECTED_EGRESS_POLICY_VERSION),
+      enabled: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const provider = input.provider.trim().toLowerCase();
+      const expectedAdapterKind = resolvedAdapterKind(provider);
+      const adapterKind = input.adapterKind ?? expectedAdapterKind;
+      if (adapterKind !== expectedAdapterKind) {
+        throw new Error(
+          `adapter_kind_mismatch: provider "${provider}" is served by the ${expectedAdapterKind} adapter. `
+          + `An approved row naming "${adapterKind}" could never be matched by a protected run, so it is refused.`,
+        );
+      }
+      let baseUrl: string;
+      try {
+        baseUrl = normalizeEndpointUrl(input.baseUrl);
+      } catch (err) {
+        throw new Error(`endpoint_refused: ${(err as Error).message}`);
+      }
+
+      const [existing] = await db.select({ id: trustedProviderEndpoints.id })
+        .from(trustedProviderEndpoints)
+        .where(and(eq(trustedProviderEndpoints.provider, provider), eq(trustedProviderEndpoints.baseUrl, baseUrl)))
+        .limit(1);
+      // Approval never silently rewrites a reviewed disclosure. To change one,
+      // a new approval must be an explicit decision, not a side effect.
+      if (existing) {
+        throw new Error(`already_approved: ${provider} ${baseUrl} is approved as endpoint #${existing.id} — enable/disable that row instead of re-approving it`);
+      }
+
+      try {
+        await db.insert(trustedProviderEndpoints).values({
+          provider, baseUrl, adapterKind,
+          endpointClass: input.endpointClass,
+          loggingDisclosure: input.loggingDisclosure.trim(),
+          protectionClass: input.protectionClass,
+          approvedBy: ctx.user.id,
+          policyVersion: input.policyVersion.trim(),
+          enabled: input.enabled,
+        });
+      } catch (err) {
+        const m = (err as Error).message ?? "";
+        if (m.includes("Duplicate entry") || m.includes("ER_DUP_ENTRY")) {
+          throw new Error("already_approved: another admin approved this (provider, baseUrl) a moment ago");
+        }
+        throw err;
+      }
+
+      const [saved] = await db.select({ id: trustedProviderEndpoints.id })
+        .from(trustedProviderEndpoints)
+        .where(and(eq(trustedProviderEndpoints.provider, provider), eq(trustedProviderEndpoints.baseUrl, baseUrl)))
+        .limit(1);
+      logger.info("Admin: provider endpoint approved", {
+        endpointId: saved?.id, provider, baseUrl, adapterKind, protectionClass: input.protectionClass,
+      });
+      await logAdminAction({
+        adminUserId: ctx.user.id, action: "trusted_endpoint.approve",
+        targetType: "trusted_provider_endpoint", targetId: saved?.id ?? null,
+        detail: {
+          provider, baseUrl, adapterKind, endpointClass: input.endpointClass,
+          protectionClass: input.protectionClass, policyVersion: input.policyVersion, enabled: input.enabled,
+        }, ip: ctx.remoteIp,
+      });
+      return { success: true, endpointId: saved?.id ?? null, normalizedBaseUrl: baseUrl };
+    }),
+
+  setTrustedEndpointEnabled: adminQuery
+    .input(z.object({ endpointId: z.number().int().positive(), enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [row] = await db.select({
+        id: trustedProviderEndpoints.id, provider: trustedProviderEndpoints.provider,
+        baseUrl: trustedProviderEndpoints.baseUrl, enabled: trustedProviderEndpoints.enabled,
+      }).from(trustedProviderEndpoints).where(eq(trustedProviderEndpoints.id, input.endpointId)).limit(1);
+      if (!row) throw new Error("Endpoint not found");
+
+      await db.update(trustedProviderEndpoints)
+        .set({ enabled: input.enabled })
+        .where(eq(trustedProviderEndpoints.id, input.endpointId));
+      logger.info("Admin: trusted endpoint enabled state changed", { endpointId: input.endpointId, enabled: input.enabled });
+      await logAdminAction({
+        adminUserId: ctx.user.id, action: "trusted_endpoint.set_enabled",
+        targetType: "trusted_provider_endpoint", targetId: input.endpointId,
+        detail: { enabled: input.enabled, previousEnabled: row.enabled, provider: row.provider, baseUrl: row.baseUrl },
+        ip: ctx.remoteIp,
+      });
+      return { success: true, enabled: input.enabled };
+    }),
+
+  // ─── Model catalog (spec §12.1, D12 vendor attribution) ───────────
+  // The reviewed catalog's reads, plus the one lever that was missing: setting
+  // or correcting `vendor` (the model's DEVELOPER). Without it the evidence
+  // panel's refusal — "ask an admin to record its vendor in the catalog" — was
+  // an instruction with no destination. Writing an ENTRY still goes through
+  // modelCatalog.recordModel, which keeps its lineage validation and its
+  // refresh-instead-of-duplicate behaviour.
+
+  listModelCatalog: adminQuery
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+      search: z.string().optional(),
+      // The operator's actual question after a D12 refusal: which reviewed
+      // identities still name no developer?
+      missingVendorOnly: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const offset = (input.page - 1) * input.pageSize;
+      const conditions = [];
+      if (input.search) {
+        conditions.push(or(
+          like(modelCatalog.modelId, `%${input.search}%`),
+          like(modelCatalog.provider, `%${input.search}%`),
+          like(modelCatalog.vendor, `%${input.search}%`),
+          like(modelCatalog.family, `%${input.search}%`),
+        ));
+      }
+      if (input.missingVendorOnly) conditions.push(isNull(modelCatalog.vendor));
+      const whereClause = conditions.length ? and(...conditions) : undefined;
+
+      const items = await db.select({
+        id: modelCatalog.id,
+        provider: modelCatalog.provider,
+        modelId: modelCatalog.modelId,
+        family: modelCatalog.family,
+        vendor: modelCatalog.vendor,
+        successorOfModelId: modelCatalog.successorOfModelId,
+        availabilitySource: modelCatalog.availabilitySource,
+        sourceUrl: modelCatalog.sourceUrl,
+        verifiedAt: modelCatalog.verifiedAt,
+        availableAt: modelCatalog.availableAt,
+        deprecatedAt: modelCatalog.deprecatedAt,
+        createdAt: modelCatalog.createdAt,
+      }).from(modelCatalog)
+        .where(whereClause)
+        .orderBy(desc(modelCatalog.id))
+        .limit(input.pageSize).offset(offset);
+
+      // Event counts come from a grouped read, not a correlated subquery: inside
+      // `(SELECT … FROM model_release_events e WHERE e.model_catalog_id = id)`
+      // an unqualified `id` binds to the INNER table, so the count would be
+      // "events whose own id happens to equal this row's id" — a number that
+      // looks right on the first fixture and is wrong afterwards.
+      const catalogIds = items.map((i) => i.id);
+      const eventUsage = catalogIds.length
+        ? await db.select({ catalogId: modelReleaseEvents.modelCatalogId, used: sql<number>`COUNT(*)` })
+            .from(modelReleaseEvents).where(inArray(modelReleaseEvents.modelCatalogId, catalogIds))
+            .groupBy(modelReleaseEvents.modelCatalogId)
+        : [];
+      const eventsById = new Map(eventUsage.map((u) => [u.catalogId, Number(u.used)]));
+
+      const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` })
+        .from(modelCatalog).where(whereClause);
+      // Catalog-wide, independent of the page: how much of the catalog cannot
+      // satisfy the D12 gate yet.
+      const [{ vendorless }] = await db.select({ vendorless: sql<number>`COUNT(*)` })
+        .from(modelCatalog).where(isNull(modelCatalog.vendor));
+
+      return {
+        items: items.map((i) => ({ ...i, releaseEventCount: eventsById.get(i.id) ?? 0 })),
+        total: Number(total), vendorMissingTotal: Number(vendorless), page: input.page, pageSize: input.pageSize,
+      };
+    }),
+
+  setModelVendor: adminQuery
+    .input(z.object({
+      catalogId: z.number().int().positive(),
+      // null clears it back to "unknown", which is the honest answer when no
+      // reviewer knows who developed the model — unknown never satisfies the
+      // evidence-panel gate, and never collides with another model either.
+      vendor: z.string().min(1).max(80).nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [entry] = await db.select({
+        id: modelCatalog.id, provider: modelCatalog.provider, modelId: modelCatalog.modelId, vendor: modelCatalog.vendor,
+      }).from(modelCatalog).where(eq(modelCatalog.id, input.catalogId)).limit(1);
+      if (!entry) throw new Error("catalog_entry_not_found");
+
+      const vendor = input.vendor?.trim().toLowerCase() || null;
+      // Only `vendor`. `verifiedAt` records the review of AVAILABILITY and
+      // lineage, so touching it here would claim a re-verification that did
+      // not happen, and no other reviewed field is in scope for this action.
+      await db.update(modelCatalog).set({ vendor }).where(eq(modelCatalog.id, input.catalogId));
+      logger.info("Admin: model catalog vendor recorded", { catalogId: input.catalogId, provider: entry.provider, modelId: entry.modelId, vendor });
+      await logAdminAction({
+        adminUserId: ctx.user.id, action: "model_catalog.set_vendor",
+        targetType: "model_catalog", targetId: input.catalogId,
+        detail: { provider: entry.provider, modelId: entry.modelId, vendor, previousVendor: entry.vendor },
+        ip: ctx.remoteIp,
+      });
+      return { success: true, vendor };
+    }),
+
+  listModelReleaseEvents: adminQuery
+    .input(z.object({ page: z.number().min(1).default(1), pageSize: z.number().min(1).max(100).default(20) }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const offset = (input.page - 1) * input.pageSize;
+      const items = await db.select({
+        id: modelReleaseEvents.id,
+        eventKey: modelReleaseEvents.eventKey,
+        relevanceRule: modelReleaseEvents.relevanceRule,
+        recordedBy: modelReleaseEvents.recordedBy,
+        recordedByUsername: users.username,
+        createdAt: modelReleaseEvents.createdAt,
+        modelCatalogId: modelReleaseEvents.modelCatalogId,
+        provider: modelCatalog.provider,
+        modelId: modelCatalog.modelId,
+        family: modelCatalog.family,
+        vendor: modelCatalog.vendor,
+      }).from(modelReleaseEvents)
+        .innerJoin(modelCatalog, eq(modelReleaseEvents.modelCatalogId, modelCatalog.id))
+        .leftJoin(users, eq(modelReleaseEvents.recordedBy, users.id))
+        .orderBy(desc(modelReleaseEvents.id))
+        .limit(input.pageSize).offset(offset);
+      const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` }).from(modelReleaseEvents);
+      return { items, total: Number(total), page: input.page, pageSize: input.pageSize };
+    }),
+
+  // ─── Evidence publications (spec §6.2) — READ ONLY ────────────────
+  // A withdrawal is the AUTHOR's action (`evidence.withdraw`), never an admin's:
+  // an operator who could unpublish someone else's evidence would hold the
+  // thing the immutability claim is about. So there is no admin withdraw here.
+
+  listEvidencePublications: adminQuery
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+      publicationKind: z.enum(["seller", "community"]).optional(),
+      state: z.enum(["draft_preview", "published", "withdrawn"]).optional(),
+      listingId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const offset = (input.page - 1) * input.pageSize;
+      const conditions = [];
+      if (input.publicationKind) conditions.push(eq(evidencePublications.publicationKind, input.publicationKind));
+      if (input.state) conditions.push(eq(evidencePublications.state, input.state));
+      if (input.listingId) conditions.push(eq(evidencePublications.listingId, input.listingId));
+      const whereClause = conditions.length ? and(...conditions) : undefined;
+
+      const items = await db.select({
+        id: evidencePublications.id,
+        authorId: evidencePublications.authorId,
+        authorUsername: users.username,
+        benchmarkId: evidencePublications.benchmarkId,
+        externalReportId: evidencePublications.externalReportId,
+        listingId: evidencePublications.listingId,
+        listingWorkflowVersionId: evidencePublications.listingWorkflowVersionId,
+        publicationKind: evidencePublications.publicationKind,
+        provenance: evidencePublications.provenance,
+        manifestHash: evidencePublications.manifestHash,
+        schemaVersion: evidencePublications.schemaVersion,
+        consentVersion: evidencePublications.consentVersion,
+        state: evidencePublications.state,
+        supersedesPublicationId: evidencePublications.supersedesPublicationId,
+        testedAt: evidencePublications.testedAt,
+        publishedAt: evidencePublications.publishedAt,
+        withdrawnAt: evidencePublications.withdrawnAt,
+        withdrawalReason: evidencePublications.withdrawalReason,
+        createdAt: evidencePublications.createdAt,
+      }).from(evidencePublications)
+        .leftJoin(users, eq(evidencePublications.authorId, users.id))
+        .where(whereClause)
+        .orderBy(desc(evidencePublications.id))
+        .limit(input.pageSize).offset(offset);
+      const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` })
+        .from(evidencePublications).where(whereClause);
+      return { items, total: Number(total), page: input.page, pageSize: input.pageSize };
+    }),
+
+  evidencePublicationDetail: adminQuery
+    .input(z.object({ publicationId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const [row] = await db.select({
+        id: evidencePublications.id,
+        authorId: evidencePublications.authorId,
+        authorUsername: users.username,
+        benchmarkId: evidencePublications.benchmarkId,
+        externalReportId: evidencePublications.externalReportId,
+        listingId: evidencePublications.listingId,
+        listingWorkflowVersionId: evidencePublications.listingWorkflowVersionId,
+        publicationKind: evidencePublications.publicationKind,
+        provenance: evidencePublications.provenance,
+        publicManifest: evidencePublications.publicManifest,
+        manifestHash: evidencePublications.manifestHash,
+        schemaVersion: evidencePublications.schemaVersion,
+        consentVersion: evidencePublications.consentVersion,
+        state: evidencePublications.state,
+        supersedesPublicationId: evidencePublications.supersedesPublicationId,
+        testedAt: evidencePublications.testedAt,
+        publishedAt: evidencePublications.publishedAt,
+        withdrawnAt: evidencePublications.withdrawnAt,
+        withdrawalReason: evidencePublications.withdrawalReason,
+        createdAt: evidencePublications.createdAt,
+      }).from(evidencePublications)
+        .leftJoin(users, eq(evidencePublications.authorId, users.id))
+        .where(eq(evidencePublications.id, input.publicationId))
+        .limit(1);
+      if (!row) throw new Error("Publication not found");
+
+      const { publicManifest, ...publication } = row;
+      // The manifest is the public disclosure document, so reading it is not a
+      // private-content read. A row that no longer parses is a server-side
+      // fault to name, not bytes to hand over as if they were valid.
+      let manifest: unknown = null;
+      let manifestError: string | null = null;
+      try {
+        const parsed = PublicEvidenceManifestSchema.safeParse(JSON.parse(String(publicManifest)));
+        if (parsed.success) manifest = parsed.data;
+        else manifestError = `stored manifest no longer satisfies the public schema (${parsed.error.issues.length} issue(s))`;
+      } catch (err) {
+        manifestError = `stored manifest is not valid JSON: ${(err as Error).message}`;
+      }
+      return { publication, manifest, manifestError };
+    }),
+
+  // ─── Spend (spec §6.1/§9) ─────────────────────────────────────────
+  // Money discipline, restated because this is the screen most likely to be
+  // misread: `estimated_cost_usd IS NULL` means "not priceable", NOT zero, and
+  // `cost_completeness = 'unknown'` is a fact about our knowledge. So every
+  // figure below is produced by `costDisclosure()` — the same function the
+  // user-facing screens use — which turns a partially-priced set into a FLOOR
+  // plus an unpriced count instead of "$0.00".
+
+  spendSummary: adminQuery
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(50).default(20),
+    }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const offset = (input.page - 1) * input.pageSize;
+
+      // Per-benchmark: the real helper, once per benchmark on this page. The
+      // page bounds the number of computations; it never caps the ledger, and
+      // `total` below is the whole population.
+      const benchmarkRows = await db.select({
+        benchmarkId: benchmarks.id,
+        ownerId: benchmarks.ownerId,
+        ownerUsername: users.username,
+        state: benchmarks.state,
+        executionMode: benchmarks.executionMode,
+        listingId: benchmarks.listingId,
+        spendApprovalId: benchmarks.spendApprovalId,
+        purpose: spendApprovals.purpose,
+        createdAt: benchmarks.createdAt,
+      }).from(benchmarks)
+        .leftJoin(users, eq(benchmarks.ownerId, users.id))
+        .leftJoin(spendApprovals, eq(benchmarks.spendApprovalId, spendApprovals.id))
+        .orderBy(desc(benchmarks.id))
+        .limit(input.pageSize).offset(offset);
+
+      const perBenchmark = [];
+      for (const b of benchmarkRows) {
+        const totals = await benchmarkLedgerTotals(b.benchmarkId);
+        perBenchmark.push({ ...b, totals, cost: costDisclosure(totals) });
+      }
+
+      // Per-account and per-purpose: one grouped query each, reduced through the
+      // SAME `costDisclosure()`. `CostDisclosureInput` exists precisely so a
+      // grouped query can produce the same sentence as the per-benchmark totals
+      // instead of a second, subtly different aggregation.
+      const aggregates = {
+        totalCalls: sql<number>`COUNT(*)`,
+        pricedOperations: sql<number>`COUNT(${callAttempts.estimatedCostUsd})`,
+        uncertainCalls: sql<number>`COALESCE(SUM(CASE WHEN ${callAttempts.outcome} = 'uncertain' THEN 1 ELSE 0 END), 0)`,
+        knownCost: sql<string>`COALESCE(SUM(${callAttempts.estimatedCostUsd}), 0)`,
+        nonComplete: sql<number>`COALESCE(SUM(CASE WHEN ${callAttempts.costCompleteness} <> 'complete' THEN 1 ELSE 0 END), 0)`,
+        bases: sql<string | null>`GROUP_CONCAT(DISTINCT ${callAttempts.costBasis})`,
+      };
+      type LedgerAggregateRow = {
+        totalCalls: number; pricedOperations: number; uncertainCalls: number;
+        knownCost: string; nonComplete: number; bases: string | null;
+      };
+      const disclose = (r: LedgerAggregateRow): CostDisclosureInput => {
+        const totalCalls = Number(r.totalCalls);
+        return {
+          totalCalls,
+          uncertainCalls: Number(r.uncertainCalls),
+          pricedOperations: Number(r.pricedOperations),
+          knownCostUsd: Number(r.knownCost).toFixed(8),
+          // The same three-way rule `benchmarkLedgerTotals()` applies row by row.
+          costCompleteness: totalCalls === 0 ? "unknown" : Number(r.nonComplete) > 0 ? "partial" : "complete",
+          pricingBases: (r.bases ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+        };
+      };
+      const nullPayer = sql<number | null>`NULL`;
+      const nullPurpose = sql<string | null>`NULL`;
+      const withDisclosure = (r: LedgerAggregateRow & { payerId: number | null; purpose: string | null }) => {
+        const totals = disclose(r);
+        return { payerId: r.payerId, purpose: r.purpose, ...totals, cost: costDisclosure(totals) };
+      };
+
+      const [payerRows, purposeRows, unattachedRows] = await Promise.all([
+        db.select({ payerId: callAttempts.payerId, purpose: nullPurpose, ...aggregates })
+          .from(callAttempts).groupBy(callAttempts.payerId).orderBy(desc(sql<number>`COUNT(*)`)).limit(100),
+        db.select({ payerId: nullPayer, purpose: callAttempts.purpose, ...aggregates })
+          .from(callAttempts).groupBy(callAttempts.purpose).orderBy(desc(sql<number>`COUNT(*)`)).limit(100),
+        // Ledger rows attached to no benchmark: one bucket, so they cannot be
+        // folded silently into some benchmark's floor.
+        db.select({ payerId: nullPayer, purpose: nullPurpose, ...aggregates })
+          .from(callAttempts).where(isNull(callAttempts.benchmarkId)),
+      ]);
+
+      const byPayerRaw = payerRows.map(withDisclosure);
+      const byPurpose = purposeRows.map(withDisclosure);
+      const unattached = unattachedRows
+        .map((r) => withDisclosure({ ...r, payerId: null, purpose: null }))
+        .filter((r) => r.totalCalls > 0);
+
+      const payerIds = byPayerRaw.map((r) => r.payerId).filter((id): id is number => typeof id === "number");
+      const payerNames = payerIds.length
+        ? await db.select({ id: users.id, username: users.username, name: users.name }).from(users).where(inArray(users.id, payerIds))
+        : [];
+      const nameById = new Map(payerNames.map((u) => [u.id, u]));
+      const byPayer = byPayerRaw.map((r) => ({
+        ...r,
+        username: typeof r.payerId === "number" ? nameById.get(r.payerId)?.username ?? null : null,
+        displayName: typeof r.payerId === "number" ? nameById.get(r.payerId)?.name ?? null : null,
+      }));
+
+      const [{ benchmarkTotal }] = await db.select({ benchmarkTotal: sql<number>`COUNT(*)` }).from(benchmarks);
+
+      return {
+        benchmarks: perBenchmark,
+        byPayer,
+        byPurpose,
+        unattached,
+        total: Number(benchmarkTotal),
+        page: input.page,
+        pageSize: input.pageSize,
+      };
+    }),
+
+  listSpendApprovals: adminQuery
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(100).default(20),
+      status: z.enum(["active", "consumed", "expired", "revoked"]).optional(),
+      payerId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const offset = (input.page - 1) * input.pageSize;
+      const conditions = [];
+      if (input.status) conditions.push(eq(spendApprovals.status, input.status));
+      if (input.payerId) conditions.push(eq(spendApprovals.payerId, input.payerId));
+      const whereClause = conditions.length ? and(...conditions) : undefined;
+
+      const items = await db.select({
+        id: spendApprovals.id,
+        actorId: spendApprovals.actorId,
+        payerId: spendApprovals.payerId,
+        purpose: spendApprovals.purpose,
+        planHash: spendApprovals.planHash,
+        bindings: spendApprovals.bindings,
+        limits: spendApprovals.limits,
+        spendCeilingUsd: spendApprovals.spendCeilingUsd,
+        status: spendApprovals.status,
+        policyVersion: spendApprovals.policyVersion,
+        approvedAt: spendApprovals.approvedAt,
+        expiresAt: spendApprovals.expiresAt,
+        revokedAt: spendApprovals.revokedAt,
+      }).from(spendApprovals)
+        .where(whereClause)
+        .orderBy(desc(spendApprovals.id))
+        .limit(input.pageSize).offset(offset);
+
+      // Actor and payer are both users, and "how many benchmarks ran under this
+      // frozen plan" is a second grouped read. Both are resolved by explicit
+      // queries instead of correlated subqueries so the numbers cannot be
+      // mis-scoped by a name that resolves in the wrong query level.
+      const approvalIds = items.map((i) => i.id);
+      const userIds = [...new Set(items.flatMap((i) => [i.actorId, i.payerId]))];
+      const [usage, people] = await Promise.all([
+        approvalIds.length
+          ? db.select({ approvalId: benchmarks.spendApprovalId, used: sql<number>`COUNT(*)` })
+              .from(benchmarks).where(inArray(benchmarks.spendApprovalId, approvalIds))
+              .groupBy(benchmarks.spendApprovalId)
+          : Promise.resolve([]),
+        userIds.length
+          ? db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, userIds))
+          : Promise.resolve([]),
+      ]);
+      const usedById = new Map(usage.filter((u) => u.approvalId !== null).map((u) => [u.approvalId as number, Number(u.used)]));
+      const byId = new Map(people.map((p) => [p.id, p.username]));
+
+      const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` })
+        .from(spendApprovals).where(whereClause);
+      return {
+        items: items.map((i) => ({
+          ...i,
+          actorUsername: byId.get(i.actorId) ?? null,
+          payerUsername: byId.get(i.payerId) ?? null,
+          benchmarkCount: usedById.get(i.id) ?? 0,
+        })),
+        total: Number(total), page: input.page, pageSize: input.pageSize,
+      };
     }),
 });

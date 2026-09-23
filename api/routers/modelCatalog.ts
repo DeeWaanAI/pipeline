@@ -18,6 +18,10 @@ export const modelCatalogRouter = createRouter({
     provider: z.string().min(1).max(80),
     modelId: z.string().min(1).max(120),
     family: z.string().max(80).optional(),
+    // D12: the model's DEVELOPER, never the hosting account. Reviewer-filled,
+    // because the evidence panel refuses to name a vendor it cannot attribute.
+    vendor: z.string().min(1).max(80).optional().nullable()
+      .describe("Who developed the model (deepseek, meta, zhipu), not who served it"),
     successorOfModelId: z.string().max(120).optional().describe("Must already be in the catalog — a successor is reviewed lineage, never a name match"),
     sourceUrl: z.string().max(512).optional(),
     availableAt: z.coerce.date().optional(),
