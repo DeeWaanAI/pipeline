@@ -631,9 +631,14 @@ describe("D11 consented feedback attachments (isolated localhost MySQL)", () => 
       targetType: "general", feedbackType: "bug", severity: "minor", content: "too many",
       attachments: Array.from({ length: 6 }, () => ({ kind: "run" as const, refId: ownerRunId, consent: true as const })),
     }));
-    // zod's `.max` on the array refuses it at the input boundary, so the
-    // service's own `too_many_attachments` code is the belt behind it.
-    expect(message).toMatch(/attachments|too big|too_big|too many|at most|maximum|received 6/i);
+    // ONE wording at both boundaries (#38): the input schema's bound now carries
+    // the service's own message, so a caller cannot get "too_big" from one
+    // surface and `too_many_attachments` from another — and it stays a 4xx, not
+    // the 500 a plain thrown error would have become.
+    expect(message).toContain(
+      "too_many_attachments: a feedback item may carry at most 5 attachments — each one is a separate opt-in, not an export",
+    );
+    expect(message.startsWith("BAD_REQUEST ")).toBe(true);
   });
 
   it("holds the same two rules from the MCP workbench, and registers the tool ungated with a guide entry", async () => {

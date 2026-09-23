@@ -79,6 +79,11 @@ export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
  *  feedback table a document store. */
 export const MAX_ATTACHMENTS_PER_FEEDBACK = 5;
 
+/** The one wording for the cap, shared by the input schema and the service so a
+ *  caller cannot get two different answers from two different layers (#38). */
+export const TOO_MANY_ATTACHMENTS_MESSAGE =
+  `too_many_attachments: a feedback item may carry at most ${MAX_ATTACHMENTS_PER_FEEDBACK} attachments — each one is a separate opt-in, not an export`;
+
 export class FeedbackAttachmentError extends Error {
   readonly code: string;
   constructor(code: string, detail: string) {
@@ -540,8 +545,14 @@ export const feedbackSubmitInputSchema = z.object({
   tags: z.array(z.string()).optional(),
   /** D11: the per-item opt-ins. Nothing is collected when this is absent, and
    *  one unticked or unseen item refuses the whole submission rather than
-   *  writing a half-attached receipt. */
-  attachments: z.array(attachmentInputSchema).max(MAX_ATTACHMENTS_PER_FEEDBACK).optional(),
+   *  writing a half-attached receipt. The bound is stated here AND in the
+   *  service, and carries the service's own message verbatim: an input schema
+   *  that answers first with "too_big" would make `too_many_attachments` — the
+   *  refusal the guide and the tests cite, and the only one that explains that
+   *  each item is a separate opt-in — unreachable from this surface (#38). */
+  attachments: z.array(attachmentInputSchema)
+    .max(MAX_ATTACHMENTS_PER_FEEDBACK, TOO_MANY_ATTACHMENTS_MESSAGE)
+    .optional(),
 });
 export type FeedbackSubmitInput = z.infer<typeof feedbackSubmitInputSchema>;
 
