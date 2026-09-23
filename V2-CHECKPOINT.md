@@ -646,3 +646,29 @@ Precise state of the evidence:
 Same lesson as finding 25 and the ICC error, from the other direction: a green
 integration suite next to a new code path is not evidence that the path does what
 was claimed. Assert the distinguishing case or say it is unproven.
+
+## Audit of the "completed" board against the tests, not the titles
+
+Re-derived each rule from the suite itself (`vitest --reporter=json`, 542
+assertions listed) rather than trusting task names:
+
+- **#31 is genuinely pinned** — `evidenceService.integration.test.ts:435-455`
+  withdraws, then asserts the *buyer* still receives the manifest byte-for-byte
+  through the service **and** through `get_public_evidence`, that a stranger gets
+  `not_found_or_not_authorized`, that a new purchase is refused "not buyable",
+  and that a **refund** (not withdrawal) is what finally stops the receipt
+  resolving. My first grep of test *titles* found none of this; the assertion was
+  worth more than the title.
+- **#18/#20/#24/#26/#28/#32** all have named cases in that listing (delisting
+  retention ×3, origin lineage, `run_only` no-leak ×6 including the two new
+  attachment cases, no-team-surface, no-upsell-copy, tier column holds legacy
+  values only).
+- **#26's residue, found and left on purpose.** `api/services/billingService.ts`
+  still writes `team:sync` entitlement rows in the Stripe webhook
+  (`syncTeamSyncEntitlement` at :284, called from :382/:441/:489 against
+  `teams`/`team_seats`). Its own comment at :234 says the capability "gates no
+  capability any more" — and that is true: no reader of `team:sync` remains, and
+  the checkout procedures that could create such a subscription were deleted in
+  `0bed35e`. So it is dead bookkeeping for legacy subscriptions on the payment
+  path, not a live team arm. Deleting it edits money-handling code while #29 is
+  deferred, so it is recorded (#42) rather than done here.
