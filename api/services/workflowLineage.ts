@@ -158,6 +158,7 @@ export async function resolveProjectLineage(
  * documented pre-lineage behaviour and never a name-based guess.
  */
 export async function resolveListingOrigin(opts: {
+  userId: number;
   projectId?: number | null;
   templateId: number;
   executor?: Db;
@@ -171,6 +172,13 @@ export async function resolveListingOrigin(opts: {
     sourceProjectId: pipelineTemplates.sourceProjectId,
   }).from(pipelineTemplates).where(eq(pipelineTemplates.id, opts.templateId)).limit(1);
   if (!template) throw new Error("not_found_or_not_authorized");
+  // The ownership check is applied HERE as well as at the call sites, rather
+  // than being a promise about how the caller behaves. Without it, a stranger
+  // naming someone else's template id was refused with
+  // `publish_origin_required: … created by another account (7)` — a refusal that
+  // both confirms the row exists and names its creator. The comment below could
+  // only ever be a comment; this line is a check.
+  if (template.userId !== opts.userId) throw new Error("not_found_or_not_authorized");
 
   const projectRef = opts.projectId ?? template.sourceProjectId ?? null;
   if (projectRef !== null) {
@@ -188,8 +196,10 @@ export async function resolveListingOrigin(opts: {
 
 /**
  * THE LISTING GATE: refuse a publish whose caller is not the original creator.
- * Call it AFTER the existing ownership checks (which stay in place — this only
- * ever adds a refusal), so a stranger still learns nothing about existence.
+ * The call sites still run their own ownership checks first (this only ever
+ * adds a refusal), and the gate repeats the ownership test itself — see
+ * `resolveListingOrigin` — so a stranger naming an id it does not own gets the
+ * same answer as a non-existent one, whatever the call site forgot to do.
  */
 export async function assertOriginalCreatorMayList(opts: {
   userId: number;
@@ -215,6 +225,10 @@ export async function assertOriginalCreatorMaySellVersion(opts: {
 }): Promise<VersionLineage> {
   const lineage = await resolveVersionLineage(opts.workflowVersionId, opts.executor);
   if (!lineage) throw new Error("not_found_or_not_authorized");
+  // Same hardening as the listing gate: not owning the version is answered
+  // exactly like it not existing, so the origin refusal can never be used to
+  // confirm somebody else's row or learn who created it.
+  if (lineage.ownerId !== opts.userId) throw new Error("not_found_or_not_authorized");
   if (lineage.originCreatorId !== opts.userId) {
     throw new Error(publishOriginVersionRefusal(opts.workflowVersionId, lineage.originCreatorId));
   }

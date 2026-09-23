@@ -8,7 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import mysql from "mysql2/promise";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 const TEST_DB = "swarm_v2test_execprot";
 const ROOT_MYSQL = process.env.MYSQL_ROOT_URL || "mysql://root:rootpass@localhost:3307";
@@ -328,5 +328,61 @@ describe("protected marketplace execution (DB-backed)", () => {
     await setFlag("v2ProtectedExecution", true);
     // `v2Commercial` is OFF by owner policy, so a trial must not sneak in.
     await expect(start(f, { purpose: "trial" })).rejects.toThrow(/trial_policy_unresolved/);
+  });
+});
+
+// ─── "no resale" as a fact of the data, not a rule to obey ───────────
+//
+// The owner's decision says a purchased workflow is licensed to RUN, never to
+// sell. Lineage (`publish_origin_required`) is what refuses a derived work, but
+// it only has something to refuse if a buyer can reach a publish boundary at all
+// — so the stronger guarantee is that a purchase hands the buyer NOTHING
+// publishable: no template, no version, no steps. This pins that, from a real
+// purchase and a real protected run, rather than trusting the gate alone.
+describe("a purchase leaves the buyer nothing to resell (DB-backed)", () => {
+  it("creates no owned template, version or steps, and both publish boundaries refuse the seller's work", async () => {
+    const f = await seed({ entitled: true });
+    const receipt = await start(f);
+    const d = await db();
+
+    // The buyer ran it, so they own a run and its container. That container is
+    // the only project they own, and it is a container precisely because it
+    // holds no definition: the run executed the SELLER's snapshot.
+    const buyerProjects = await d.select({ id: schema.projects.id }).from(schema.projects)
+      .where(eq(schema.projects.userId, f.buyerId));
+    expect(buyerProjects.length).toBeGreaterThan(0);
+    const steps = await d.select({ id: schema.pipelineSteps.id }).from(schema.pipelineSteps)
+      .where(inArray(schema.pipelineSteps.projectId, buyerProjects.map((p) => p.id)));
+    expect(steps).toEqual([]);
+
+    expect(await d.select({ id: schema.pipelineTemplates.id }).from(schema.pipelineTemplates)
+      .where(eq(schema.pipelineTemplates.userId, f.buyerId))).toEqual([]);
+    expect(await d.select({ id: schema.pipelineVersions.id }).from(schema.pipelineVersions)
+      .where(eq(schema.pipelineVersions.ownerId, f.buyerId))).toEqual([]);
+
+    // Boundary 1 — the web/MCP listing path needs a template the caller owns.
+    // The seller's is right there and unreachable: same answer as "no such
+    // template", so a purchase cannot even be used to probe what exists.
+    const { assertOriginalCreatorMayList } = await import("./workflowLineage");
+    const [sellerTemplate] = await d.select({ id: schema.pipelineTemplates.id }).from(schema.pipelineTemplates)
+      .where(eq(schema.pipelineTemplates.userId, f.sellerId)).limit(1);
+    await expect(assertOriginalCreatorMayList({
+      userId: f.buyerId, templateId: sellerTemplate.id,
+    })).rejects.toThrow("not_found_or_not_authorized");
+
+    // Boundary 2 — selling evidence requires a version the caller owns. The run
+    // just executed a real published version; it belongs to the seller.
+    await setFlag("v2Publication", true);
+    const { publishVersion } = await import("./evidenceService");
+    await expect(publishVersion({
+      userId: f.buyerId, listingId: f.listingId, workflowVersionId: f.versionId,
+      benchmarkId: 1, previewHash: "b".repeat(64), consentVersion: "consent-v1",
+    })).rejects.toThrow("not_found_or_not_authorized");
+
+    // And the seller's rows are untouched by any of the above.
+    const [stillOurs] = await d.select({ ownerId: schema.pipelineVersions.ownerId })
+      .from(schema.pipelineVersions).where(eq(schema.pipelineVersions.id, f.versionId)).limit(1);
+    expect(stillOurs.ownerId).toBe(f.sellerId);
+    expect(receipt.swarmRunId).toBeGreaterThan(0);
   });
 });
