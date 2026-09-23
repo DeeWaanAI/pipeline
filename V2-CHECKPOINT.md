@@ -571,3 +571,32 @@ that still needs your written consent.
   immediate" is a stronger promise than the code currently keeps.
 - Open as tasks: #38 done, #39 (the MCP wiki still describes a retired
   tier-capability gate), #29 deferred with the payment gateway.
+
+## The "walker silently destroys Dates" class — checked, and it is ONE place
+
+`capStrings` in `api/services/feedbackAttachments.ts` rebuilt plain objects with
+`Object.entries`, and a `Date` has no own enumerable properties, so every
+timestamp in a stored attachment snapshot became `{}` (fixed in `c507943`, with
+the test inverted from characterising the bug to asserting the ISO string).
+
+Because that is a class of bug rather than a one-off, the other three hand-rolled
+walkers over result data were read, not assumed:
+- `auditExport.sortValue`/`canonicalJson` (the thing the D14 receipt hash and the
+  audit signature are built on) handles `Date → toISOString()` and `bigint →
+  string` explicitly. The deliver→sweep hash comparison is therefore sound, which
+  is the assurance worth having, since that hash is what authorises a deletion.
+- `api/mcp/renderResult.ts` guards `instanceof Date` in all three places it
+  branches on "is this a record" (lines 45, 57, 82), so a timestamp renders as an
+  ISO string in a chat preview rather than an empty object.
+- `swarmService.ts:338` and `auth.ts:90` iterate maps and query params, not
+  user-date trees.
+
+So: one fix, three verified non-occurrences. Anything new that rebuilds an object
+key by key has to carry the same `instanceof Date` line — that is the rule this
+note exists to remind the next reader of.
+
+**Practical note for the desktop retest (#23):** the tool registry is assembled
+per session, so the dev server that is already running will not show
+`share_pipeline`, `send_feedback` or the three `*_work_data` tools until it is
+restarted. That is a restart, not a bug — but it will look like the workbench
+"lost" the new tools otherwise.
