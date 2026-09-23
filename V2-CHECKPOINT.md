@@ -536,3 +536,38 @@ from) is untouched and tracked as **#37**.
 **Suite state.** With #35 fixed, the whole serial tree is green for the first
 time this cycle: 52 files, 511 passed, 1 skipped, 0 failed. Migration 033
 (consented feedback attachments) applied to local `swarm`; data unchanged.
+
+## 2026-09-23 (end of session) — what actually shipped, and what is still not true
+
+Committed, in order, this goal: `d76e6b5` #32 sharing+lineage (with three defects
+found while gating it: a migration that could never apply, an ungated lineage
+read, and a `run_only` model leak) · `5780174` #21 admin operations ·
+`e0b6221` serial suites · `b65db29`/`17ebe1a`/`f312a3c` docs · `1a5b979`
+findings 8/9/19 · `31c21b9` #35 · `99ffa9b` #36 (five admin counts were
+correlating against the wrong table — proven with `toSQL()`, and the new fixture
+fails against the pre-fix code) · `b7022b1` + `8f4f856` both halves of finding 3 ·
+`4213cd7` + `8b6ea1f` D14 server half and D11, with the D14 workbench tools ·
+`c507943` two defects D11's own tests found in D11 (a `Date` collapsing to `{}`
+inside every snapshot, and receipts written outside a transaction) · `6aa1e3e`
+the attachment cap's two conflicting messages.
+
+**Tree state: 54 files, 539 tests, 1 skipped, 0 failed.** Nothing pushed —
+that still needs your written consent.
+
+**What is NOT true yet, stated plainly.**
+- #21's four admin tabs and D11's web opt-in control have never been seen in a
+  browser. The UI files are written, they build, and their i18n pairs check out,
+  but they are **deliberately uncommitted** because signing in needs your say-so.
+- D14 has never run against a real folder from a real chat client (#23). The
+  receipt/confirmation/hash-compare machinery is tested; "the user's device now
+  holds it" is not.
+- Two sweep decisions are yours to confirm: clearing `execution_state` and
+  `run_params.prompt` costs resume-ability for a swept run, and inlined
+  attachment bytes plus a stored provider token in `run_params` are NOT swept,
+  because the bundle never carried them.
+- A revoked `run_only`/`full` grantee can still attach the (redacted) view of a
+  run they already have, because that read goes through `run_params` rather than
+  re-reading the grant row. Entitlement is not widened, but "revocation is
+  immediate" is a stronger promise than the code currently keeps.
+- Open as tasks: #38 done, #39 (the MCP wiki still describes a retired
+  tier-capability gate), #29 deferred with the payment gateway.
