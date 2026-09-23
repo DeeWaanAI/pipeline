@@ -403,3 +403,66 @@ baseline (`db/schema 2.ts`, `api/services/autoDesignService 2.ts`, `.git/refs/he
 `dist/public/assets/* 2.js`): unreferenced junk that predates P0, but do not delete without an owner
 decision — move aside instead.
 
+
+---
+
+## 2026-09-23 — #32 and #21 landed, and the suite's real baseline
+
+**Committed (4, none pushed).**
+- `1a5b979` findings 8/9/19 — `approve_benchmark_spend` echoes the planHash it
+  bound, a `start_benchmark` replay now says `alreadyStarted/nothingNewStarted`
+  instead of mimicking a real start, and `nothing_left_to_do` names the failed
+  children and `retryFailed`.
+- `d76e6b5` #32 — `pipeline_shares` (per-object grant between two accounts,
+  `run_only`/`full`, `canModify`, revoke-by-state) + publish lineage enforced at
+  all three boundaries (`publish_to_marketplace`, `marketplace.create`,
+  `publishVersion`). No team/group construct, no plan or tier gate.
+- `5780174` #21 — ten read-mostly `adminQuery` procedures and four AdminPanel
+  tabs (endpoints, catalog+vendor, evidence, spend).
+- `e0b6221` `fileParallelism: false`, with the reason.
+
+**Three defects found in the #32 increment while gating it, all fixed there.**
+1. **Migration 032 could never apply.** `pipeline_shares` had `AUTO_INCREMENT`
+   with no key, so MySQL 8 refused it with error 1075 — the migration had
+   silently never reached the local `swarm` database. The integration suite did
+   not catch it because it builds its schema from `db/schema.ts` via
+   `drizzle-kit push`, not from the SQL file. **Any future hand-written migration
+   must be applied somewhere before it is called done.**
+2. `pipelineShare.lineage` resolved any project/version id for any caller: an
+   existence probe plus an owner disclosure, contradicting the header of the file
+   it lives in. Now gated on the same access as the neighbouring `access`.
+3. A `run_only` recipient could read which model each of the grantor's steps pins
+   (`debug.getRunStats`, and the export projection kept every non-prompt column).
+   `runAccess.withholdsModel` is now the single decision; `full` shares and
+   marketplace buyer runs are deliberately unchanged.
+
+**LOCAL DB STATE.** Migration 032 applied to local `swarm` (`pipeline_shares`
+with PRIMARY KEY + 3 indexes; `projects.origin_creator_id`,
+`pipeline_versions.origin_creator_id/origin_version_id`). Existing data
+unchanged and verified after applying: 3 projects / 6 versions / 1 listing /
+7 benchmarks / 2 users / 0 shares. `trusted_provider_endpoints` is still 0 rows,
+so the desktop journey still stops at the egress gate until a human approves a
+real destination. Next migration number: **033**.
+
+**THE SUITE BASELINE IS NOT CLEAN, and it is not this branch's doing.** Full
+serial `npm test`: 50 files, 490 passed, 1 skipped, **4 failed — all in
+`api/lib/providerThrottle.test.ts`** (`currentRpm` 2000 where 120/60 expected).
+Confirmed pre-existing by stashing the whole working tree and re-running at
+`HEAD`: identical 4 failures. Tracked as a defect to fix on its own, not to be
+worked around. `npm test` piping through `tail` hides the exit code — read the
+summary, not the shell status.
+
+**Second pre-existing hazard, found by the admin build and still OPEN.**
+drizzle emits an *unqualified* column name when a `Column` is interpolated into
+raw `sql`, so `(SELECT COUNT(*) … WHERE <inner>.fk = ${t.id})` binds `id` to the
+INNER table and the subquery stops correlating: the count comes back as a
+constant. The admin agent hit it, worked around it with grouped reads, and named
+the same bug left in three older procedures — `listUsers.projectCount/runCount`,
+`certificationQueue.poolTotal/poolCompleted`, `listWaitlist.position/
+referralCount`. Those numbers are silently wrong today.
+
+**Still open.** #22 (consented feedback attachments) and #30 (deliver-then-sweep)
+both need migration 033 and are unblocked now that `db/schema.ts` is free. #21's
+screens are not browser-verified: reaching them needs admin credentials and the
+credential file is off-limits, so nothing was guessed. #23/#33/#34 need a live
+retest from the owner's chat seat. #29 stays deferred with the payment gateway.
