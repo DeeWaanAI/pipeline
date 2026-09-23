@@ -497,3 +497,42 @@ this tree rather than recalled:
   `api/router.ts` mount line, and its own test — no schema change, no MCP tool
   in that increment). Neither is trusted until re-gated and committed here.
 - Next free migration number is **034**.
+
+## 2026-09-23 (later) — D14's server half, and the real cause inside finding 3
+
+**Committed.** `4213cd7` is the server half of #30: `api/services/dataDelivery.ts`
++ `api/routers/dataDelivery.ts` (deliver / preview / sweep) + 6 DB-backed cases.
+`b7022b1` fixes the explained half of desktop finding 3.
+
+**Deliver-then-sweep, as built.** One bundle with a sha256 (stable across
+unchanged data, so a client can tell it re-wrote the same bytes) and a signed
+receipt; the sweep refuses without that receipt *and* the confirmation phrase,
+then **re-derives** the bundle and compares hashes, so it cannot delete what the
+user does not hold. Content is nulled, structure never: no `DELETE` anywhere, ids,
+timestamps, token counts, cost rows, `model_used`/`provider_used` and every hash
+survive, and the six D14-named server-authoritative tables are censused before
+and after and reported in the receipt. `swarm_runs.run_params` is rewritten key by
+key so the share/protection context `runAccess` enforces from is not lost. Buyer
+runs and shared-in runs are refused outright rather than redacted-and-swept.
+
+Two judgement calls the implementer surfaced, both accepted here as the right way
+round but worth a human's eye:
+- it clears `swarm_runs.execution_state` and `run_params.prompt`, which is what
+  makes "swept" true, and the cost is that a swept run can no longer be resumed;
+- it deliberately does **not** clear `run_params.attachments` (inlined file
+  bytes) or a stored provider token, because the bundle carries no attachment
+  bytes and rule 1 forbids sweeping what was not delivered. So attachment blobs
+  survive a sweep — a gap in the promise, not an oversight.
+
+**Finding 3, half 2 explained with data, not theory.** The same `(provider,
+model)` pair is `provider_list` on six `call_attempts` rows and `NULL` on
+thirteen. Only one mechanism produces that: `fetchProviderRates` cached the empty
+result of an 8-second timeout or a thrown fetch under the same ten-minute TTL as
+a good answer, so one slow host blinded every later quote and ledger row, and
+`recordCallAttempt`'s `.catch()` hid it. A remembered miss now expires in 15s.
+Half 1 (multi-model pipeline aggregates have no per-step breakdown to price
+from) is untouched and tracked as **#37**.
+
+**Suite state.** With #35 fixed, the whole serial tree is green for the first
+time this cycle: 52 files, 511 passed, 1 skipped, 0 failed. Migration 033
+(consented feedback attachments) applied to local `swarm`; data unchanged.
