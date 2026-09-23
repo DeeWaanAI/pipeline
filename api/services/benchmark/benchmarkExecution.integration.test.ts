@@ -40,23 +40,32 @@ vi.mock("../swarmService", async (importOriginal) => {
           .where(eq(schema.swarmRuns.id, params.swarmRunId));
         return;
       }
-      const [ar] = await db.insert(schema.agentRuns).values({
-        swarmRunId: params.swarmRunId, projectId: run.projectId, agentName: "Fake", agentRole: "builder",
-        pipelineStep: 1, userPrompt: run.userPrompt, status: "completed",
-      });
-      const [resp] = await db.insert(schema.agentResponses).values({
-        agentRunId: Number((ar as { insertId: number }).insertId), swarmRunId: params.swarmRunId,
-        projectId: run.projectId, responseType: "final", content: `output for: ${run.userPrompt}`,
-        metadata: {
-          model: definition.steps[0]?.model ?? "unknown", provider: "fake", providerSlug: "fake",
-          tokensUsed: { prompt: 120, completion: 30, total: 150 }, latencyMs: 5, temperature: 0.7,
-          maxTokens: 1024, agentName: "Fake", agentRole: "builder", agentSlug: "fake",
-          pipelineStep: 1, iteration: 1, buildMethod: "fake", sourceResponseIds: [],
-        },
-      });
+      // Model attribution belongs on the run row as well as the response metadata.
+      let finalResponseId = 0;
+      let totalTokens = 0;
+      for (const step of definition.steps) {
+        const stepOrder = Number(step.stepOrder ?? 1);
+        const [ar] = await db.insert(schema.agentRuns).values({
+          swarmRunId: params.swarmRunId, projectId: run.projectId, agentName: "Fake", agentRole: step.role ?? "builder",
+          pipelineStep: stepOrder, userPrompt: run.userPrompt, status: "completed",
+          modelUsed: step.model ?? null,
+        });
+        const [resp] = await db.insert(schema.agentResponses).values({
+          agentRunId: Number((ar as { insertId: number }).insertId), swarmRunId: params.swarmRunId,
+          projectId: run.projectId, responseType: "final", content: `output for: ${run.userPrompt}`,
+          metadata: {
+            model: step.model ?? "unknown", provider: "fake", providerSlug: "fake",
+            tokensUsed: { prompt: 120, completion: 30, total: 150 }, latencyMs: 5, temperature: 0.7,
+            maxTokens: 1024, agentName: "Fake", agentRole: step.role ?? "builder", agentSlug: "fake",
+            pipelineStep: stepOrder, iteration: 1, buildMethod: "fake", sourceResponseIds: [],
+          },
+        });
+        finalResponseId = Number((resp as { insertId: number }).insertId);
+        totalTokens += 150;
+      }
       await db.update(schema.swarmRuns).set({
-        status: "completed", finalResponseId: Number((resp as { insertId: number }).insertId),
-        totalTokensUsed: 150, completedAt: new Date(),
+        status: "completed", finalResponseId,
+        totalTokensUsed: totalTokens, completedAt: new Date(),
       }).where(eq(schema.swarmRuns.id, params.swarmRunId));
     },
   };
@@ -296,10 +305,11 @@ describe("private evaluation execution (DB-backed)", () => {
 
     // A08 reconciliation, stated in its own units: the plan quoted provider
     // CALLS (24 generation calls over 4 logical generations), the ledger holds
-    // one row per logical operation carrying that operation's summed usage.
+    // one row per logical operation carrying that operation's summed usage —
+    // here 3 steps × 120 prompt tokens per child, as the fake reports per step.
     const generationAttempts = await attemptsOf(benchmarkId, "generation");
     expect(generationAttempts).toHaveLength(4);
-    expect(generationAttempts.reduce((a, r) => a + (r.promptTokens ?? 0), 0)).toBe(4 * 120);
+    expect(generationAttempts.reduce((a, r) => a + (r.promptTokens ?? 0), 0)).toBe(4 * 3 * 120);
     expect((await attemptsOf(benchmarkId, "judgment")).length).toBe(quote.counts.judgingCalls);
     expect(bench.state).toBe("completed");
     expect(bench.aggregateAvailability).toBe("complete");
@@ -341,9 +351,10 @@ describe("private evaluation execution (DB-backed)", () => {
       expect(quote.pricingBasis).toBe("price_vector");
       expect(quote.estimatedTotalCostUsd).not.toBeNull();
 
-      // The fake returns one 120/30 response per generation child.
+      // The fake returns one 120/30 response per STEP of a generation child, and
+      // the default fixture has two steps, so the child's own usage is 240/60.
       const [gen] = await attemptsOf(benchmarkId, "generation");
-      expect(Number(gen.estimatedCostUsd)).toBeCloseTo((120 / 1000) * 0.2 + (30 / 1000) * 0.6, 10);
+      expect(Number(gen.estimatedCostUsd)).toBeCloseTo((240 / 1000) * 0.2 + (60 / 1000) * 0.6, 10);
       expect(gen.costBasis).toBe("price_vector");
       expect(gen.costCompleteness).toBe("complete");
       expect(gen.costPricingAsOf).toBeNull(); // a vector is versioned, not timestamped
@@ -360,7 +371,7 @@ describe("private evaluation execution (DB-backed)", () => {
 
       const totals = await benchmarkLedgerTotals(benchmarkId);
       expect(totals.costCompleteness).toBe("complete");
-      expect(Number(totals.knownCostUsd)).toBeCloseTo(0.042 + 0.52, 10);
+      expect(Number(totals.knownCostUsd)).toBeCloseTo(0.084 + 0.52, 10);
       expect(totals.pricingBases).toEqual(["price_vector"]);
 
       // A model no source knows must produce UNKNOWN on its own row and drag the
@@ -379,6 +390,51 @@ describe("private evaluation execution (DB-backed)", () => {
       expect(t2.costCompleteness).toBe("partial");
       expect(Number(t2.knownCostUsd)).toBeCloseTo(0.52, 10); // judging still priced
       expect(t2.pricingBases).toEqual(["price_vector"]);
+
+      // Distinct rates make a single-route estimate observably wrong.
+      process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({
+        "model-a": { in: 0.2, out: 0.6 },
+        "model-b": { in: 1, out: 2 },
+        "judge-model": { in: 1, out: 2 },
+      });
+      pricing.resetPricingCache();
+      const f3 = await seedFixture({ stepModels: ["model-a", "model-b"] });
+      const { benchmarkId: id3 } = await startAndExecute({
+        userId: f3.userId, projectId: f3.projectId,
+        cases: [{ inputText: "task one" }],
+        judges: [{ providerId: f3.providerId, model: "judge-model" }],
+      });
+      const [gen3] = await attemptsOf(id3, "generation");
+      expect(Number(gen3.estimatedCostUsd)).toBeCloseTo(
+        ((120 / 1000) * 0.2 + (30 / 1000) * 0.6) + ((120 / 1000) * 1 + (30 / 1000) * 2), 10);
+      expect(gen3.costBasis).toBe("price_vector");
+      expect(gen3.costCompleteness).toBe("complete");
+      expect(gen3.providerRefId).toBeNull();
+      expect(gen3.promptTokens).toBe(240);
+      expect(gen3.completionTokens).toBe(60);
+      const t3 = await benchmarkLedgerTotals(id3);
+      expect(t3.costCompleteness).toBe("complete");
+      expect(Number(t3.knownCostUsd)).toBeCloseTo(0.222 + 0.52, 10);
+
+      // A known subtotal must not masquerade as the whole generation cost.
+      process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({
+        "model-a": { in: 0.2, out: 0.6 },
+        "judge-model": { in: 1, out: 2 },
+      });
+      pricing.resetPricingCache();
+      const f4 = await seedFixture({ stepModels: ["model-a", "model-nobody-lists"] });
+      const { benchmarkId: id4 } = await startAndExecute({
+        userId: f4.userId, projectId: f4.projectId,
+        cases: [{ inputText: "task one" }],
+        judges: [{ providerId: f4.providerId, model: "judge-model" }],
+      });
+      const [gen4] = await attemptsOf(id4, "generation");
+      expect(gen4.estimatedCostUsd).toBeNull();
+      expect(gen4.costBasis).toBeNull();
+      expect(gen4.costCompleteness).toBe("unknown");
+      const t4 = await benchmarkLedgerTotals(id4);
+      expect(t4.costCompleteness).toBe("partial");
+      expect(Number(t4.knownCostUsd)).toBeCloseTo(0.52, 10);
     } finally {
       if (prevVector === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
       else process.env.V2_PRICE_VECTOR_JSON = prevVector;
