@@ -196,6 +196,20 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Add a note to your persistent project memory (survives across chats).",
   },
   {
+    name: "preview_work_delivery", group: "Your data", scopes: ["mcp:read"],
+    summary: "What a delivery of your own work data would contain — counts, volume, the bundle hash, and the runs excluded because another account's interest lives in them (a buyer run, a pipeline shared to you). Writes nothing, hands over nothing.",
+  },
+  {
+    name: "deliver_work_data", group: "Your data", scopes: ["mcp:read"],
+    summary: "One complete bundle of your own work data — projects, runs, prompts, step outputs, private benchmark cases, judgments and rationales — with its sha256 and the signed receipt a sweep needs. Your chat client writes the folder you chose; re-delivering unchanged data returns the same hash, so it can tell it already wrote these bytes. Nothing is deleted by this call.",
+    example: "\"Export everything I have run this month into ~/DeeWaan/backup so I hold the only copy.\"",
+  },
+  {
+    name: "sweep_delivered_work", group: "Your data", scopes: ["mcp:write"],
+    summary: "Clear the server's copy of work you already delivered. Needs that receipt plus the confirmation phrase, and re-derives the bundle first: if anything changed since delivery it refuses rather than deleting a copy you do not hold. Content is emptied, structure stays — ids, timestamps, token counts, the cost ledger, published versions, evidence, purchases, execution rights and consent records are untouched.",
+    example: "\"The folder is written and verified — you can delete the server copies now.\"",
+  },
+  {
     name: "share_pipeline", group: "Author", scopes: ["mcp:write"],
     summary: "Lend ONE pipeline to ONE named account: run_only lets them run it and keep the answer while their reads show step names and states only, full lets them read the definition, and canModify (full only) lets them edit it. This is a grant between two people, not a team, and never a transfer — you stay the owner and the only account that can publish it.",
     example: "\"Share my contract pipeline with partner@example.com so they can run it but not read the prompts.\"",
@@ -359,6 +373,11 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   {
     name: "deewaanai_help", group: "Account", scopes: ["mcp:read"],
     summary: "This guide — filtered to your scopes, what you own, and the connected app.",
+  },
+  {
+    name: "send_feedback", group: "Account", scopes: ["mcp:write"],
+    summary: "Tell the team about a problem with a specific pipeline, run or benchmark and attach THAT object, so support sees what you saw. Each attachment is one explicit opt-in on one object and the receipt records the consent version — nothing is harvested, and an unticked or unseen item refuses the submission rather than writing half of it. The snapshot is exactly what your own account can already read: for a run_only shared run or a purchased workflow, that is the redacted view you already get, never the owner's prompts, model bindings or keys.",
+    example: "\"Send feedback that run 42 stopped after step 2, and attach the run so they can see it.\"",
   },
   // ── Your data (Batch B — no lock-in) ────────────────────────────
   {

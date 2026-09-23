@@ -952,6 +952,65 @@ export const feedback = mysqlTable("feedback", {
   statusIdx: index("idx_feedback_status").on(table.status),
 }));
 
+// ─── CONSENTED FEEDBACK ATTACHMENTS (D11, ticket #22) ────────────────
+// "Send feedback about THIS pipeline / run / benchmark" — one opt-in per
+// object, never a harvest. Nothing is written here automatically: every row
+// exists because the author ticked that one item and the row records WHICH
+// consent text they ticked (`consent_version`, stamped server-side from
+// `DEFAULT_CONSENT_VERSION` in api/services/evidenceService.ts, so a client
+// cannot claim an older or a made-up one). A missing consent is refused in
+// api/services/feedbackAttachments.ts, not defaulted.
+//
+// `snapshot` is the whole point and the whole risk. It is a FROZEN COPY taken
+// at submit time through the SAME projections the author already reads
+// (`pipelineSharing.getSharedWorkflow`, `runAccess.projectRunDetail`,
+// `pipelineSharing.getSharedRunView`, `marketplaceExecutionService
+// .getProtectedRunView`, `benchmarkService.getBenchmarkProgress`) — never a
+// fresh join on `agentRuns`/`pipelineSteps` invented here. So an attachment can
+// never widen what its author is entitled to: an owned object carries the real
+// detail, a `run_only` share or a marketplace buyer run carries the redacted
+// view that run's own owner already sees, and spec A12's promise (another
+// account's prompt text does not reach an unentitled account) survives the
+// feedback path exactly as it survives export, debug and the response chain.
+export const feedbackAttachments = mysqlTable("feedback_attachments", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  // Cascade WITH the feedback item and only that way: an attachment is a
+  // receipt attached to one feedback row, and deleting the feedback ends its
+  // purpose. It never reaches back into the attached object — that object is
+  // the user's pipeline/run/benchmark row and stays exactly where it is.
+  feedbackId: int("feedback_id")
+    .references(() => feedback.id, { onDelete: "cascade" })
+    .notNull(),
+  // The consenting author. Same account rules the read back: an attachment is
+  // visible to the account that consented to it (and to support).
+  userId: int("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  // The three objects this product actually has: a pipeline (a project and its
+  // steps), a run of one, and a benchmark. No fourth kind, and nothing here
+  // about teams, workspaces or orgs — those concepts are deleted.
+  kind: mysqlEnum("kind", ["pipeline", "run", "benchmark"]).notNull(),
+  // The object's own id: `projects.id`, `swarm_runs.id` or `benchmarks.id`.
+  // Deliberately NOT a foreign key: the consent is to the SNAPSHOT, and the
+  // receipt must still be readable after the user deletes the object it
+  // describes. An FK here would either cascade into the feedback row or block
+  // a legitimate delete, and neither is what a feedback receipt means.
+  refId: int("ref_id").notNull(),
+  consentVersion: varchar("consent_version", { length: 40 }).notNull(),
+  // Canonical JSON snapshot (same storage choice as `pipeline_versions
+  // .definition`: a frozen blob that can legitimately be large).
+  snapshot: mediumtext("snapshot").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  feedbackIdx: index("idx_feedback_attachments_feedback_id").on(table.feedbackId),
+  userIdIdx: index("idx_feedback_attachments_user_id").on(table.userId),
+  // "which objects has this feedback been about?" — the support-side lookup.
+  kindRefIdx: index("idx_feedback_attachments_kind_ref").on(table.kind, table.refId),
+}));
+
+export type FeedbackAttachment = typeof feedbackAttachments.$inferSelect;
+export type InsertFeedbackAttachment = typeof feedbackAttachments.$inferInsert;
+
 // ─── ISSUES (derived from feedback or created manually) ──────────────
 export const issues = mysqlTable("issues", {
   id: int("id").autoincrement().primaryKey().notNull(),

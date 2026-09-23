@@ -23,7 +23,7 @@
 // which ids exist.
 
 import { eq } from "drizzle-orm";
-import { agentResponses, projects, swarmRuns } from "@db/schema";
+import { agentRuns, agentResponses, projects, swarmRuns } from "@db/schema";
 import { getDb } from "../queries/connection";
 
 export class NotVisibleError extends Error {
@@ -150,4 +150,68 @@ export const MODEL_BEARING_RUN_COLUMNS = ["modelUsed"] as const;
 
 export function withholdsModel(run: { runParams: unknown } | null | undefined): boolean {
   return sharedRunOf(run)?.mode === "run_only";
+}
+
+/** §8.1's second bar, MOVED VERBATIM out of `api/routers/export.ts` rather than
+ *  copied. It lives here because there is now a second reader of run detail —
+ *  the consented feedback attachment (D11, ticket #22) — and a second reader
+ *  must not get to invent its own idea of what "redacted" means. Deleting the
+ *  prompt-bearing columns (and, on a `run_only` share, the model column) is the
+ *  whole rule, stated once. */
+export function redactProtectedAgentRun(
+  row: typeof agentRuns.$inferSelect,
+  withholdModel = false,
+): Record<string, unknown> {
+  const copy: Record<string, unknown> = { ...row };
+  for (const column of PROMPT_BEARING_RUN_COLUMNS) delete copy[column];
+  // A `run_only` share additionally withholds which model each of the
+  // grantor's steps pins: that is definition, and it is the one step column the
+  // write-side redaction does not already cover.
+  if (withholdModel) for (const column of MODEL_BEARING_RUN_COLUMNS) delete copy[column];
+  return copy;
+}
+
+export interface RunDetailProjection {
+  steps: Record<string, unknown>[];
+  responses: (typeof agentResponses.$inferSelect)[];
+  /** Whether this projection is the redacted one, so a caller can say why in
+   *  its own words instead of guessing from an empty field. */
+  redacted: boolean;
+}
+
+/**
+ * THE run-detail projection: one run's step rows and its responses, with the
+ * protection rule already applied. This is the same pair of reads
+ * `export.exportRun` has always made; it is here so that every surface wanting
+ * "the whole run" goes through one implementation instead of each re-deriving
+ * which columns are safe.
+ *
+ * It takes an already-loaded, already-authorized `run` row on purpose: which
+ * caller may read what is a decision for the surface (owner-only for export,
+ * `assertRunVisible` for an attachment, a buyer/grantee check for the protected
+ * views), and this function must not start making that decision.
+ */
+export async function projectRunDetail(
+  run: typeof swarmRuns.$inferSelect,
+): Promise<RunDetailProjection> {
+  const db = getDb();
+  const stepRows = await db.select().from(agentRuns)
+    .where(eq(agentRuns.swarmRunId, run.id))
+    .orderBy(agentRuns.pipelineStep, agentRuns.id);
+  const allResponses = await db.select().from(agentResponses)
+    .where(eq(agentResponses.swarmRunId, run.id))
+    .orderBy(agentResponses.createdAt);
+
+  if (!isProtectedRun(run)) {
+    return { steps: stepRows.map((r) => ({ ...r })), responses: allResponses, redacted: false };
+  }
+  // Two independent bars, exactly as the export has always had them: the writer
+  // already refused to store a protected run's prompt text, and this read drops
+  // those columns anyway. Intermediate outputs are withheld too — an echo of the
+  // owner's instructions can ride along inside one (§8.1).
+  return {
+    steps: stepRows.map((r) => redactProtectedAgentRun(r, withholdsModel(run))),
+    responses: allResponses.filter((r) => r.id === run.finalResponseId),
+    redacted: true,
+  };
 }

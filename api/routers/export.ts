@@ -15,22 +15,12 @@ import {
   ledgerToCsvFiles,
   signLedger,
 } from "../services/auditExport";
-import { isProtectedRun, MODEL_BEARING_RUN_COLUMNS, PROMPT_BEARING_RUN_COLUMNS, withholdsModel } from "../services/runAccess";
+import {
+  isProtectedRun, projectRunDetail, redactProtectedAgentRun, withholdsModel,
+} from "../services/runAccess";
 
 export const PROTECTED_EXPORT_NOTE =
   "Protected marketplace run: the workflow definition belongs to the seller, so step prompts are stored as lengths only and intermediate step outputs are not part of the buyer's export.";
-
-/** §8.1's second bar: the writer already refuses to store a protected run's
- *  prompt text, and the export does not return those columns either. */
-function redactProtectedAgentRun(row: typeof agentRuns.$inferSelect, withholdModel = false) {
-  const copy: Record<string, unknown> = { ...row };
-  for (const column of PROMPT_BEARING_RUN_COLUMNS) delete copy[column];
-  // A `run_only` share additionally withholds which model each of the
-  // grantor's steps pins: that is definition, and it is the one step column the
-  // write-side redaction does not already cover.
-  if (withholdModel) for (const column of MODEL_BEARING_RUN_COLUMNS) delete copy[column];
-  return copy;
-}
 
 export const exportRouter = createRouter({
   // Export all custom agents for the current user
@@ -85,27 +75,23 @@ export const exportRouter = createRouter({
       const [run] = await db.select().from(swarmRuns)
         .where(eq(swarmRuns.id, input.runId)).limit(1);
       if (!run || run.userId !== ctx.user.id) throw new Error("Run not found");
-
-      const runs = await db.select().from(agentRuns)
-        .where(eq(agentRuns.swarmRunId, input.runId))
-        .orderBy(agentRuns.pipelineStep);
-      
-      const responses = await db.select().from(agentResponses)
-        .where(eq(agentResponses.swarmRunId, input.runId))
-        .orderBy(agentResponses.createdAt);
-
       logger.info("Run exported", { userId: ctx.user.id, runId: input.runId });
+
       // §8.1: a marketplace run's buyer owns the ANSWER, not the workflow's
       // intermediate products — an echo of the seller's instructions can ride
       // along in any of them. The prompt columns are already redacted at the
-      // write; dropping them here as well keeps two independent bars.
-      if (isProtectedRun(run)) {
+      // write; dropping them here as well keeps two independent bars. The
+      // projection itself lives in `api/services/runAccess.ts` because the
+      // consented feedback attachment (D11) reads run detail too, and a second
+      // reader must not get to invent its own idea of what "redacted" means.
+      const detail = await projectRunDetail(run);
+      if (detail.redacted) {
         return {
           version: 1,
           exportedAt: new Date().toISOString(),
           run,
-          agentRuns: runs.map((r) => redactProtectedAgentRun(r, withholdsModel(run))),
-          agentResponses: responses.filter((r) => r.id === run.finalResponseId),
+          agentRuns: detail.steps,
+          agentResponses: detail.responses,
           protection: PROTECTED_EXPORT_NOTE,
         };
       }
@@ -113,8 +99,8 @@ export const exportRouter = createRouter({
         version: 1,
         exportedAt: new Date().toISOString(),
         run,
-        agentRuns: runs,
-        agentResponses: responses,
+        agentRuns: detail.steps,
+        agentResponses: detail.responses,
       };
     }),
 

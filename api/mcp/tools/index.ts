@@ -39,8 +39,10 @@ import { batchStatus } from "./batchStatus";
 import { PUBLICATION_TOOLS } from "./publicationTools";
 import { EXTERNAL_EVIDENCE_TOOLS } from "./externalEvidenceTools";
 import { PIPELINE_SHARING_TOOLS } from "./pipelineSharingTools";
+import { DATA_DELIVERY_TOOLS } from "./dataDeliveryTools";
 import { PROTECTED_EXECUTION_TOOLS } from "./protectedExecutionTools";
 import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
+import { FEEDBACK_TOOLS } from "./feedbackTools";
 import { resumeBatchTool } from "./resumeBatch";
 import { exportBatchResultsTool } from "./exportBatchResults";
 
@@ -69,12 +71,20 @@ export const TOOLS: McpTool[] = [
   // Not flag-gated: it is gated on ownership and on the grant row, and no new
   // OAuth scope exists to gate it with.
   ...PIPELINE_SHARING_TOOLS,
+  // D14 deliver-then-sweep, so the desktop chat client that owns the folder can
+  // actually honour the storage promise from the workbench.
+  ...DATA_DELIVERY_TOOLS,
   // Offering redesign v2 — protected buyer execution (hidden unless
   // v2ProtectedExecution). Buyer-side half of §8.
   ...PROTECTED_EXECUTION_TOOLS,
   // Offering redesign v2 — model release awareness (§12.1). Suggestions only:
   // no public tool can record a model or fan out notices.
   ...MODEL_CATALOG_TOOLS,
+  // D11 (ticket #22): feedback with the object it is about attached, per item,
+  // under an explicit consent. Not flag-gated — it is an account-scoped write
+  // gated by ownership alone, and the snapshot can never carry more than the
+  // consenting account can already read.
+  ...FEEDBACK_TOOLS,
   deewaanaiHelp,
   suggestLlmProviders,
   addProvider,

@@ -19,6 +19,7 @@ import {
   PROTECTED_EGRESS_POLICY_VERSION, normalizeEndpointUrl, resolvedAdapterKind,
 } from "../services/protectedEgress";
 import { benchmarkLedgerTotals, costDisclosure, type CostDisclosureInput } from "../services/benchmark/benchmarkLedger";
+import { readAttachmentForSupport, summarizeAttachments } from "../services/feedbackAttachments";
 import { PublicEvidenceManifestSchema } from "../../contracts/offeringV2";
 
 export const adminRouter = createRouter({
@@ -137,6 +138,14 @@ export const adminRouter = createRouter({
         screenshotUrl: feedback.screenshotUrl,
         contextJson: feedback.contextJson,
         createdAt: feedback.createdAt,
+        // D11: how many objects the author consented to attach. The outer table
+        // has to be spelled out — drizzle emits an UNQUALIFIED column for
+        // `${feedback.id}` inside raw sql and MySQL then binds `id` to
+        // `feedback_attachments`' own row, turning a correlated count into a
+        // constant (finding #36, fixed in `99ffa9b` for the five older fields
+        // below that had it). See also `listUsers.projectCount`,
+        // `certificationQueue.poolTotal`, `listWaitlist.position`.
+        attachmentCount: sql<number>`(SELECT COUNT(*) FROM feedback_attachments WHERE feedback_attachments.feedback_id = feedback.id)`,
       })
         .from(feedback)
         .leftJoin(users, eq(feedback.userId, users.id))
@@ -152,12 +161,46 @@ export const adminRouter = createRouter({
       
       // Decorate stored screenshot paths with short-lived signed URLs so the
       // admin panel can render them in <img> tags (see api/lib/screenshotUrls.ts).
+      //
+      // The attachment SUMMARY is the second half: what was attached, under
+      // which consent version, and whether the stored snapshot is a redacted
+      // view — deliberately NOT the payload, which can be several kilobytes of
+      // prompt text per row and is a per-attachment read
+      // (`feedbackAttachmentDetail`). A support list never drags every attached
+      // prompt across the wire by accident.
+      const summaries = await summarizeAttachments(items.map((i) => i.id));
       const decorated = items.map((r) => ({
         ...r,
+        attachmentCount: Number(r.attachmentCount),
+        attachments: summaries.get(r.id) ?? [],
         screenshotUrl: r.screenshotUrl ? signScreenshotUrl(r.screenshotUrl) : r.screenshotUrl,
       }));
 
       return { items: decorated, total: Number(total), page: input.page, pageSize: input.pageSize };
+    }),
+
+  // One consented attachment, payload included, for the support desk. Admin-only
+  // by the middleware, and this widens nothing: the snapshot was written
+  // through the consenting author's OWN read projection, so what is stored here
+  // is exactly what that account could already see (spec A12 — see
+  // api/services/feedbackAttachments.ts).
+  feedbackAttachmentDetail: adminQuery
+    .input(z.object({ attachmentId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const row = await readAttachmentForSupport(input.attachmentId);
+      logger.info("Admin: feedback attachment read", {
+        attachmentId: input.attachmentId, adminUserId: ctx.user.id,
+        kind: row.kind, refId: row.refId, visibility: row.visibility,
+      });
+      await logAdminAction({
+        adminUserId: ctx.user.id, action: "feedback.read_attachment",
+        targetType: "feedback_attachment", targetId: input.attachmentId,
+        // The ids and the shape only — never the content, which is the whole
+        // reason this read is audited at all.
+        detail: { kind: row.kind, refId: row.refId, consentVersion: row.consentVersion, visibility: row.visibility },
+        ip: ctx.remoteIp,
+      });
+      return row;
     }),
 
   updateFeedbackStatus: adminQuery

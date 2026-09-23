@@ -5,6 +5,13 @@
  *
  * Handles all feedback: floating button submissions, message reactions,
  * screenshot storage, tagging, and listing/filtering.
+ *
+ * D11 (ticket #22) adds the CONSENTED ATTACHMENT half: a submission may carry
+ * the pipeline / run / benchmark the report is about, one explicit opt-in per
+ * object, and the author can read back exactly what they consented to. The
+ * access rules and the snapshot redaction are NOT in this file — they live in
+ * api/services/feedbackAttachments.ts, which is the only thing that decides
+ * what an attachment may contain (see spec A12 there).
  */
 
 import { z } from "zod";
@@ -13,58 +20,39 @@ import { getDb } from "../queries/connection";
 import { feedback, users } from "@db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { signScreenshotUrl } from "../lib/screenshotUrls";
+import {
+  attachableObjectsFor, feedbackSubmitInputSchema, listOwnAttachments,
+  submitFeedbackWithAttachments,
+} from "../services/feedbackAttachments";
 
 export const feedbackRouter = createRouter({
   /**
-   * Submit feedback (from floating button or message reactions).
+   * Submit feedback (from floating button or message reactions), optionally
+   * with the objects it is about attached under a per-item consent.
    */
   submit: authedQuery
-    .input(
-      z.object({
-        projectId: z.number().optional(),
-        targetType: z.enum(["message", "ui", "general"]).default("general"),
-        targetMessageId: z.number().optional(),
-        feedbackType: z.enum(["bug", "suggestion", "praise", "confusion"]),
-        severity: z.enum(["critical", "major", "minor", "cosmetic"]).default("minor"),
-        content: z.string().min(1).max(5000),
-        screenshotUrl: z.string().optional(),
-        context: z.object({
-          url: z.string().optional(),
-          browser: z.string().optional(),
-          os: z.string().optional(),
-          consoleLogs: z.array(z.string()).optional(),
-          activePipeline: z.string().optional(),
-          activeStep: z.string().optional(),
-          modelUsed: z.string().optional(),
-          tokenCount: z.number().optional(),
-          latencyMs: z.number().optional(),
-        }).optional(),
-        tags: z.array(z.string()).optional(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+    .input(feedbackSubmitInputSchema)
+    .mutation(async ({ input, ctx }) => submitFeedbackWithAttachments(ctx.user.id, input)),
 
-      // The team auto-detect arm is gone with ticket #26: `feedback.team_id`
-      // stays a nullable column (historical rows keep their value) but new
-      // submissions are attributed to the project and the submitting account.
-      const [result] = await db.insert(feedback).values({
-        teamId: null,
-        projectId: input.projectId || null,
-        userId: ctx.user.id,
-        targetType: input.targetType,
-        targetMessageId: input.targetMessageId || null,
-        feedbackType: input.feedbackType,
-        severity: input.severity,
-        content: input.content,
-        screenshotUrl: input.screenshotUrl || null,
-        contextJson: input.context || null,
-        tagsJson: input.tags || null,
-        status: "new",
-      });
+  /**
+   * What this account could attach: its own pipelines, runs and benchmarks (and
+   * the pipelines another account named it on), as LABELS ONLY. Content enters
+   * a snapshot at submit time through the author's own read projections, so this
+   * picker cannot be used to fetch someone else's prompts.
+   */
+  attachable: authedQuery
+    .input(z.object({ projectId: z.number().int().positive().optional() }))
+    .query(({ ctx, input }) => attachableObjectsFor(ctx.user.id, input.projectId)),
 
-      return { id: result.insertId, success: true };
-    }),
+  /**
+   * The author's own attachments for one feedback item, consent version and
+   * snapshot included — these are their consented copies. Author-only: any
+   * other account gets the same not-found-shaped refusal used everywhere else,
+   * so a feedback id cannot be probed.
+   */
+  attachments: authedQuery
+    .input(z.object({ feedbackId: z.number().int().positive() }))
+    .query(({ ctx, input }) => listOwnAttachments(ctx.user.id, input.feedbackId)),
 
   /**
    * Message reaction: thumbs up/down with optional tags and comment.

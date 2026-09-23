@@ -183,7 +183,15 @@ describe("buildHelp", () => {
 
     const yourDataGroup = help.sections.find((s) => s.group === "Your data");
     expect(yourDataGroup).toBeDefined();
+    // D14's delivery pair joined this group: "export" moves a copy out, and
+    // deliver/sweep is the same promise with the server copy cleared after the
+    // user's own device holds it. Membership is still pinned exactly, so a tool
+    // cannot silently appear or disappear from the one group a user reads when
+    // they ask "what happens to my data".
     expect(yourDataGroup?.tools.map((t) => t.name)).toEqual([
+      "preview_work_delivery",
+      "deliver_work_data",
+      "sweep_delivered_work",
       "export_pipeline",
       "export_my_data",
       "sync_to_github",
