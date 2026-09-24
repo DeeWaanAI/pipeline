@@ -23,7 +23,7 @@
 // which ids exist.
 
 import { eq } from "drizzle-orm";
-import { agentRuns, agentResponses, projects, swarmRuns } from "@db/schema";
+import { agentRuns, agentResponses, pipelineVersions, projects, swarmRuns } from "@db/schema";
 import { getDb } from "../queries/connection";
 
 export class NotVisibleError extends Error {
@@ -143,13 +143,76 @@ export const PROMPT_BEARING_RUN_COLUMNS = [
 ] as const;
 
 /** Which model each step pins is part of the workflow definition, not part of
- *  the answer — so a `run_only` recipient must not read it off a step row.
- *  `full` shares and marketplace buyer runs are deliberately NOT covered: a
- *  buyer's own manifest discloses which models ran their input. */
+ *  the answer — so a `run_only` recipient must not read the GRANTOR'S choice off
+ *  a step row. `full` shares and marketplace buyer runs are deliberately NOT
+ *  covered: a buyer's own manifest discloses which models ran their input.
+ *
+ *  This answers "is this run's model information restricted at all", not the
+ *  per-row decision — see `modelWasGrantorPinned` for that. */
 export const MODEL_BEARING_RUN_COLUMNS = ["modelUsed"] as const;
 
 export function withholdsModel(run: { runParams: unknown } | null | undefined): boolean {
   return sharedRunOf(run)?.mode === "run_only";
+}
+
+/**
+ * The per-row half of the rule (owner decision, ticket #40).
+ *
+ * A `run_only` recipient runs the workflow on THEIR OWN credential, so the
+ * model that served their call is their fact and must be visible to them — it
+ * is what their key was billed against and what they need to judge the answer.
+ * What they are not entitled to is the grantor's design: `loadAuthorizedSharedSnapshotSteps`
+ * keeps the definition's `model` and swaps only the provider, so when the
+ * definition pinned a model, the reported name is the grantor's choice.
+ *
+ * So: restricted only when the value is one the grantor pinned. A step the
+ * grantor left unmodellled resolves to the recipient's own default, and that
+ * name is shown.
+ */
+export function modelWasGrantorPinned(
+  grantorPinnedModels: ReadonlySet<string>, modelUsed: string | null | undefined,
+): boolean {
+  // Compared trimmed and case-folded, because a host echoing the same model with
+  // different casing is still echoing the grantor's choice. The set is built
+  // trimmed, but a caller may hand over anything.
+  const value = (modelUsed ?? "").trim().toLowerCase();
+  if (!value) return false;
+  for (const pinned of grantorPinnedModels) {
+    if (pinned.trim().toLowerCase() === value) return true;
+  }
+  return false;
+}
+
+/** The models the grantor's snapshot pins for a `run_only` shared run; empty for
+ *  every other run. Read from the snapshot the share points at, so a step the
+ *  grantor left unset cannot be mistaken for one they chose.
+ *
+ *  The definition is parsed here rather than through `versionService` on purpose:
+ *  this module is the leaf every read surface depends on. */
+export async function grantorPinnedModelsFor(
+  run: { runParams: unknown } | null | undefined,
+): Promise<ReadonlySet<string>> {
+  if (!withholdsModel(run)) return new Set();
+  const shared = sharedRunOf(run);
+  if (!shared) return new Set();
+  const db = getDb();
+  const [version] = await db.select({
+    definition: pipelineVersions.definition, ownerId: pipelineVersions.ownerId,
+  }).from(pipelineVersions).where(eq(pipelineVersions.id, shared.workflowVersionId)).limit(1);
+  // A snapshot that no longer resolves, or is not the grantor's, restricts
+  // nothing: there is no grantor choice in it to protect.
+  if (!version || version.ownerId !== shared.ownerId) return new Set();
+  const steps = (parseDefinition(version.definition) ?? []).map((s) => String(s?.model ?? "").trim()).filter(Boolean);
+  return new Set(steps);
+}
+
+function parseDefinition(definition: unknown): Array<{ model?: unknown }> | null {
+  try {
+    const parsed = JSON.parse(typeof definition === "string" ? definition : "") as { steps?: unknown };
+    return Array.isArray(parsed?.steps) ? parsed.steps as Array<{ model?: unknown }> : null;
+  } catch {
+    return null;
+  }
 }
 
 /** §8.1's second bar, MOVED VERBATIM out of `api/routers/export.ts` rather than
@@ -208,9 +271,12 @@ export async function projectRunDetail(
   // Two independent bars, exactly as the export has always had them: the writer
   // already refused to store a protected run's prompt text, and this read drops
   // those columns anyway. Intermediate outputs are withheld too — an echo of the
-  // owner's instructions can ride along inside one (§8.1).
+  // owner's instructions can ride along inside one (§8.1). The model column is
+  // withheld per row, only where the name is the grantor's pinned choice
+  // (#40): the recipient's own resolved model is theirs to see.
+  const grantorPinned = await grantorPinnedModelsFor(run);
   return {
-    steps: stepRows.map((r) => redactProtectedAgentRun(r, withholdsModel(run))),
+    steps: stepRows.map((r) => redactProtectedAgentRun(r, modelWasGrantorPinned(grantorPinned, r.modelUsed))),
     responses: allResponses.filter((r) => r.id === run.finalResponseId),
     redacted: true,
   };

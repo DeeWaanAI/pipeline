@@ -60,13 +60,17 @@ vi.mock("../lib/providers", async (importOriginal) => {
     ...actual,
     createProviderAdapter: (slug: string, apiKey: string, baseUrl: string, defaultModel: string) => ({
       name: "Fake", slug, defaultBaseUrl: baseUrl, supportedModels: [defaultModel],
-      async chat(messages: Array<{ role: string; content: string }>) {
+      async chat(messages: Array<{ role: string; content: string }>, options?: { model?: string }) {
         const system = String(messages[0]?.content ?? "");
         seen.calls.push({ slug, apiKey, baseUrl, system });
         return {
           content: system.includes("SHAREOWNER") ? `ECHO: ${system}` : FINAL_TEXT,
-          usage: { promptTokens: 9, completionTokens: 4, totalTokens: 13 },
-          model: defaultModel, latencyMs: 3,
+          // A real host names the model it SERVED, which is the one that was
+          // asked for. Reporting the adapter's own default instead would hide
+          // the case the model withholding exists for: a `run_only` recipient
+          // whose step row carries the grantor's pinned model name.
+          usage: { promptTokens: 9, completionTokens: 4, totalTokens: 13, complete: true },
+          model: options?.model ?? defaultModel, latencyMs: 3,
         };
       },
       async validateKey() { return { valid: true }; },
@@ -174,8 +178,9 @@ async function mkUser(label: string): Promise<UserRow> {
 
 /** The owner's pipeline: two steps, the first carrying the secret, bound to the
  *  OWNER's provider so a run that used it instead of the recipient's would be
- *  visible in `seen.calls`. */
-async function fixture(mode: "run_only" | "full" = "run_only", canModify = false) {
+ *  visible in `seen.calls`. `pinModel: false` leaves the steps unmodellled, so
+ *  the run resolves the RECIPIENT's own default — the case #40 is about. */
+async function fixture(mode: "run_only" | "full" = "run_only", canModify = false, pinModel = true) {
   const owner = await mkUser("Share owner");
   const grantee = await mkUser("Share recipient");
   const outsider = await mkUser("Share outsider");
@@ -195,12 +200,12 @@ async function fixture(mode: "run_only" | "full" = "run_only", canModify = false
     {
       projectId, stepOrder: 1, stepType: "agent", name: "Draft", role: "builder",
       systemPrompt: SECRET, isEnabled: true,
-      providerId: Number((ownerProvider as { insertId: number }).insertId), model: "owner-model",
+      providerId: Number((ownerProvider as { insertId: number }).insertId), model: pinModel ? "owner-model" : null,
     },
     {
       projectId, stepOrder: 2, stepType: "agent", name: "Polish", role: "polisher",
       systemPrompt: "Make the translation presentation-ready.", isEnabled: true,
-      providerId: Number((ownerProvider as { insertId: number }).insertId), model: "owner-model",
+      providerId: Number((ownerProvider as { insertId: number }).insertId), model: pinModel ? "owner-model" : null,
     },
   ]);
   const [template] = await db().insert(schema.pipelineTemplates).values({
@@ -592,36 +597,47 @@ describe("pipeline sharing between two accounts + publish lineage (isolated loca
   // not given, and `debug.getRunStats` is a read that bypasses the export
   // projection entirely. The `full` control matters as much: without it, a
   // blanket "always withheld" would pass this file.
-  it("withholds the grantor's per-step model from a run_only reader in debug stats, and not from a full one", async () => {
-    const restricted = await fixture("run_only");
-    const ranRestricted = await runShared(restricted);
+  it("shows a run_only recipient their OWN model and withholds only the grantor's pinned one", async () => {
     const callerFor = (user: UserRow) => appMod.appRouter.createCaller({
-      user, remoteIp: "test-fixture",
+      user, remoteIp: "test-ip",
     } as unknown as Parameters<typeof appMod.appRouter.createCaller>[0]);
 
-    const asGrantee = await callerFor(restricted.grantee).debug.getRunStats({
-      swarmRunId: ranRestricted.receipt.swarmRunId,
+    // The grantor pinned `owner-model`, and the host names the model it served:
+    // that name is the grantor's design, so it stays withheld.
+    const pinned = await fixture("run_only");
+    const ranPinned = await runShared(pinned);
+    const asGrantee = await callerFor(pinned.grantee).debug.getRunStats({
+      swarmRunId: ranPinned.receipt.swarmRunId,
     });
     expect(asGrantee.steps.length).toBeGreaterThan(0);
     for (const step of asGrantee.steps) {
       expect(step.modelUsed).toBe("withheld_run_only_share");
     }
+    expect(JSON.stringify(asGrantee)).not.toMatch(/owner-model/);
     expect(JSON.stringify(asGrantee)).not.toMatch(SECRET_MARKERS);
 
+    // The grantor pinned NOTHING, so the model that served the call is the
+    // recipient's own default, resolved by their credential and billed to them.
+    // #40: that is their fact to see.
+    const unpinned = await fixture("run_only", false, false);
+    const ranUnpinned = await runShared(unpinned);
+    const asOwnModelGrantee = await callerFor(unpinned.grantee).debug.getRunStats({
+      swarmRunId: ranUnpinned.receipt.swarmRunId,
+    });
+    expect(asOwnModelGrantee.steps.length).toBeGreaterThan(0);
+    for (const step of asOwnModelGrantee.steps) {
+      expect(step.modelUsed).toBe("grantee-model");
+    }
+
+    // Control: a `full` recipient was given the definition, so the grantor's
+    // pinned name is theirs to read. Without this the withheld marker above
+    // would pass for a blanket rule.
     const entitled = await fixture("full");
     const ranEntitled = await runShared(entitled);
     const asFull = await callerFor(entitled.grantee).debug.getRunStats({
       swarmRunId: ranEntitled.receipt.swarmRunId,
     });
-    // The control is that a `full` recipient sees a REAL model name at all —
-    // the withholding marker must be mode-specific, not blanket. Measured, not
-    // assumed: the value here is the recipient's own resolved model
-    // (`grantee-model`), because a shared run executes on the grantee's
-    // provider and this fixture's step model does not survive that pairing. So
-    // what the run_only marker actually protects is the configuration where the
-    // grantor's pinned model DOES ride along — see the note in
-    // V2-CHECKPOINT.md and the open question it raises.
-    expect(asFull.steps.map((s: { modelUsed: string }) => s.modelUsed)).toContain("grantee-model");
+    expect(asFull.steps.map((s: { modelUsed: string }) => s.modelUsed)).toContain("owner-model");
     for (const step of asFull.steps) {
       expect(step.modelUsed).not.toBe("withheld_run_only_share");
     }

@@ -17,6 +17,7 @@ import {
 } from "../services/auditExport";
 import {
   isProtectedRun, projectRunDetail, redactProtectedAgentRun, withholdsModel,
+  grantorPinnedModelsFor, modelWasGrantorPinned,
 } from "../services/runAccess";
 
 export const PROTECTED_EXPORT_NOTE =
@@ -187,7 +188,13 @@ export const exportRouter = createRouter({
       // The buyer's marketplace container is project-exportable like any other
       // project, so the same protected-run projection applies here (§8.1).
       const protectedFinals = new Map(runs.filter(isProtectedRun).map((r) => [r.id, r.finalResponseId]));
-      const modelWithheldOn = new Set(runs.filter(withholdsModel).map((r) => r.id));
+      // Per-run, not per-projection: the grantor's pinned models are what this
+      // withholds, and a `run_only` recipient's own resolved model is shown (#40).
+      const grantorPinnedByRun = new Map<number, ReadonlySet<string>>();
+      for (const run of runs.filter(withholdsModel)) {
+        grantorPinnedByRun.set(run.id, await grantorPinnedModelsFor(run));
+      }
+      const nothingPinned: ReadonlySet<string> = new Set();
       return {
         version: 1,
         exportedAt: new Date().toISOString(),
@@ -195,7 +202,8 @@ export const exportRouter = createRouter({
         pipelineSteps: steps,
         swarmRuns: runs,
         agentRuns: allAgentRuns.map((r) => (protectedFinals.has(r.swarmRunId ?? -1)
-          ? redactProtectedAgentRun(r, modelWithheldOn.has(r.swarmRunId ?? -1)) : r)),
+          ? redactProtectedAgentRun(r, modelWasGrantorPinned(
+            grantorPinnedByRun.get(r.swarmRunId ?? -1) ?? nothingPinned, r.modelUsed)) : r)),
         agentResponses: allResponses.filter((r) =>
           !protectedFinals.has(r.swarmRunId ?? -1) || r.id === protectedFinals.get(r.swarmRunId ?? -1)),
       };
