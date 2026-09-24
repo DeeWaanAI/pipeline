@@ -681,4 +681,72 @@ describe("D11 consented feedback attachments (isolated localhost MySQL)", () => 
       attachments: [{ kind: "run", refId: ownerRunId, consent: true }],
     }, mcpCtx(users.outsider.id))).rejects.toThrow(/not_found_or_not_authorized/);
   });
+
+  it("scopes feedback lists, signed screenshots and stats to the author even with project filters", async () => {
+    const author = await mkUser("Feedback isolation author");
+    const other = await mkUser("Feedback isolation stranger");
+    const [project] = await db().insert(schema.projects).values({ userId: author.id, name: "Private reports" });
+    const projectId = insertId(project);
+    const [report] = await db().insert(schema.feedback).values({
+      userId: author.id, projectId, targetType: "ui", feedbackType: "bug", status: "new",
+      content: "private feedback isolation marker", screenshotUrl: "/feedback-screenshots/isolation.png",
+    });
+    const reportId = insertId(report);
+    const [otherReport] = await db().insert(schema.feedback).values({
+      userId: other.id, targetType: "general", feedbackType: "praise", status: "closed", content: "other report",
+    });
+    const mine = await asUser(author).list({});
+    expect(mine.map((r) => r.id)).toEqual([reportId]);
+    expect(mine[0].screenshotUrl).toMatch(/^\/feedback-screenshots\/isolation\.png\?exp=\d+&sig=/);
+    expect(await asUser(author).list({ projectId, status: "closed" })).toEqual([]);
+    expect((await asUser(author).list({ projectId, feedbackType: "bug" })).map((r) => r.id)).toEqual([reportId]);
+    expect((await asUser(other).list({})).map((r) => r.id)).toEqual([insertId(otherReport)]);
+    expect(await asUser(other).list({ projectId })).toEqual([]);
+    expect(await asUser(other).list({ projectId, limit: 1, offset: 0 })).toEqual([]);
+    expect(await asUser(author).stats({})).toMatchObject({
+      total: 1, open: 1, resolved: 0, byType: { bug: 1, praise: 0 }, byStatus: { new: 1, closed: 0 },
+    });
+    expect(await asUser(other).stats({})).toMatchObject({ total: 1, open: 0, resolved: 1 });
+    expect(await asUser(other).stats({ projectId })).toMatchObject({ total: 0, open: 0, resolved: 0 });
+    const support = await asAdmin(users.adminUser).listAllFeedback({ page: 1, pageSize: 100 });
+    expect(support.items.map((r) => r.id)).toContain(reportId);
+  });
+
+  it("restricts feedback status and assignment to admins, including for the report author", async () => {
+    const [report] = await db().insert(schema.feedback).values({
+      userId: users.owner.id, targetType: "general", feedbackType: "bug", status: "new", content: "status boundary",
+    });
+    const feedbackId = insertId(report);
+    for (const user of [users.owner, users.outsider]) {
+      await expect(asUser(user).updateStatus({ feedbackId, status: "closed", assignedTo: user.id }))
+        .rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+    const [unchanged] = await db().select().from(schema.feedback).where(eq(schema.feedback.id, feedbackId));
+    expect(unchanged).toMatchObject({ status: "new", assignedTo: null, resolvedAt: null });
+    await asUser(users.adminUser).updateStatus({ feedbackId, status: "resolved", assignedTo: users.adminUser.id });
+    const [updated] = await db().select().from(schema.feedback).where(eq(schema.feedback.id, feedbackId));
+    expect(updated).toMatchObject({ status: "resolved", assignedTo: users.adminUser.id });
+    expect(updated.resolvedAt).not.toBeNull();
+  });
+
+  it("restricts feedback issue conversion to admins without writing on refusal", async () => {
+    const [report] = await db().insert(schema.feedback).values({
+      userId: users.owner.id, projectId: ownerProjectId, targetType: "general",
+      feedbackType: "bug", status: "new", content: "private issue conversion marker",
+    });
+    const feedbackId = insertId(report);
+    const before = Number((await db().select({ total: count() }).from(schema.issues))[0].total);
+    for (const user of [users.owner, users.outsider]) {
+      await expect(asUser(user).convertToIssue({ feedbackId, title: "Unauthorized issue" }))
+        .rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+    expect(Number((await db().select({ total: count() }).from(schema.issues))[0].total)).toBe(before);
+    const [unchanged] = await db().select().from(schema.feedback).where(eq(schema.feedback.id, feedbackId));
+    expect(unchanged).toMatchObject({ status: "new", convertedToIssueId: null });
+    const result = await asUser(users.adminUser).convertToIssue({ feedbackId, title: "Support issue" });
+    const [issue] = await db().select().from(schema.issues).where(eq(schema.issues.id, result.issueId));
+    expect(issue).toMatchObject({ createdBy: users.adminUser.id, projectId: ownerProjectId, description: "private issue conversion marker" });
+    const [converted] = await db().select().from(schema.feedback).where(eq(schema.feedback.id, feedbackId));
+    expect(converted).toMatchObject({ status: "triaged", convertedToIssueId: result.issueId });
+  });
 });

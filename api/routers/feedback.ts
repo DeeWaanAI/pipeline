@@ -15,7 +15,7 @@
  */
 
 import { z } from "zod";
-import { createRouter, authedQuery } from "../middleware";
+import { createRouter, authedQuery, adminQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { feedback, users } from "@db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -99,11 +99,9 @@ export const feedbackRouter = createRouter({
         offset: z.number().min(0).default(0),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = getDb();
-
-      // Build WHERE conditions dynamically using proper SQL (no JS filtering)
-      const whereConditions = [];
+      const whereConditions = [eq(feedback.userId, ctx.user.id)];
 
       if (input.projectId !== undefined) {
         whereConditions.push(eq(feedback.projectId, input.projectId));
@@ -156,7 +154,7 @@ export const feedbackRouter = createRouter({
   /**
    * Update feedback status (triaged, in_progress, etc.).
    */
-  updateStatus: authedQuery
+  updateStatus: adminQuery
     .input(
       z.object({
         feedbackId: z.number(),
@@ -190,11 +188,9 @@ export const feedbackRouter = createRouter({
         projectId: z.number().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = getDb();
-
-      // Build WHERE conditions using SQL (no full-table load)
-      const whereConditions = [];
+      const whereConditions = [eq(feedback.userId, ctx.user.id)];
 
       if (input.projectId !== undefined) {
         whereConditions.push(eq(feedback.projectId, input.projectId));
@@ -245,7 +241,7 @@ export const feedbackRouter = createRouter({
   /**
    * Convert feedback to an issue.
    */
-  convertToIssue: authedQuery
+  convertToIssue: adminQuery
     .input(
       z.object({
         feedbackId: z.number(),
