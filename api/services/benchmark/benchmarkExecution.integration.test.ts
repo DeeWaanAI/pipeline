@@ -442,6 +442,58 @@ describe("private evaluation execution (DB-backed)", () => {
     }
   });
 
+  it("keeps missing ledger usage unpriced even at known rates, while measured zero remains a real zero", async () => {
+    const f = await seedFixture();
+    const db = await connection();
+    const [benchmark] = await db.insert(schema.benchmarks).values({
+      ownerId: f.userId, sourceProjectId: f.projectId, executionMode: "grade_only", state: "completed",
+    });
+    const benchmarkId = Number((benchmark as { insertId: number }).insertId);
+    const ledger = await import("./benchmarkLedger");
+    const pricing = await import("./modelPricing");
+    const previous = process.env.V2_PRICE_VECTOR_JSON;
+    process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({ "known-usage-model": { in: 1, out: 2 } });
+    pricing.resetPricingCache();
+    try {
+      let operationId = 900_000;
+      const base = {
+        operationKind: "judgment" as const, benchmarkId, purpose: "private_evaluation" as const,
+        actorId: f.userId, payerId: f.userId, providerRefId: null, requestedModel: "known-usage-model",
+      };
+      for (const outcome of ["success", "failed", "uncertain"] as const) {
+        for (const usage of [{}, { promptTokens: 10 }, { completionTokens: 20 }, { promptTokens: null, completionTokens: null }]) {
+          const id = await ledger.recordCallAttempt({ ...base, operationId: operationId++, outcome, ...usage });
+          const [row] = await db.select().from(schema.callAttempts).where(eq(schema.callAttempts.id, id));
+          expect(row).toMatchObject({ estimatedCostUsd: null, costBasis: null, costCompleteness: "unknown" });
+        }
+      }
+      const aggregateId = await ledger.recordCallAttempt({
+        ...base, operationId: operationId++, operationKind: "generation", outcome: "success",
+        pricingSegments: [{ model: "known-usage-model", providerRefId: null, promptTokens: 10, completionTokens: 20 }],
+      });
+      const [aggregate] = await db.select().from(schema.callAttempts).where(eq(schema.callAttempts.id, aggregateId));
+      expect(aggregate).toMatchObject({ estimatedCostUsd: null, costCompleteness: "unknown" });
+      for (const outcome of ["success", "failed"] as const) {
+        const zeroId = await ledger.recordCallAttempt({ ...base, operationId: operationId++, outcome, promptTokens: 0, completionTokens: 0 });
+        const [zero] = await db.select().from(schema.callAttempts).where(eq(schema.callAttempts.id, zeroId));
+        expect(zero).toMatchObject({ costCompleteness: "complete", costBasis: "price_vector", promptTokens: 0, completionTokens: 0 });
+        expect(Number(zero.estimatedCostUsd)).toBe(0);
+      }
+      const measuredId = await ledger.recordCallAttempt({ ...base, operationId: operationId++, outcome: "success", promptTokens: 10, completionTokens: 20 });
+      const [measured] = await db.select().from(schema.callAttempts).where(eq(schema.callAttempts.id, measuredId));
+      expect(Number(measured.estimatedCostUsd)).toBeCloseTo(0.05, 8);
+      const disclosure = ledger.costDisclosure(await ledger.benchmarkLedgerTotals(benchmarkId));
+      expect(disclosure.knownUsd).toBeNull();
+      expect(disclosure.pricedSoFarUsd).toBe("0.05000000");
+      expect(disclosure.unpricedOperations).toBe(13);
+      expect(disclosure.display).toContain("FLOOR and not the total owed");
+    } finally {
+      if (previous === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
+      else process.env.V2_PRICE_VECTOR_JSON = previous;
+      pricing.resetPricingCache();
+    }
+  });
+
   it("grade_only carries no ranking field at all (spec §4.1 step 7)", async () => {
     resetFakes();
     const f = await seedFixture();

@@ -123,6 +123,9 @@ export interface PricedAttempt {
  * "$ quoted" against "unknown actual". An unresolvable id is UNKNOWN, never 0.
  */
 async function priceAttempt(input: RecordAttemptInput): Promise<PricedAttempt> {
+  if (input.promptTokens == null || input.completionTokens == null) {
+    return { costBasis: null, costPricingAsOf: null, priceVectorVersion: null, estimatedCostUsd: null };
+  }
   // A run with a per-model breakdown is priced FROM it, which is the only way a
   // multi-model pipeline can produce a real number at all. No segments (or an
   // unpriceable one) falls through to the single-route path below, which is what
@@ -136,8 +139,8 @@ async function priceAttempt(input: RecordAttemptInput): Promise<PricedAttempt> {
   for (const model of models) {
     const rate = await rateForAttempt(providerRefId, model);
     if (!rate) continue;
-    const tokens = input.promptTokens ?? 0;
-    const completion = input.completionTokens ?? 0;
+    const tokens = input.promptTokens;
+    const completion = input.completionTokens;
     const usd = (tokens / 1000) * rate.rates.in + (completion / 1000) * rate.rates.out;
     return {
       costBasis: rate.basis,
