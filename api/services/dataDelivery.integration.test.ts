@@ -590,8 +590,13 @@ describe("D14 deliver-then-sweep (isolated localhost MySQL)", () => {
     // ── nothing was deleted, anywhere ──
     const after = await neverSweptCounts();
     expect(after).toEqual(before);
-    expect(receipt.neverSwept.before).toEqual(receipt.neverSwept.after);
+    // The proof is global; the NUMBERS handed back are the caller's own.
     expect(receipt.neverSwept.unchanged).toBe(true);
+    expect(receipt.neverSwept.yourRecords.pipeline_versions).toBe(1);
+    expect(receipt.neverSwept.yourRecords.marketplace_purchases).toBe(1);
+    expect(receipt.rowCountsWithinSweptTables.yourRecords.swarm_runs).toBe(1);
+    expect(receipt.preserved.yourRecords).toBe(receipt.neverSwept.yourRecords);
+    expect(JSON.stringify(receipt)).not.toMatch(/\b"before":\s*\{[^}]*"(pipeline_versions|marketplace_purchases)"/);
     expect(receipt.rowsDeleted).toBe(0);
     expect(receipt.rowCountsWithinSweptTables.unchanged).toBe(true);
     expect(receipt.ledger.unchanged).toBe(true);
@@ -898,9 +903,23 @@ describe("D14 deliver-then-sweep (isolated localhost MySQL)", () => {
     // They cannot sweep it: not with their own scope (there is nothing to
     // sweep), and not by replaying the owner's receipt.
     const outsiderBundle = await delivery.deliverWorkData(f.outsider.id, { accountWide: true });
-    await expect(delivery.sweepDeliveredData(f.outsider.id, {
+    const outsiderSwept = await delivery.sweepDeliveredData(f.outsider.id, {
       receipt: outsiderBundle.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
-    })).resolves.toMatchObject({ rowsSwept: { swarm_runs: 0 }, rowsDeleted: 0 });
+    });
+    expect(outsiderSwept).toMatchObject({ rowsSwept: { swarm_runs: 0 }, rowsDeleted: 0 });
+    // …and that empty-account sweep says so with the OUTSIDER's own numbers:
+    // every count is zero, even though other accounts on this database hold
+    // purchases, versions, runs and consent records.
+    expect(outsiderSwept.neverSwept.yourRecords).toMatchObject({
+      pipeline_versions: 0, evidence_publications: 0, marketplace_purchases: 0,
+      execution_grants: 0, call_attempts: 0, spend_approvals: 0, user_privacy_consent: 1,
+    });
+    expect(outsiderSwept.rowCountsWithinSweptTables.yourRecords).toMatchObject({
+      swarm_runs: 0, agent_runs: 0, agent_responses: 0, benchmarks: 0, projects: 0,
+    });
+    expect(outsiderSwept.neverSwept.unchanged).toBe(true);
+    const ownerCounts = await neverSweptCounts();
+    expect(ownerCounts.pipeline_versions).toBeGreaterThan(outsiderSwept.neverSwept.yourRecords.pipeline_versions);
     await expect(delivery.sweepDeliveredData(f.outsider.id, {
       receipt: mine.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
     })).rejects.toThrow(/^delivery_receipt_invalid: this receipt was not issued to your account$/);

@@ -774,6 +774,54 @@ async function ledgerSnapshot(db: Db, userId: number): Promise<Census["ledger"]>
 // ─── public surface ──────────────────────────────────────────────────
 
 /**
+ * The caller's OWN share of the tables a sweep must never touch.
+ *
+ * `takeCensus` counts every account's rows on purpose — that is what lets it
+ * prove a sweep deleted nothing anywhere. Those totals must not be the numbers
+ * handed back: an authenticated account reading the platform's total purchase,
+ * grant, consent and run counts is a disclosure, not a guarantee. The proof
+ * stays global; the answer is scoped.
+ */
+async function accountRecordCounts(userId: number): Promise<{ neverSwept: Record<string, number>; rows: Record<string, number> }> {
+  const db = getDb();
+  const owned = <T extends { readonly total: number }>(q: Promise<T[]>) => q.then((r) => Number(r[0]?.total ?? 0));
+  const throughRun = (table: typeof agentRuns | typeof agentResponses) => owned(db
+    .select({ total: count() }).from(table)
+    .innerJoin(swarmRuns, eq(table.swarmRunId, swarmRuns.id))
+    .where(eq(swarmRuns.userId, userId)));
+  const throughBenchmark = (table: typeof benchmarkCases | typeof benchmarkCandidates | typeof benchmarkRuns | typeof benchmarkJudgments) => owned(db
+    .select({ total: count() }).from(table)
+    .innerJoin(benchmarks, eq(table.benchmarkId, benchmarks.id))
+    .where(eq(benchmarks.ownerId, userId)));
+  const neverSwept = {
+    pipeline_versions: owned(db.select({ total: count() }).from(pipelineVersions).where(eq(pipelineVersions.ownerId, userId))),
+    evidence_publications: owned(db.select({ total: count() }).from(evidencePublications).where(eq(evidencePublications.authorId, userId))),
+    marketplace_purchases: owned(db.select({ total: count() }).from(marketplacePurchases).where(eq(marketplacePurchases.buyerId, userId))),
+    execution_grants: owned(db.select({ total: count() }).from(executionGrants)
+      .where(and(eq(executionGrants.subjectType, "user"), eq(executionGrants.subjectId, userId)))),
+    call_attempts: owned(db.select({ total: count() }).from(callAttempts)
+      .where(or(eq(callAttempts.payerId, userId), eq(callAttempts.actorId, userId)))),
+    spend_approvals: owned(db.select({ total: count() }).from(spendApprovals)
+      .where(or(eq(spendApprovals.actorId, userId), eq(spendApprovals.payerId, userId)))),
+    user_privacy_consent: owned(db.select({ total: count() }).from(userPrivacyConsent).where(eq(userPrivacyConsent.userId, userId))),
+  };
+  const rows = {
+    swarm_runs: owned(db.select({ total: count() }).from(swarmRuns).where(eq(swarmRuns.userId, userId))),
+    agent_runs: throughRun(agentRuns),
+    agent_responses: throughRun(agentResponses),
+    benchmarks: owned(db.select({ total: count() }).from(benchmarks).where(eq(benchmarks.ownerId, userId))),
+    benchmark_cases: throughBenchmark(benchmarkCases),
+    benchmark_candidates: throughBenchmark(benchmarkCandidates),
+    benchmark_runs: throughBenchmark(benchmarkRuns),
+    benchmark_judgments: throughBenchmark(benchmarkJudgments),
+    projects: owned(db.select({ total: count() }).from(projects).where(eq(projects.userId, userId))),
+  };
+  const settle = async (counts: Record<string, Promise<number>>) =>
+    Object.fromEntries(await Promise.all(Object.entries(counts).map(async ([table, q]) => [table, await q])));
+  return { neverSwept: await settle(neverSwept), rows: await settle(rows) };
+}
+
+/**
  * Hand the caller ONE complete bundle of their own work data. Reads only the
  * caller's rows, writes nothing at all: a client may call it as often as it
  * likes, and two calls over unchanged data return the same hash.
@@ -927,6 +975,7 @@ export async function sweepDeliveredData(userId: number, input: SweepDeliveredDa
   const t = assembled.targets;
   const marker = `${SWEPT_MARKER_PREFIX}${assembled.bundleHash}${SWEPT_MARKER_SUFFIX}`;
   const after = await takeCensus(userId);
+  const accountCounts = await accountRecordCounts(userId);
   const rowsSwept: Record<string, number> = {
     swarm_runs: t.swarmRunIds.length,
     agent_runs: t.agentRunIds.length,
@@ -978,10 +1027,14 @@ export async function sweepDeliveredData(userId: number, input: SweepDeliveredDa
     retention: WORK_DATA_RETENTION,
     preserved: {
       note: "Rows, ids, timestamps, model/provider names, token counts, latency, cost numbers and every hash are untouched: the cost ledger and any published evidence still reconcile to a run that happened.",
-      neverSweptTables: after.neverSwept,
+      // The booleans above were measured across EVERY account; the counts here
+      // are only this account's own, because the platform's totals are nobody
+      // else's business.
+      verifiedAcross: "every account on the platform",
+      yourRecords: accountCounts.neverSwept,
     },
-    neverSwept: { before: before.neverSwept, after: after.neverSwept, unchanged: neverSweptUntouched },
-    rowCountsWithinSweptTables: { before: before.rows, after: after.rows, unchanged: rowsUntouched },
+    neverSwept: { unchanged: neverSweptUntouched, verifiedAcross: "every account", yourRecords: accountCounts.neverSwept },
+    rowCountsWithinSweptTables: { unchanged: rowsUntouched, verifiedAcross: "every account", yourRecords: accountCounts.rows },
     ledger: { before: before.ledger, after: after.ledger, unchanged: ledgerUntouched },
   };
 }
