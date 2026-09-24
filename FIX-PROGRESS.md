@@ -6,7 +6,8 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - Local v2 only. No production, provider-sharing changes, or payment work.
 - Tests use their own throwaway databases on localhost:3307; never sweep real user data.
 - Preserve financial/history records and snapshots; additive migrations only.
-- No push without fresh authorization. `origin/main` is at 45f5546; fixes 1-6 are committed LOCALLY as `05c7a69`, `7d63e26`, `d016da3`, `245f798`, `538b8fc` (+ docs commits).
+- No push without fresh authorization. `origin/main` is at 45f5546; fixes 1-7 are committed LOCALLY (code: `05c7a69`, `7d63e26`, `d016da3`, `245f798`, `538b8fc`, `d711f21`, plus docs commits). Count them with `git rev-list --count origin/main..HEAD`.
+- The working tree is otherwise clean: only the two inherited ` 2.ts` duplicates remain untracked and they stay that way.
 - Preserve inherited UI edits and untracked `api/services/autoDesignService 2.ts` / `db/schema 2.ts`.
 - `npm run check` passes. The full suite is 55 files; `api/services/designJobService.integration.test.ts` can fail the parallel run with `spawnSync npx ETIMEDOUT` inside its `pushSchema()` helper (a 150s drizzle-kit timeout under contention, worst right after a container restart). It passes 8/8 alone — rerun it in isolation before treating it as a real failure.
 
@@ -19,7 +20,7 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 | 4 | COMMITTED `7d63e26` | Preview/delivery/sweep and MCP guide disclose retained private plans and approval snapshots; not complete erasure; records remain unchanged. |
 | 5 | DONE (5a `d016da3`, 5b `245f798`) | Adapters report whether usage was measured; unproven counts reach the ledger as ABSENT and price as UNKNOWN. Legacy rows without the flag are unknown, not zero. |
 | 6 | COMMITTED `538b8fc` | Sweep response reports only the caller's own record counts; the global before/after proof stays internal as booleans. |
-| 7 | TODO | Feedback UI: submission/consent race, five-attachment limit, query errors; browser-test before completion. |
+| 7 | CODE COMMITTED `d711f21`; BROWSER PASS STILL OPEN | Feedback UI: consent re-read at send time, server's cap applied, failed reads reported as failures. Needs a signed-in browser check before #21/#22 can close. |
 | 8 | TODO | Remove active billed-team MCP rate-limit branch without changing payment integration; preserve existing records. |
 | 9 | TODO | Follow-up target authorization: feedback reactToMessage and submit accept project/message identifiers; verify ownership/read access before inserting. |
 
@@ -59,10 +60,17 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 
 - `538b8fc` (fix 6): `takeCensus` still counts whole tables, but the sweep response now carries `yourRecords` scoped to the caller (`accountRecordCounts`) plus the global `unchanged` booleans and `verifiedAcross`. Both new assertions were run against the pre-fix production file — copied aside and restored byte-identical — and fail there (undefined / other tenants' totals), pass now. Delivery 31/31; full suite 54 passed / 1 skipped with exit code 0 captured directly.
 
+## Feedback UI (item 7, commit `d711f21`)
+- Consent is re-read from a ref at the instant `submit` fires, checkboxes are disabled while a report is in flight, and closing the dialog mid-send is refused with a message instead of resetting consent under the request.
+- The cap is read from the server's own `maxPerFeedback` (no second copy of the number): unchecked items disable at it, and a send past it is stopped with the server's wording rather than arriving to be rejected.
+- A failed picker read shows a failure + retry; a failed admin snapshot read shows a failure instead of rendering `{}` as if the author had attached an empty object.
+- Verified: `tsc -b`, `npm run i18n:check` (en/zh parity) and `npm run build` all pass. NOT browser-verified — no DOM test tooling exists in this repo and signing in needs the user's own session. The full server suite was last green (`54 passed / 1 skipped`) before this client-only commit; these four files are not imported by any vitest file.
+- Still owed before #21/#22 close: an authenticated pass over the picker (tick, untick during a slow send, hit the cap, break the lookup) and the admin snapshot panel.
+
 ## Next agent
-1. `git status`/`git diff` first: only the four inherited `src/` UI files are uncommitted (plus the two duplicate ` 2.ts` files, which stay untracked). Do not redo fixes 1-6.
-2. Fix 7 next — the feedback UI in those four files. Three known defects: the submit closure keeps the attachments selected before a slow screenshot upload finishes (unticking or closing does not stop them being sent); the picker lets a user tick past the server's 5-attachment cap and the whole report is then rejected; and a failed query renders as an empty list or a `{}` snapshot instead of an error. Fix them, then the authenticated browser pass is the only thing left for #21/#22.
-3. Then fix 8 (billed-team MCP rate branch still grants 240 vs 60 req/min at `api/mcp/register.ts:48` + `api/lib/rateLimiter.ts:120`) and fix 9 (feedback submit/react target authorization).
+1. Fix 8 next: `api/mcp/register.ts:48` still resolves a billed-team tier from `teamMembers`/`teamSeats` and grants 240 req/min versus 60 (`api/lib/rateLimiter.ts:120`) after team removal (#26) retired the feature. Collapse it to the account tiers that still exist without touching billing integration or historical rows, and pin the limit a signed-in non-admin actually gets.
+2. Then fix 9: `feedback.submit` / `reactToMessage` accept a `projectId`/`targetMessageId` and store them without checking the caller can read that project or message.
+3. Then ask the user for the two things only they can do: the authenticated browser pass for #21/#22, and one real deliver -> selected-folder write -> sweep for #23/#30.
 4. Keep this file current after each verified increment. Scan staged secrets before every commit; a push needs fresh written authorization.
 
 ## Still-open original acceptance (not achievable from this seat)
