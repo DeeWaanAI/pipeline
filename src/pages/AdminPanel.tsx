@@ -337,6 +337,16 @@ function FeedbackTab() {
     onError: (err) => toast.error(t("pages:admin.feedback.updateFailed", { error: err.message })),
   });
 
+  // D11: at most one attachment snapshot is open at a time, and it is fetched
+  // by its own admin-only procedure — the list query above deliberately carries
+  // summaries only. One component-level query (not one per row) keeps the hook
+  // order stable, and `enabled` means nothing is read until it is opened.
+  const [openAttachmentId, setOpenAttachmentId] = useState<number | null>(null);
+  const attachmentDetailQuery = trpc.admin.feedbackAttachmentDetail.useQuery(
+    { attachmentId: openAttachmentId ?? 0 },
+    { enabled: openAttachmentId !== null },
+  );
+
   return (
     <div className="space-y-4">
       {/* Filters row */}
@@ -507,6 +517,56 @@ function FeedbackTab() {
                                 {t("pages:admin.feedback.model")} {ctx.modelUsed}
                               </span>
                             )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* D11: the objects the author consented to attach. The
+                          list read carries summaries only; opening one snapshot
+                          is a separate, admin-only, audited call, so an attached
+                          prompt never reaches this screen by accident. A
+                          redacted summary says so before it is opened: a
+                          borrowed run arrives as the redacted view its own
+                          owner sees, and that is a fact about the record the
+                          reviewer must not have to discover by reading it. */}
+                      {fb.attachments.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">
+                            {t("pages:admin.feedback.attachmentsLabel")}
+                          </p>
+                          <div className="space-y-1.5">
+                            {fb.attachments.map((att) => (
+                              <div key={att.id} className="flex flex-wrap items-center gap-2 text-[11px] bg-neutral-800/40 border border-neutral-800 rounded-lg px-2 py-1.5">
+                                <Badge className="bg-neutral-700/60 text-neutral-300 border-neutral-600">{att.kind} {att.refId}</Badge>
+                                <span className="text-neutral-300 min-w-0 break-words">{att.title}</span>
+                                <span className="text-neutral-500">{t("pages:admin.feedback.attachmentConsent", { version: att.consentVersion })}</span>
+                                <span className={att.visibility === "owner_full" ? "text-neutral-500" : "text-amber-400/80"}>
+                                  {att.visibility === "owner_full"
+                                    ? t("pages:admin.feedback.attachmentFull")
+                                    : t("pages:admin.feedback.attachmentRedacted")}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setOpenAttachmentId(openAttachmentId === att.id ? null : att.id); }}
+                                  className="ml-auto text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                                >
+                                  {openAttachmentId === att.id
+                                    ? t("pages:admin.feedback.closeSnapshot")
+                                    : t("pages:admin.feedback.openSnapshot")}
+                                </button>
+                                {openAttachmentId === att.id && (
+                                  attachmentDetailQuery.isError
+                                    // `{}` here would read as "the author consented
+                                    // to an empty snapshot" — it means the read
+                                    // failed, and support has to know which.
+                                    ? <span className="w-full text-[10px] text-amber-400/90">{t("pages:admin.feedback.snapshotFailed")}</span>
+                                    : attachmentDetailQuery.isLoading
+                                      ? <span className="text-neutral-500">{t("pages:admin.feedback.snapshotLoading")}</span>
+                                      : <pre className="w-full max-h-48 overflow-auto text-[10px] font-mono text-neutral-400 bg-neutral-950 border border-neutral-800 rounded p-2 whitespace-pre-wrap break-all">
+                                        {JSON.stringify(attachmentDetailQuery.data?.snapshot ?? {}, null, 2)}
+                                      </pre>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
