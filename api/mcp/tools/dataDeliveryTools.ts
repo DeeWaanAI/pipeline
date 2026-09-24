@@ -17,13 +17,13 @@
 import type { McpTool } from "../types";
 import {
   deliverWorkData, deliverWorkDataInputSchema, previewDeliveryScope,
-  sweepDeliveredData, sweepDeliveredDataInputSchema,
+  sweepDeliveredData, sweepDeliveredDataInputSchema, WORK_DATA_RETENTION,
 } from "../../services/dataDelivery";
 
 export const previewDeliveryScopeTool: McpTool = {
   name: "preview_work_delivery",
   description:
-    "Show what a delivery of your own work data WOULD contain — project and run counts, the step-output volume, the bundle hash, and any runs deliberately excluded (a marketplace buyer run or a pipeline shared to you belongs to another account's interest, so it is never carried or cleared). Writes nothing and hands over no content; use it to size the folder before the user commits to a write.",
+    `Show delivery scope, counts, hash, excluded runs, and the retention notice before confirmation. Writes nothing and hands over no content. ${WORK_DATA_RETENTION.notice}`,
   inputSchema: deliverWorkDataInputSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
@@ -36,7 +36,7 @@ export const previewDeliveryScopeTool: McpTool = {
 export const deliverWorkDataTool: McpTool = {
   name: "deliver_work_data",
   description:
-    "Hand over ONE complete bundle of this account's own work data (projects, runs, step prompts and outputs, private benchmark cases, judgments and rationales) with a sha256 over it, plus the signed receipt a later sweep must present. Execution stays server-side and your chat client writes the folder the user chose — there is no upload and no background job. Delivering unchanged data returns the same hash, so a client can tell it already wrote these bytes.",
+    `Hand over the selected sweepable work data with its sha256 and signed receipt. Execution stays server-side; your chat client writes the folder the user chose and verifies the saved bundle before sweeping. Delivering unchanged data returns the same hash. ${WORK_DATA_RETENTION.notice}`,
   inputSchema: deliverWorkDataInputSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
@@ -46,9 +46,9 @@ export const deliverWorkDataTool: McpTool = {
     return {
       ...bundle,
       meaning:
-        "This is the copy the platform holds of your own work. Nothing has been deleted: the server keeps it until you sweep it, and the sweep only accepts the receipt returned here.",
+        `This bundle contains the selected sweepable work data. Nothing has been deleted. ${WORK_DATA_RETENTION.notice}`,
       next:
-        "Write `bundle` to the folder the user chose with your file tools, verify the sha256 if you can, then call sweep_delivered_work with this receipt — and only after the files are actually on their device.",
+        "Show the retention notice to the user. Write `bundle` to their selected folder, verify the saved bundle's sha256, then call sweep_delivered_work with this receipt only after the files are on their device and they confirm the selective sweep.",
     };
   },
 };
@@ -56,7 +56,7 @@ export const deliverWorkDataTool: McpTool = {
 export const sweepDeliveredWorkTool: McpTool = {
   name: "sweep_delivered_work",
   description:
-    "Clear the server's copy of work data that was already delivered. Needs the receipt from deliver_work_data AND the exact confirmation phrase, and it re-derives the bundle from the database before deleting: if anything was added or edited since delivery it refuses with bundle_changed rather than destroying a copy the user does not hold. Content is nulled, structure is not — rows keep their ids, timestamps, token counts and cost ledger, so published versions, evidence, purchases, execution rights, spend approvals and consent records stay exactly as they were. Runs belonging to another account (a buyer run, a shared pipeline) are refused outright.",
+    `Clear only the named sweepable columns after delivery and client file verification. Requires the signed receipt and exact confirmation phrase; changed bundles and active work are refused. Protected/shared runs and financial/evidentiary records stay untouched. ${WORK_DATA_RETENTION.notice}`,
   inputSchema: sweepDeliveredDataInputSchema,
   requiredScopes: ["mcp:write"],
   annotations: { readOnlyHint: false },
@@ -66,7 +66,7 @@ export const sweepDeliveredWorkTool: McpTool = {
     return {
       ...receipt,
       meaning:
-        "The server no longer holds the content in this scope; the rows and every financial and evidentiary record remain. Re-delivering now returns the swept placeholders, which is the point — your device holds the work.",
+        `The named content columns were cleared; rows and financial/evidentiary records remain. ${WORK_DATA_RETENTION.notice}`,
     };
   },
 };

@@ -116,6 +116,18 @@ describe("buildHelp", () => {
     expect(supported.tips.join(" ")).toContain("supports MCP sampling");
   });
 
+  it("discloses retained private plans on every delivery tool in the rendered guide", () => {
+    const help = buildHelp(base());
+    const tools = help.sections.flatMap((section) => section.tools);
+    for (const name of ["preview_work_delivery", "deliver_work_data", "sweep_delivered_work"]) {
+      const tool = tools.find((entry) => entry.name === name);
+      expect(tool).toBeDefined();
+      expect(tool!.summary).toContain("not complete erasure");
+      expect(tool!.summary).toContain("benchmark plans and spend-approval snapshots");
+      expect(JSON.stringify(tool)).not.toMatch(/only copy|server no longer holds/);
+    }
+  });
+
   it("states the commercial model in the tips, and never sells a tier", () => {
     const help = buildHelp(base());
     const tips = help.tips.join(" ");

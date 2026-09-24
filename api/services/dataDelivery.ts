@@ -45,8 +45,8 @@
 //     module never re-derives a mode out of `run_params`.
 //  4. `swarm_runs.run_params` keeps existing. It holds the share/protection
 //     context runAccess reads to keep enforcing rule 3, so blanking the column
-//     would silently weaken the privacy invariant. Only its `prompt` key — a
-//     verbatim duplicate of the delivered `user_prompt` — is replaced in place.
+//     would silently weaken the privacy invariant. Only its `prompt` key,
+//     independently delivered and hashed, is replaced in place.
 //     `attachments` and `giteeTokenEnc` are deliberately untouched: the bundle
 //     carries no attachment bytes, so rule 1 forbids sweeping them.
 
@@ -57,24 +57,33 @@ import {
   agentResponses, agentRuns, benchmarkCandidates, benchmarkCases, benchmarkJudgments,
   benchmarkRuns, benchmarks, callAttempts, evidencePublications, executionGrants,
   marketplacePurchases, pipelineVersions, projects, spendApprovals, swarmRuns,
-  userPrivacyConsent,
+  userPrivacyConsent, users,
 } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
 import { canonicalJson } from "./auditExport";
 import { benchmarkLedgerTotals } from "./benchmark/benchmarkLedger";
-import { assertProjectVisible, isProtectedRun, sharedRunOf } from "./runAccess";
+import { NotVisibleError, isProtectedRun, sharedRunOf } from "./runAccess";
 
 type Db = ReturnType<typeof getDb>;
 
 /** Bumped when the bundle's SHAPE changes, so a client can tell an old folder
  *  layout from a new one instead of silently merging the two. */
-export const DATA_DELIVERY_BUNDLE_VERSION = 1;
+export const DATA_DELIVERY_BUNDLE_VERSION = 2;
 
 /** The confirmation a caller must repeat. A phrase rather than a boolean so a
  *  UI cannot default it to true on the user's behalf. */
 export const SWEEP_CONFIRM_PHRASE = "delete-server-copy" as const;
+
+export const WORK_DATA_RETENTION = {
+  completeErasure: false,
+  notice: "This is a selective content sweep, not complete erasure. Frozen benchmark plans and spend-approval snapshots remain and may contain case inputs, expected outputs, and baseline prompts. Other data outside the named sweepable columns also remains. Keep your delivered files; retained records are not a complete backup.",
+  retainedColumns: [
+    { table: "benchmarks", column: "plan" },
+    { table: "spend_approvals", column: "plan_snapshot" },
+  ],
+} as const;
 
 /** What a swept content column holds afterwards. NOT NULL columns cannot be
  *  emptied, so they carry the marker with the bundle hash in it: a row on the
@@ -103,16 +112,10 @@ export class DataDeliveryError extends Error {
  */
 export const SWEEPABLE_CONTENT_COLUMNS = [
   { table: "swarm_runs", column: "user_prompt", mode: "marker" },
-  // The approval-pause rehydration payload: `chain[].content` and
-  // `pendingApproval.lastOutput` are verbatim copies of step outputs, so
-  // leaving them would keep the work data on the server behind a claim that it
-  // was swept. Dropped whole rather than partially rewritten — everything it
-  // holds is either content or execution bookkeeping for a run that can no
-  // longer be resumed.
+  // Deliver the entire state before clearing it: instructions may exist nowhere else.
   { table: "swarm_runs", column: "execution_state", mode: "null" },
   { table: "swarm_runs", column: "error", mode: "null" },
-  // IN PLACE, not blanked (design rule 4): `prompt` duplicates the delivered
-  // `user_prompt`, so this is the one key of the JSON document that is content.
+  // Other run parameters are neither exported nor cleared.
   { table: "swarm_runs", column: "run_params.prompt", mode: "marker" },
   { table: "agent_runs", column: "system_prompt", mode: "null" },
   { table: "agent_runs", column: "user_prompt", mode: "marker" },
@@ -257,6 +260,8 @@ interface BundleRun {
   completedAt: Date | null;
   error: string | null;
   userPrompt: string | null;
+  executionState: typeof swarmRuns.$inferSelect.executionState;
+  runParamsPrompt: string | null;
   steps: BundleStep[];
   responses: BundleResponse[];
 }
@@ -343,8 +348,7 @@ interface Assembled {
 /** Runs the caller owns. `swarm_runs.user_id` is the owning row's own column,
  *  and the project behind it must be theirs too, so a run another account
  *  executed is never in scope even when the container looks familiar. */
-async function ownedRunsFor(userId: number, scope: DeliveryScope): Promise<typeof swarmRuns.$inferSelect[]> {
-  const db = getDb();
+async function ownedRunsFor(db: Pick<Db, "select">, userId: number, scope: DeliveryScope): Promise<typeof swarmRuns.$inferSelect[]> {
   if (scope.kind === "benchmark") return [];
 
   if (scope.kind === "run") {
@@ -357,8 +361,10 @@ async function ownedRunsFor(userId: number, scope: DeliveryScope): Promise<typeo
   if (scope.kind === "project") {
     // "No such project" and "not yours" refuse identically (runAccess's
     // NotVisibleError), so nothing here confirms that an id exists anywhere.
-    await assertProjectVisible(userId, scope.projectId);
-    projectIds.push(scope.projectId);
+    const [project] = await db.select({ id: projects.id }).from(projects)
+      .where(and(eq(projects.id, scope.projectId), eq(projects.userId, userId))).limit(1);
+    if (!project) throw new NotVisibleError("project");
+    projectIds.push(project.id);
   } else {
     const rows = await db.select({ id: projects.id }).from(projects)
       .where(eq(projects.userId, userId)).orderBy(projects.id);
@@ -370,8 +376,7 @@ async function ownedRunsFor(userId: number, scope: DeliveryScope): Promise<typeo
     .orderBy(swarmRuns.id);
 }
 
-async function ownedBenchmarkIdsFor(userId: number, scope: DeliveryScope): Promise<number[]> {
-  const db = getDb();
+async function ownedBenchmarkIdsFor(db: Pick<Db, "select">, userId: number, scope: DeliveryScope): Promise<number[]> {
   if (scope.kind === "run" || scope.kind === "project") return [];
   if (scope.kind === "benchmark") {
     const [row] = await db.select({ id: benchmarks.id }).from(benchmarks)
@@ -417,12 +422,10 @@ function stepOf(row: typeof agentRuns.$inferSelect): BundleStep {
   };
 }
 
-/** Reads the whole scope once. Used by BOTH calls: the delivery to build the
- *  bundle, the sweep to prove the server copy still equals what was handed
- *  over. Pure read — it writes nothing and takes no lock. */
-async function assemble(userId: number, scope: DeliveryScope): Promise<Assembled> {
-  const db = getDb();
-  const runs = await ownedRunsFor(userId, scope);
+async function assemble(
+  userId: number, scope: DeliveryScope, db: Pick<Db, "select"> = getDb(), requireIdle = false,
+): Promise<Assembled> {
+  const runs = await ownedRunsFor(db, userId, scope);
   const excluded: Array<{ swarmRunId: number; code: string; reason: string }> = [];
   const deliverable = runs.filter((run) => {
     const found = exclusionReasonFor(run);
@@ -451,6 +454,26 @@ async function assemble(userId: number, scope: DeliveryScope): Promise<Assembled
         .orderBy(agentResponses.swarmRunId, agentResponses.id)
     : [];
 
+  if (requireIdle && (
+    deliverable.some((r) => !["completed", "failed"].includes(r.status))
+    || agentRunRows.some((r) => !["completed", "failed", "cancelled"].includes(r.status))
+  )) {
+    throw new DataDeliveryError("work_in_progress", "only completed or failed runs without active steps can be swept; cancellation does not confirm worker termination — nothing was deleted");
+  }
+
+  if (requireIdle && swarmRunIds.length > 0) {
+    const callPlanIds = deliverable.map((r) => r.runParams?.callPlanId).filter((id): id is number => typeof id === "number");
+    const parents = await db.select({ state: benchmarks.state, leaseToken: benchmarks.leaseToken }).from(benchmarks)
+      .leftJoin(benchmarkRuns, eq(benchmarkRuns.benchmarkId, benchmarks.id))
+      .where(and(eq(benchmarks.ownerId, userId), or(
+        inArray(benchmarkRuns.linkedSwarmRunId, swarmRunIds),
+        callPlanIds.length > 0 ? inArray(benchmarks.id, callPlanIds) : undefined,
+      )));
+    if (parents.some((b) => !["completed", "partial", "failed", "cancelled"].includes(b.state) || b.leaseToken !== null)) {
+      throw new DataDeliveryError("work_in_progress", "a benchmark may still be using these run outputs — nothing was deleted");
+    }
+  }
+
   const stepsByRun = new Map<number, typeof agentRuns.$inferSelect[]>();
   for (const row of agentRunRows) {
     const list = stepsByRun.get(row.swarmRunId) ?? [];
@@ -473,6 +496,8 @@ async function assemble(userId: number, scope: DeliveryScope): Promise<Assembled
     // insert, which is the run's own record of when it began.
     startedAt: run.startedAt ?? null, completedAt: run.completedAt ?? null,
     error: run.error ?? null, userPrompt: run.userPrompt ?? null,
+    executionState: run.executionState ?? null,
+    runParamsPrompt: typeof run.runParams?.prompt === "string" ? run.runParams.prompt : null,
     steps: (stepsByRun.get(run.id) ?? []).map(stepOf),
     responses: (responsesByRun.get(run.id) ?? []).map((row) => {
       const meta = (row.metadata ?? {}) as Partial<{
@@ -492,7 +517,7 @@ async function assemble(userId: number, scope: DeliveryScope): Promise<Assembled
   }));
 
   // ─── private benchmark bodies ───
-  const benchmarkIds = await ownedBenchmarkIdsFor(userId, scope);
+  const benchmarkIds = await ownedBenchmarkIdsFor(db, userId, scope);
   const bundleBenchmarks: BundleBenchmark[] = [];
   if (benchmarkIds.length > 0) {
     const [benchmarkRows, caseRows, candidateRows, bRunRows, judgmentRows, published] = await Promise.all([
@@ -510,6 +535,13 @@ async function assemble(userId: number, scope: DeliveryScope): Promise<Assembled
         .where(inArray(evidencePublications.benchmarkId, benchmarkIds))
         .groupBy(evidencePublications.benchmarkId),
     ]);
+    if (requireIdle && (
+      benchmarkRows.some((b) => !["completed", "partial", "failed", "cancelled"].includes(b.state) || b.leaseToken !== null)
+      || bRunRows.some((r) => !["completed", "failed", "cancelled"].includes(r.status))
+      || judgmentRows.some((j) => j.status === "pending")
+    )) {
+      throw new DataDeliveryError("work_in_progress", "finish or stop active benchmark work before delivering again and sweeping — nothing was deleted");
+    }
     const publishedByBenchmark = new Map(published.map((p) => [p.benchmarkId ?? -1, Number(p.total)]));
     for (const bm of benchmarkRows) {
       bundleBenchmarks.push({
@@ -773,6 +805,7 @@ export async function deliverWorkData(userId: number, input: DeliverWorkDataInpu
      *  agreeing rather than discovering it afterwards. */
     sweepableContentColumns: SWEEPABLE_CONTENT_COLUMNS,
     neverSweptTables: NEVER_SWEPT_TABLES.map((t) => t.table),
+    retention: WORK_DATA_RETENTION,
     /** The other half of the promise: which runs in this scope are deliberately
      *  left alone and why. Reason text only — another account's prompts,
      *  outputs and identity are not disclosed here. */
@@ -786,7 +819,7 @@ export async function deliverWorkData(userId: number, input: DeliverWorkDataInpu
       procedure: "dataDelivery.sweep",
       receipt,
       confirmation: SWEEP_CONFIRM_PHRASE,
-      warning: "The sweep clears the content columns named in sweepableContentColumns, for exactly this bundle's scope. It deletes no rows and never touches published versions, evidence manifests, purchases, execution rights, the cost ledger or consent records. It cannot be undone from the platform: the copy on your device becomes the only one.",
+      warning: `The sweep irreversibly clears only the content columns named in sweepableContentColumns for this bundle's scope. It deletes no rows or financial/evidentiary records. ${WORK_DATA_RETENTION.notice}`,
     },
   };
 }
@@ -811,29 +844,19 @@ export async function sweepDeliveredData(userId: number, input: SweepDeliveredDa
     );
   }
 
-  // Re-derive, never trust: the receipt says what WAS delivered, the database
-  // says what is here now. If they differ, the copy on the user's device is not
-  // the copy on the server and sweeping would delete something undelivered.
-  const assembled = await assemble(userId, payload.scope);
-  if (assembled.bundleHash !== payload.bundleHash) {
-    throw new DataDeliveryError(
-      "bundle_changed",
-      "the server copy no longer matches the bundle this receipt delivered (rows added or edited since delivery). Deliver again, write the new bundle, then sweep with the receipt for THAT copy — nothing was deleted",
-    );
-  }
-
-  const t = assembled.targets;
-  const marker = `${SWEPT_MARKER_PREFIX}${assembled.bundleHash}${SWEPT_MARKER_SUFFIX}`;
   const before = await takeCensus(userId);
-  const workNeeded = [
-    t.swarmRunIds, t.agentRunIds, t.agentResponseIds, t.benchmarkCaseIds,
-    t.benchmarkCandidateIds, t.benchmarkRunIds, t.benchmarkJudgmentIds,
-  ].some((ids) => ids.length > 0);
-
-  if (workNeeded) {
-    await db.transaction(async (tx) => {
-      // Every predicate carries the CALLER's own user id, or an id list derived
-      // from a row they own: an id alone never authorizes a write (rule 2).
+  const assembled = await db.transaction(async (tx) => {
+      // Serialize overlapping scopes before SERIALIZABLE reads acquire shared locks.
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+      const assembled = await assemble(userId, payload.scope, tx, true);
+      if (assembled.bundleHash !== payload.bundleHash) {
+        throw new DataDeliveryError(
+          "bundle_changed",
+          "the server copy no longer matches the bundle this receipt delivered (rows added or edited since delivery). Deliver again, write the new bundle, then sweep with the receipt for THAT copy — nothing was deleted",
+        );
+      }
+      const t = assembled.targets;
+      const marker = `${SWEPT_MARKER_PREFIX}${assembled.bundleHash}${SWEPT_MARKER_SUFFIX}`;
       if (t.swarmRunIds.length > 0) {
         await tx.update(swarmRuns)
           .set({ userPrompt: marker, executionState: null, error: null })
@@ -842,11 +865,7 @@ export async function sweepDeliveredData(userId: number, input: SweepDeliveredDa
             eq(swarmRuns.userId, userId),
             inArray(swarmRuns.projectId, t.projectIds),
           ));
-        // run_params IN PLACE (rule 4): swap only the duplicated prompt text and
-        // leave the share/protection context, the chain config, the credential
-        // field and `attachments` exactly as they are. Read-modify-write,
-        // because the column is one JSON document and the run set is small by
-        // measurement (~24 rows per account).
+        // These rows remain locked; preserve every parameter other than the delivered prompt.
         for (const { swarmRunId, runParams } of t.runParamsRuns) {
           if (!runParams || typeof runParams.prompt !== "string") continue;
           const next = { ...runParams, prompt: marker };
@@ -902,9 +921,11 @@ export async function sweepDeliveredData(userId: number, input: SweepDeliveredDa
             inArray(benchmarkJudgments.benchmarkId, t.benchmarkIds),
           ));
       }
-    });
-  }
+      return assembled;
+  }, { isolationLevel: "serializable" });
 
+  const t = assembled.targets;
+  const marker = `${SWEPT_MARKER_PREFIX}${assembled.bundleHash}${SWEPT_MARKER_SUFFIX}`;
   const after = await takeCensus(userId);
   const rowsSwept: Record<string, number> = {
     swarm_runs: t.swarmRunIds.length,
@@ -954,6 +975,7 @@ export async function sweepDeliveredData(userId: number, input: SweepDeliveredDa
     columnsSwept,
     rowsDeleted: 0,
     markerText: marker,
+    retention: WORK_DATA_RETENTION,
     preserved: {
       note: "Rows, ids, timestamps, model/provider names, token counts, latency, cost numbers and every hash are untouched: the cost ledger and any published evidence still reconcile to a run that happened.",
       neverSweptTables: after.neverSwept,
@@ -977,6 +999,7 @@ export async function previewDeliveryScope(userId: number, input: DeliverWorkDat
     excluded: assembled.bundle.excluded,
     sweepableContentColumns: SWEEPABLE_CONTENT_COLUMNS,
     neverSweptTables: NEVER_SWEPT_TABLES.map((t) => t.table),
+    retention: WORK_DATA_RETENTION,
   };
 }
 

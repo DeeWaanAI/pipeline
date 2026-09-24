@@ -197,17 +197,17 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "preview_work_delivery", group: "Your data", scopes: ["mcp:read"],
-    summary: "What a delivery of your own work data would contain — counts, volume, the bundle hash, and the runs excluded because another account's interest lives in them (a buyer run, a pipeline shared to you). Writes nothing, hands over nothing.",
+    summary: "Preview delivery counts, volume, hash, excluded runs and the retention notice. Sweeping is not complete erasure: benchmark plans and spend-approval snapshots remain and may contain private inputs and prompts. Writes nothing and returns no work content.",
   },
   {
     name: "deliver_work_data", group: "Your data", scopes: ["mcp:read"],
-    summary: "One complete bundle of your own work data — projects, runs, prompts, step outputs, private benchmark cases, judgments and rationales — with its sha256 and the signed receipt a sweep needs. Your chat client writes the folder you chose; re-delivering unchanged data returns the same hash, so it can tell it already wrote these bytes. Nothing is deleted by this call.",
-    example: "\"Export everything I have run this month into ~/DeeWaan/backup so I hold the only copy.\"",
+    summary: "Deliver selected sweepable work data with its sha256 and signed receipt. Your chat client writes and verifies the selected folder. Nothing is deleted by this call. Review retention before sweeping: it is not complete erasure; benchmark plans and spend-approval snapshots may retain private inputs and prompts.",
+    example: "\"Save my work into ~/DeeWaan/backup and explain what the server would retain after a sweep.\"",
   },
   {
     name: "sweep_delivered_work", group: "Your data", scopes: ["mcp:write"],
-    summary: "Clear the server's copy of work you already delivered. Needs that receipt plus the confirmation phrase, and re-derives the bundle first: if anything changed since delivery it refuses rather than deleting a copy you do not hold. Content is emptied, structure stays — ids, timestamps, token counts, the cost ledger, published versions, evidence, purchases, execution rights and consent records are untouched.",
-    example: "\"The folder is written and verified — you can delete the server copies now.\"",
+    summary: "Clear only the named sweepable columns after the folder is written and verified. Requires the receipt and confirmation; changed bundles and active work are refused. This is not complete erasure: benchmark plans and spend-approval snapshots may retain private inputs and prompts; financial/evidentiary records remain unchanged.",
+    example: "\"The folder is verified and I understand what remains — clear the disclosed sweepable columns.\"",
   },
   {
     name: "share_pipeline", group: "Author", scopes: ["mcp:write"],

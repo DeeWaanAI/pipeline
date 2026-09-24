@@ -34,7 +34,7 @@
 // purpose, and no suite here may touch the local `swarm` database.
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mysql from "mysql2/promise";
@@ -624,6 +624,142 @@ describe("D14 deliver-then-sweep (isolated localhost MySQL)", () => {
     expect(totals.knownCostUsd).toBe("0.00120000");
   }, 60_000);
 
+  it("delivers unique execution-state content and the stored prompt without exporting other run parameters", async () => {
+    const f = await workFixture();
+    const executionState = {
+      currentIndex: 2, iterationCounts: { 1: 3 },
+      chain: [{ id: f.extraResponseId, content: "state-only draft", agentRole: "builder", agentName: "Builder" }],
+      modifyInstructions: "state-only modification instructions",
+      pendingApproval: { stepOrder: 2, lastOutput: "state-only pending output", instructions: "state-only approval instructions" },
+    };
+    const runParams = {
+      source: "execute" as const, prompt: "stored request prompt differs from userPrompt",
+      memoryMode: "balanced", giteeTokenEnc: "fixture-only-encrypted-token",
+      attachments: [{ type: "text" as const, name: "private.txt", content: "attachment bytes not delivered" }],
+    };
+    await db().update(schema.swarmRuns).set({ executionState, runParams }).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    const delivered = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    expect(delivered.version).toBe(2);
+    expect(delivered.bundle.version).toBe(2);
+    expect(delivered.bundle.runs[0]).toMatchObject({ userPrompt: OWNER_PROMPT, executionState, runParamsPrompt: runParams.prompt });
+    expect(createHash("sha256").update(canonicalJson(delivered.bundle)).digest("hex")).toBe(delivered.bundleHash);
+    expect(JSON.stringify(delivered.bundle)).not.toContain(runParams.giteeTokenEnc);
+    expect(JSON.stringify(delivered.bundle)).not.toContain("attachment bytes not delivered");
+    await delivery.sweepDeliveredData(f.owner.id, { receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE });
+    const [swept] = await db().select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    expect(swept.executionState).toBeNull();
+    expect(swept.runParams).toEqual({ ...runParams, prompt: expect.stringMatching(SWEEP_MARKER) });
+  });
+
+  it.each(["modifyInstructions", "pendingApproval", "runParamsPrompt"] as const)("refuses to erase %s changed since delivery", async (field) => {
+    const f = await workFixture();
+    const delivered = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    const [run] = await db().select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    if (field === "runParamsPrompt") {
+      await db().update(schema.swarmRuns).set({ runParams: { ...run.runParams!, prompt: "undelivered stored prompt" } })
+        .where(eq(schema.swarmRuns.id, f.swarmRunId));
+    } else {
+      const executionState = field === "modifyInstructions"
+        ? { ...run.executionState!, modifyInstructions: "undelivered modification instructions" }
+        : { ...run.executionState!, pendingApproval: { ...run.executionState!.pendingApproval!, instructions: "undelivered approval instructions" } };
+      await db().update(schema.swarmRuns).set({ executionState }).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    }
+    const changed = await storedTextOf(f.swarmRunId);
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^bundle_changed:/);
+    expect(await storedTextOf(f.swarmRunId)).toBe(changed);
+    const fresh = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    expect(fresh.bundleHash).not.toBe(delivered.bundleHash);
+    expect(JSON.stringify(fresh.bundle)).toContain("undelivered");
+  });
+
+  it("discloses retained private plans before and after sweeping through tRPC and MCP", async () => {
+    const f = await workFixture();
+    const plan = JSON.stringify({
+      schemaVersion: 1, executionMode: "grade_only",
+      cases: [{ stableCaseId: "case-1", inputText: CASE_INPUT, expectedOutput: CASE_EXPECTED, origin: "user" }],
+      candidates: [{ stableCandidateId: "solo-1", strategy: "solo_baseline", baselinePrompt: BASELINE_PROMPT }],
+    });
+    await db().update(schema.benchmarks).set({ plan, spendApprovalId: f.approvalId }).where(eq(schema.benchmarks.id, f.benchmarkId));
+    await db().update(schema.spendApprovals).set({ planSnapshot: plan }).where(eq(schema.spendApprovals.id, f.approvalId));
+    const [approvalBefore] = await db().select().from(schema.spendApprovals).where(eq(schema.spendApprovals.id, f.approvalId));
+    const [benchmarkBefore] = await db().select().from(schema.benchmarks).where(eq(schema.benchmarks.id, f.benchmarkId));
+    const tools = await import("../mcp/tools/dataDeliveryTools");
+    const context = { userId: f.owner.id, scopes: new Set(["mcp:read", "mcp:write"]), clientId: "delivery-test", requestId: "retention", locale: "en" as const };
+    const scope = { benchmarkId: f.benchmarkId };
+    const preview = await callerAs(f.owner).dataDelivery.preview(scope);
+    const delivered = await callerAs(f.owner).dataDelivery.deliver(scope);
+    const mcpPreview = await tools.previewDeliveryScopeTool.handler(scope, context);
+    const mcpDelivered = await tools.deliverWorkDataTool.handler(scope, context);
+    for (const result of [preview, delivered, mcpPreview, mcpDelivered]) {
+      expect(result).toMatchObject({ retention: {
+        completeErasure: false,
+        notice: expect.stringMatching(/not complete erasure/),
+        retainedColumns: expect.arrayContaining([
+          { table: "benchmarks", column: "plan" },
+          { table: "spend_approvals", column: "plan_snapshot" },
+        ]),
+      } });
+    }
+    expect(delivered.howToSweep.warning).toMatch(/case inputs, expected outputs, and baseline prompts/);
+    expect(delivered.howToSweep.warning).not.toMatch(/only (one|copy)/);
+    expect(JSON.stringify(preview)).not.toContain(CASE_INPUT);
+    expect(JSON.stringify(mcpPreview)).not.toContain(BASELINE_PROMPT);
+    const swept = await tools.sweepDeliveredWorkTool.handler({ receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE }, context);
+    expect(swept).toMatchObject({
+      retention: { completeErasure: false },
+      meaning: expect.stringMatching(/not complete erasure/),
+    });
+    expect(JSON.stringify(swept)).not.toMatch(/server no longer holds|only copy/);
+    const [approvalAfter] = await db().select().from(schema.spendApprovals).where(eq(schema.spendApprovals.id, f.approvalId));
+    const [benchmarkAfter] = await db().select().from(schema.benchmarks).where(eq(schema.benchmarks.id, f.benchmarkId));
+    expect(approvalAfter).toEqual(approvalBefore);
+    expect(benchmarkAfter).toEqual(benchmarkBefore);
+    expect(approvalAfter.planSnapshot).toBe(plan);
+    expect(benchmarkAfter.plan).toBe(plan);
+    const [kase] = await db().select().from(schema.benchmarkCases).where(eq(schema.benchmarkCases.id, f.caseId));
+    expect(kase).toMatchObject({ inputText: null, expectedOutput: null });
+    const newDelivery = await callerAs(f.owner).dataDelivery.deliver(scope);
+    const routerSweep = await callerAs(f.owner).dataDelivery.sweep({ receipt: newDelivery.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE });
+    expect(routerSweep).toMatchObject({ retention: { completeErasure: false } });
+  });
+
+  it("refuses a correctly signed receipt from the incomplete version-one bundle", async () => {
+    const f = await workFixture();
+    const delivered = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    const legacyBundle = JSON.parse(JSON.stringify(delivered.bundle));
+    legacyBundle.version = 1;
+    for (const run of legacyBundle.runs) {
+      delete run.executionState;
+      delete run.runParamsPrompt;
+    }
+    const [prefix, body] = delivered.receipt.split(".");
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    payload.v = 1;
+    payload.bundleHash = createHash("sha256").update(canonicalJson(legacyBundle)).digest("hex");
+    const { env } = await import("../lib/env");
+    const key = createHash("sha256").update(env.appSecret).digest();
+    const signature = createHmac("sha256", key).update(canonicalJson(payload), "utf8").digest("hex");
+    const legacyReceipt = `${prefix}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.${signature}`;
+    const before = await storedTextOf(f.swarmRunId);
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: legacyReceipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^delivery_receipt_stale:/);
+    expect(await storedTextOf(f.swarmRunId)).toBe(before);
+  });
+
+  it("preserves null run parameters and delivers null execution state", async () => {
+    const f = await workFixture();
+    const runParams = null;
+    await db().update(schema.swarmRuns).set({ executionState: null, runParams }).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    const delivered = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    expect(delivered.bundle.runs[0]).toMatchObject({ executionState: null, runParamsPrompt: null });
+    await delivery.sweepDeliveredData(f.owner.id, { receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE });
+    const [swept] = await db().select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    expect(swept.runParams).toEqual(runParams);
+  });
+
   it("refuses a sweep with no receipt, the wrong confirmation, or a forged receipt — and deletes nothing", async () => {
     const f = await workFixture();
     const delivered = await delivery.deliverWorkData(f.owner.id, { projectId: f.projectId });
@@ -778,6 +914,208 @@ describe("D14 deliver-then-sweep (isolated localhost MySQL)", () => {
     expect(outsiderProjects).toEqual([]);
     expect(await storedTextOf(f.swarmRunId)).toContain(OWNER_OUTPUT);
   }, 60_000);
+
+  it.each(["pending", "running", "cancelled"] as const)("refuses a sweep while a run is %s", async (status) => {
+    const f = await workFixture();
+    await db().update(schema.swarmRuns).set({ status }).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    const delivered = await delivery.deliverWorkData(f.owner.id, { projectId: f.projectId });
+    const before = await storedTextOf(f.swarmRunId);
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^work_in_progress:/);
+    expect(await storedTextOf(f.swarmRunId)).toBe(before);
+  });
+
+  it("refuses active child work even if its parent is terminal", async () => {
+    const f = await workFixture();
+    await db().update(schema.agentRuns).set({ status: "running" }).where(eq(schema.agentRuns.id, f.stepRows[0]));
+    const delivered = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    const before = await storedTextOf(f.swarmRunId);
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^work_in_progress:/);
+    expect(await storedTextOf(f.swarmRunId)).toBe(before);
+  });
+
+  it.each(["draft", "queued", "running"] as const)("refuses a sweep while a benchmark is %s", async (state) => {
+    const f = await workFixture();
+    await db().update(schema.benchmarks).set({ state }).where(eq(schema.benchmarks.id, f.benchmarkId));
+    const delivered = await delivery.deliverWorkData(f.owner.id, { accountWide: true });
+    const before = await storedTextOf(f.swarmRunId);
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^work_in_progress:/);
+    expect(await storedTextOf(f.swarmRunId)).toBe(before);
+    const [kase] = await db().select().from(schema.benchmarkCases).where(eq(schema.benchmarkCases.id, f.caseId));
+    expect(kase.inputText).toBe(CASE_INPUT);
+  });
+
+  it.each(["linkedRun", "callPlan"] as const)("refuses a completed run whose %s benchmark is still consuming it", async (link) => {
+    const f = await workFixture();
+    await db().update(schema.benchmarks).set({ state: "running", leaseToken: "active-worker" })
+      .where(eq(schema.benchmarks.id, f.benchmarkId));
+    if (link === "linkedRun") {
+      await db().update(schema.benchmarkRuns).set({ linkedSwarmRunId: f.swarmRunId })
+        .where(eq(schema.benchmarkRuns.id, f.runId));
+    } else {
+      await db().update(schema.swarmRuns).set({ runParams: { source: "execute", prompt: OWNER_PROMPT, callPlanId: f.benchmarkId } })
+        .where(eq(schema.swarmRuns.id, f.swarmRunId));
+    }
+    const delivered = await delivery.deliverWorkData(f.owner.id, { swarmRunId: f.swarmRunId });
+    const before = await storedTextOf(f.swarmRunId);
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^work_in_progress:/);
+    expect(await storedTextOf(f.swarmRunId)).toBe(before);
+  });
+
+  it.each(["lease", "child", "judgment"] as const)("refuses a terminal benchmark with outstanding %s work", async (kind) => {
+    const f = await workFixture();
+    if (kind === "lease") {
+      await db().update(schema.benchmarks).set({ leaseToken: "active-worker" }).where(eq(schema.benchmarks.id, f.benchmarkId));
+    } else if (kind === "child") {
+      await db().update(schema.benchmarkRuns).set({ status: "running" }).where(eq(schema.benchmarkRuns.id, f.runId));
+    } else {
+      await db().update(schema.benchmarkJudgments).set({ status: "pending" }).where(eq(schema.benchmarkJudgments.benchmarkId, f.benchmarkId));
+    }
+    const delivered = await delivery.deliverWorkData(f.owner.id, { benchmarkId: f.benchmarkId });
+    await expect(delivery.sweepDeliveredData(f.owner.id, {
+      receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+    })).rejects.toThrow(/^work_in_progress:/);
+    const [kase] = await db().select().from(schema.benchmarkCases).where(eq(schema.benchmarkCases.id, f.caseId));
+    expect(kase.inputText).toBe(CASE_INPUT);
+  });
+
+  it.each(["run", "response", "benchmark"] as const)("preserves a %s edit committed just before the sweep transaction", async (kind) => {
+    const f = await workFixture();
+    const delivered = await delivery.deliverWorkData(f.owner.id, { accountWide: true });
+    const original = db().transaction.bind(db());
+    const transaction = vi.spyOn(db(), "transaction").mockImplementationOnce(async (callback, config) => {
+      if (kind === "run") {
+        await db().update(schema.swarmRuns).set({ userPrompt: "new undelivered input" })
+          .where(eq(schema.swarmRuns.id, f.swarmRunId));
+      } else if (kind === "response") {
+        await db().update(schema.agentResponses).set({ humanNotes: "new undelivered notes" })
+          .where(eq(schema.agentResponses.id, f.extraResponseId));
+      } else {
+        await db().update(schema.benchmarkCases).set({ inputText: "new undelivered case" })
+          .where(eq(schema.benchmarkCases.id, f.caseId));
+      }
+      return original(callback, config);
+    });
+    try {
+      await expect(delivery.sweepDeliveredData(f.owner.id, {
+        receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+      })).rejects.toThrow(/^bundle_changed:/);
+      expect(transaction).toHaveBeenCalledOnce();
+    } finally {
+      transaction.mockRestore();
+    }
+    const [run] = await db().select().from(schema.swarmRuns).where(eq(schema.swarmRuns.id, f.swarmRunId));
+    const [response] = await db().select().from(schema.agentResponses).where(eq(schema.agentResponses.id, f.extraResponseId));
+    const [kase] = await db().select().from(schema.benchmarkCases).where(eq(schema.benchmarkCases.id, f.caseId));
+    expect(run.userPrompt).toBe(kind === "run" ? "new undelivered input" : OWNER_PROMPT);
+    expect(response.humanNotes).toBe(kind === "response" ? "new undelivered notes" : null);
+    expect(kase.inputText).toBe(kind === "benchmark" ? "new undelivered case" : CASE_INPUT);
+    expect(response.content).toContain(OWNER_OUTPUT);
+  });
+
+  it("holds read locks against another connection before the first clearing write", async () => {
+    const f = await workFixture();
+    const delivered = await delivery.deliverWorkData(f.owner.id, { accountWide: true });
+    const editor = await pool!.getConnection();
+    await editor.query("SET SESSION innodb_lock_wait_timeout = 1");
+    const original = db().transaction.bind(db());
+    let probes = 0;
+    const transaction = vi.spyOn(db(), "transaction").mockImplementationOnce((callback, config) =>
+      original(async (tx) => {
+        const update = tx.update.bind(tx);
+        vi.spyOn(tx, "update").mockImplementationOnce((table) => {
+          const builder = update(table);
+          const set = builder.set.bind(builder);
+          vi.spyOn(builder, "set").mockImplementationOnce((values) => {
+            const query = set(values);
+            const execute = query.execute.bind(query);
+            vi.spyOn(query, "execute").mockImplementationOnce(async (...args) => {
+              for (const [statement, params] of [
+                ["UPDATE swarm_runs SET user_prompt = ? WHERE id = ?", ["concurrent input", f.swarmRunId]],
+                ["UPDATE agent_responses SET human_notes = ? WHERE id = ?", ["concurrent notes", f.extraResponseId]],
+                ["UPDATE benchmark_cases SET input_text = ? WHERE id = ?", ["concurrent case", f.caseId]],
+                ["INSERT INTO benchmark_cases (benchmark_id, stable_case_id, case_order, input_text, content_hash, origin) VALUES (?, ?, ?, ?, ?, ?)",
+                  [f.benchmarkId, "concurrent-case", 2, "undelivered case", "c".repeat(64), "user"]],
+              ] as const) {
+                await expect(editor.query(statement, [...params])).rejects.toMatchObject({ code: "ER_LOCK_WAIT_TIMEOUT" });
+                probes++;
+              }
+              return execute(...args);
+            });
+            return query;
+          });
+          return builder;
+        });
+        return callback(tx);
+      }, config));
+    try {
+      await delivery.sweepDeliveredData(f.owner.id, {
+        receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+      });
+      expect(probes).toBe(4);
+      await editor.query("UPDATE agent_responses SET human_notes = ? WHERE id = ?", ["notes after commit", f.extraResponseId]);
+      const [response] = await db().select().from(schema.agentResponses).where(eq(schema.agentResponses.id, f.extraResponseId));
+      expect(response.humanNotes).toBe("notes after commit");
+    } finally {
+      transaction.mockRestore();
+      await editor.query("SET SESSION innodb_lock_wait_timeout = DEFAULT");
+      editor.release();
+    }
+  }, 30_000);
+
+  it("rolls back every clearing write when the transaction fails", async () => {
+    const f = await workFixture();
+    const delivered = await delivery.deliverWorkData(f.owner.id, { accountWide: true });
+    const before = await storedTextOf(f.swarmRunId);
+    const original = db().transaction.bind(db());
+    const transaction = vi.spyOn(db(), "transaction").mockImplementationOnce((callback, config) =>
+      original(async (tx) => {
+        await callback(tx);
+        throw new Error("injected transaction failure");
+      }, config));
+    try {
+      await expect(delivery.sweepDeliveredData(f.owner.id, {
+        receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE,
+      })).rejects.toThrow("injected transaction failure");
+    } finally {
+      transaction.mockRestore();
+    }
+    expect(await storedTextOf(f.swarmRunId)).toBe(before);
+    expect((await delivery.deliverWorkData(f.owner.id, { accountWide: true })).bundleHash).toBe(delivered.bundleHash);
+  });
+
+  it("allows only one concurrent sweep of the same delivered content", async () => {
+    const f = await workFixture();
+    const delivered = await delivery.deliverWorkData(f.owner.id, { accountWide: true });
+    const original = db().transaction.bind(db());
+    let entered = 0;
+    let release!: () => void;
+    const bothEntered = new Promise<void>((resolve) => { release = resolve; });
+    const transaction = vi.spyOn(db(), "transaction").mockImplementation(async (callback, config) => {
+      if (++entered === 2) release();
+      await bothEntered;
+      return original(callback, config);
+    });
+    try {
+      const input = { receipt: delivered.receipt, confirmation: delivery.SWEEP_CONFIRM_PHRASE };
+      const results = await Promise.allSettled([
+        delivery.sweepDeliveredData(f.owner.id, input), delivery.sweepDeliveredData(f.owner.id, input),
+      ]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      const failures = results.filter((r) => r.status === "rejected");
+      expect(failures).toHaveLength(1);
+      expect((failures[0] as PromiseRejectedResult).reason.message).toMatch(/^bundle_changed:/);
+    } finally {
+      transaction.mockRestore();
+    }
+  });
 
   it("serves both calls through the mounted tRPC router, with the same answers as the service", async () => {
     const f = await workFixture();
