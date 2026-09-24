@@ -6,7 +6,9 @@
 
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import type { inferRouterOutputs } from "@trpc/server";
 import { trpc } from "@/providers/trpc";
+import type { AppRouter } from "../../api/router";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -2181,6 +2183,67 @@ function MoneyFigure({ cost }: {
   );
 }
 
+type RepriceReport = inferRouterOutputs<AppRouter>["admin"]["repriceUnpricedOperations"];
+
+/**
+ * The one action on this tab. The ledger prices a row as it is written, so a
+ * provider list that was briefly unreachable left the row reading "cost unknown"
+ * forever with its token counts sitting right beside it; this is what goes back
+ * for them. The result of the last pass stays on screen because the honest
+ * answer is usually "some", and the operator needs to see which part is left.
+ */
+function RepriceControl() {
+  const { t } = useTranslation("pages");
+  const utils = trpc.useUtils();
+  const [last, setLast] = useState<RepriceReport | null>(null);
+
+  const reprice = trpc.admin.repriceUnpricedOperations.useMutation({
+    onSuccess: (res) => {
+      setLast(res);
+      toast.success(res.priced
+        ? t("pages:admin.spend.reprice.done", { priced: res.priced })
+        : t("pages:admin.spend.reprice.nothing"));
+      utils.admin.spendSummary.invalidate();
+    },
+    onError: (err) => toast.error(t("pages:admin.spend.reprice.failed", { error: err.message })),
+  });
+
+  return (
+    <section className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 space-y-2">
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-[11px] text-neutral-500 max-w-2xl">{t("pages:admin.spend.reprice.hint")}</p>
+        <Button
+          size="sm" variant="outline" className="shrink-0 border-neutral-700"
+          disabled={reprice.isPending} onClick={() => reprice.mutate()}
+        >
+          {reprice.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+          {reprice.isPending ? t("pages:admin.spend.reprice.busy") : t("pages:admin.spend.reprice.action")}
+        </Button>
+      </div>
+      {last && (
+        <ul className="text-[11px] text-neutral-400 space-y-0.5 pt-1 border-t border-neutral-800">
+          <li>
+            {last.priced
+              ? t("pages:admin.spend.reprice.done", { priced: last.priced })
+              : t("pages:admin.spend.reprice.nothing")}
+            {Number(last.addedUsd) > 0 && ` · ${t("pages:admin.spend.reprice.added", { usd: `$${last.addedUsd}` })}`}
+          </li>
+          {last.unresolved > 0 && (
+            <li>{t("pages:admin.spend.reprice.stillUnknown", { n: last.unresolved })}</li>
+          )}
+          {last.skippedAggregates > 0 && (
+            <li>{t("pages:admin.spend.reprice.aggregates", { n: last.skippedAggregates })}</li>
+          )}
+          {last.remaining > 0 && (
+            <li>{t("pages:admin.spend.reprice.remaining", { n: last.remaining })}</li>
+          )}
+          <li className="text-neutral-600">{t("pages:admin.spend.reprice.asOf")}</li>
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function SpendTab() {
   const { t } = useTranslation("pages");
   const [page, setPage] = useState(1);
@@ -2198,6 +2261,8 @@ function SpendTab() {
   return (
     <div className="space-y-6">
       <p className="text-[11px] text-neutral-500">{t("pages:admin.spend.intro")}</p>
+
+      <RepriceControl />
 
       {isLoading && (
         <div className="flex justify-center py-16">

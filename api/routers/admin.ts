@@ -18,7 +18,7 @@ import { adminAuditLog } from "@db/schema";
 import {
   PROTECTED_EGRESS_POLICY_VERSION, normalizeEndpointUrl, resolvedAdapterKind,
 } from "../services/protectedEgress";
-import { benchmarkLedgerTotals, costDisclosure, type CostDisclosureInput } from "../services/benchmark/benchmarkLedger";
+import { benchmarkLedgerTotals, costDisclosure, repriceUnpricedOperations, type CostDisclosureInput } from "../services/benchmark/benchmarkLedger";
 import { readAttachmentForSupport, summarizeAttachments } from "../services/feedbackAttachments";
 import { PublicEvidenceManifestSchema } from "../../contracts/offeringV2";
 
@@ -1183,4 +1183,26 @@ export const adminRouter = createRouter({
         total: Number(total), page: input.page, pageSize: input.pageSize,
       };
     }),
+
+  /**
+   * Price the ledger rows that were never priced. A row gets one rate lookup at
+   * insert, and a provider list that was briefly unreachable made that lookup
+   * return nothing — so the row has sat at UNKNOWN ever since while the tokens
+   * it needs to be priced are stored right beside it. This is the only path that
+   * revisits one, which makes the payer-facing floor the honest highest-known
+   * figure rather than an artefact of an old timeout.
+   */
+  repriceUnpricedOperations: adminQuery.mutation(async ({ ctx }) => {
+    const result = await repriceUnpricedOperations();
+    logger.info("Admin: re-priced unpriced ledger operations", {
+      adminUserId: ctx.user.id, priced: result.priced, addedUsd: result.addedUsd,
+    });
+    await logAdminAction({
+      adminUserId: ctx.user.id, action: "call_attempt.reprice_unpriced",
+      targetType: "ledger",
+      detail: { ...result },
+      ip: ctx.remoteIp,
+    });
+    return result;
+  }),
 });

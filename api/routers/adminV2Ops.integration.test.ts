@@ -37,6 +37,7 @@ import { adminRouter } from "./admin";
 import { modelCatalogRouter } from "./modelCatalog";
 import { assertTrustedEgress } from "../services/protectedEgress";
 import { resolveModelVendors } from "../services/modelCatalogService";
+import { repriceUnpricedOperations } from "../services/benchmark/benchmarkLedger";
 
 const TEST_DB = "swarm_v2test_adminops";
 const ENDPOINT_URL = "https://api.example-provider.com/v1";
@@ -555,6 +556,7 @@ describe("v2 operations screen (isolated localhost MySQL)", () => {
     await refuses(ops.evidencePublicationDetail({ publicationId: 1 }), "FORBIDDEN");
     await refuses(ops.spendSummary({ page: 1, pageSize: 20 }), "FORBIDDEN");
     await refuses(ops.listSpendApprovals({ page: 1, pageSize: 20 }), "FORBIDDEN");
+    await refuses(ops.repriceUnpricedOperations(), "FORBIDDEN");
     // The catalog write path stays admin-only at both layers.
     await refuses(catalog.recordModel({ provider: "example_provider", modelId: "nope", vendor: "nobody" }), "FORBIDDEN");
 
@@ -594,6 +596,200 @@ describe("v2 operations screen (isolated localhost MySQL)", () => {
   });
 });
 
+// ─── item 54: the ledger row priced once, at insert, and never revisited ──
+//
+// `recordCallAttempt` resolves a rate exactly once. When that retrieval fails —
+// an 8-second timeout used to poison the cache for ten minutes — the row keeps
+// reading UNKNOWN forever even though its token counts and the provider's real
+// price both exist. These cases pin the one path that looks again, and more
+// importantly what it must NOT write.
+
+/** $2 in / $8 out per 1k, so a 1500/500 operation is exactly $7.00000000. Only
+ *  the one model id resolves: the row named otherwise must stay UNKNOWN. */
+const PRICEABLE = "priceable-model";
+const RATE_AS_OF = new Date("2026-02-02T00:00:00Z");
+async function fakeRate(_providerRefId: number | null, model: string) {
+  if (model !== PRICEABLE) return null;
+  return { rates: { in: 2, out: 8 }, basis: "provider_list" as const, asOf: RATE_AS_OF };
+}
+async function noRate() { return null; }
+
+let ledgerSeq = 9000;
+async function ledgerRow(
+  payerId: number, providerRefId: number | null, over: {
+    benchmarkId?: number | null; model?: string; cost?: string | null; basis?: string | null;
+    completeness?: "complete" | "partial" | "unknown"; outcome?: "success" | "failed" | "uncertain";
+    promptTokens?: number | null;
+  } = {},
+) {
+  ledgerSeq += 1;
+  const [row] = await db().insert(schema.callAttempts).values({
+    operationKind: "judgment", operationId: ledgerSeq, benchmarkId: over.benchmarkId ?? null,
+    purpose: "private_evaluation", actorId: payerId, payerId, providerRefId,
+    requestedModel: over.model ?? PRICEABLE, attemptIndex: 1,
+    outcome: over.outcome ?? "success",
+    promptTokens: over.promptTokens === undefined ? 1500 : over.promptTokens,
+    completionTokens: 500,
+    estimatedCostUsd: over.cost ?? null, costBasis: over.basis ?? null,
+    costCompleteness: over.completeness ?? "unknown",
+  });
+  return insertId(row);
+}
+
+async function costOf(id: number) {
+  const [r] = await db().select({
+    cost: schema.callAttempts.estimatedCostUsd, basis: schema.callAttempts.costBasis,
+    asOf: schema.callAttempts.costPricingAsOf, version: schema.callAttempts.priceVectorVersion,
+    completeness: schema.callAttempts.costCompleteness,
+  }).from(schema.callAttempts).where(eq(schema.callAttempts.id, id)).limit(1);
+  return r;
+}
+
+describe("re-pricing the ledger operations that were never priced", () => {
+  it("prices the rows it can attribute to one credential and leaves the rest UNKNOWN", async () => {
+    // A pass with a resolver that never answers writes nothing, so it measures
+    // the fixture state the other suites left behind — every claim below is a
+    // delta from here rather than a coincidence about test order.
+    const empty = await repriceUnpricedOperations({ resolve: noRate });
+
+    const payer = await actor("reprice-scope@example.test", "user");
+    const providerId = await seedProvider(payer.id);
+    const priceable = await ledgerRow(payer.id, providerId);
+    const aggregate = await ledgerRow(payer.id, null);
+    const unmeasured = await ledgerRow(payer.id, providerId, { promptTokens: null });
+    const uncertain = await ledgerRow(payer.id, providerId, { outcome: "uncertain" });
+    const unknownModel = await ledgerRow(payer.id, providerId, { model: "not-in-any-list" });
+
+    const baseline = await repriceUnpricedOperations({ resolve: noRate });
+    // Two new candidates: the priceable row and the one whose model no list
+    // knows. Unmeasured and uncertain are not candidates at all, and the
+    // aggregate is counted separately because it is deliberately untouched.
+    expect(baseline.examined - empty.examined).toBe(2);
+    expect(baseline.skippedAggregates - empty.skippedAggregates).toBe(1);
+    expect(baseline.priced).toBe(0);
+    expect(baseline.addedUsd).toBe("0.00000000");
+
+    // A capped pass reports how much it left behind, so "run it again" is a
+    // measured statement rather than a guess.
+    const capped = await repriceUnpricedOperations({ limit: 1, resolve: noRate });
+    expect(capped).toMatchObject({ examined: 1, priced: 0, remaining: baseline.examined - 1 });
+
+    const result = await repriceUnpricedOperations({ resolve: fakeRate });
+    expect(result).toMatchObject({
+      examined: baseline.examined, priced: 1, unresolved: 1, alreadyPriced: 0,
+      addedUsd: "7.00000000",
+    });
+    // The cap was not reached here, so nothing is left to click for; the one
+    // candidate still unpriced is the model nothing knows, which is reported as
+    // unresolved rather than as a row this pass skipped.
+    expect(result.remaining).toBe(0);
+    expect(result.skippedAggregates).toBe(baseline.skippedAggregates);
+
+    // The priced row carries where the number came from, not just a number.
+    expect(await costOf(priceable)).toMatchObject({
+      cost: "7.00000000", basis: "provider_list", version: null, completeness: "complete",
+    });
+    expect((await costOf(priceable)).asOf).toEqual(RATE_AS_OF);
+    for (const [label, id] of [["aggregate", aggregate], ["unmeasured", unmeasured], ["uncertain", uncertain], ["unknown model", unknownModel]] as const) {
+      expect((await costOf(id)).cost, `${label} row must stay UNKNOWN`).toBeNull();
+    }
+  });
+
+  it("cannot price the same operation twice, even while another pass is mid-flight", async () => {
+    const payer = await actor("reprice-race@example.test", "user");
+    const providerId = await seedProvider(payer.id);
+    const rows = [await ledgerRow(payer.id, providerId), await ledgerRow(payer.id, providerId)];
+
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    // The slow pass SELECTS both rows and then parks before writing, so the
+    // fast pass prices them underneath it and the slow one is left holding a
+    // stale read. Two passes at two different rates is the only way to tell a
+    // write-time re-check apart from a lucky serialisation: an unguarded write
+    // would restate their cost at the late pass's rate and count the same money
+    // twice.
+    const slow = repriceUnpricedOperations({ resolve: async (p, m) => {
+      const rate = await fakeRate(p, m);
+      if (!rate) return null;
+      await gate;
+      return { ...rate, rates: { in: 4, out: 16 }, asOf: new Date("2026-03-03T00:00:00Z") };
+    } });
+    await new Promise((r) => setTimeout(r, 300));
+    const winner = await repriceUnpricedOperations({ resolve: fakeRate });
+    release();
+    const late = await slow;
+
+    expect(winner.priced).toBe(rows.length);
+    expect(late).toMatchObject({ priced: 0, alreadyPriced: rows.length, addedUsd: "0.00000000" });
+    for (const id of rows) {
+      expect(await costOf(id)).toMatchObject({ cost: "7.00000000", completeness: "complete" });
+    }
+
+    const second = await repriceUnpricedOperations({ resolve: fakeRate });
+    expect(second).toMatchObject({ priced: 0, addedUsd: "0.00000000" });
+  });
+
+  it("turns the payer-facing floor into a fact in the same disclosure", async () => {
+    const payer = await actor("reprice-disclosure@example.test", "user");
+    const providerId = await seedProvider(payer.id);
+    const [bench] = await db().insert(schema.benchmarks).values({
+      ownerId: payer.id, executionMode: "grade_only", state: "completed",
+    });
+    const benchmarkId = insertId(bench);
+    await ledgerRow(payer.id, providerId, { benchmarkId, cost: "0.03000000", basis: "provider_list", completeness: "complete" });
+    await ledgerRow(payer.id, providerId, { benchmarkId });
+
+    const ops = as(await actor("reprice-admin@example.test", "admin"));
+    const rowOf = async () => {
+      const summary = await ops.spendSummary({ page: 1, pageSize: 20 });
+      return summary.benchmarks.find((b) => b.benchmarkId === benchmarkId)!;
+    };
+
+    const before = await rowOf();
+    expect(before.cost.completeness).toBe("partial");
+    expect(before.cost.unpricedOperations).toBe(1);
+    expect(before.cost.display).toContain("FLOOR");
+
+    await repriceUnpricedOperations({ resolve: fakeRate });
+
+    const after = await rowOf();
+    expect(after.cost.unpricedOperations).toBe(0);
+    expect(after.cost.completeness).toBe("complete");
+    expect(after.cost.knownUsd).toBe("7.03000000");
+    expect(after.cost.display).not.toContain("FLOOR");
+  });
+
+  it("writes one audit row describing the pass it just ran", async () => {
+    const payer = await actor("reprice-audit@example.test", "user");
+    const adminRow = await actor("reprice-audit-admin@example.test", "admin");
+    // No candidate with a credential here, so the REAL rate path — which would
+    // reach the network for a fixture slug — is never entered.
+    await ledgerRow(payer.id, null);
+    const ops = as(adminRow);
+
+    const [before] = await db().select({ n: count() }).from(schema.adminAuditLog);
+    const result = await ops.repriceUnpricedOperations();
+    const after = await db().select({
+      id: schema.adminAuditLog.id, action: schema.adminAuditLog.action,
+      targetType: schema.adminAuditLog.targetType, detail: schema.adminAuditLog.detail,
+      adminUserId: schema.adminAuditLog.adminUserId,
+    }).from(schema.adminAuditLog);
+
+    expect(after.length).toBe(Number(before.n) + 1);
+    const written = after[after.length - 1]!;
+    expect(written.action).toBe("call_attempt.reprice_unpriced");
+    expect(written.targetType).toBe("ledger");
+    expect(written.adminUserId).toBe(adminRow.id);
+    // The audit row says what the click reported, field for field: a later
+    // reader must be able to reconstruct the pass from the trail alone.
+    expect(written.detail).toMatchObject({
+      examined: result.examined, priced: result.priced, unresolved: result.unresolved,
+      alreadyPriced: result.alreadyPriced, addedUsd: result.addedUsd,
+      skippedAggregates: result.skippedAggregates, remaining: result.remaining,
+    });
+  });
+});
+
 /** The exact set of procedures this task adds. Pinned so a later edit cannot
  *  quietly widen the screen: every name here is admin-guarded, and the refusal
  *  test calls each one. */
@@ -602,6 +798,7 @@ const adminProcedureNames = {
   listModelCatalog: "query", setModelVendor: "mutation", listModelReleaseEvents: "query",
   listEvidencePublications: "query", evidencePublicationDetail: "query",
   spendSummary: "query", listSpendApprovals: "query",
+  repriceUnpricedOperations: "mutation",
 };
 
 // ─── the correlated-count pinhole (task #36) ─────────────────────────

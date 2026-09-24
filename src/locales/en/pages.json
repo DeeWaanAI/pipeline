@@ -399,7 +399,20 @@
       "uncertain": "{{n}} uncertain",
       "benchmarksUsed": "{{n}} benchmark(s)",
       "noCeiling": "no ceiling",
-      "readOnlyNote": "Spend and approvals are append-only records of what was authorized and what happened. This screen reads them; nothing here refunds, revokes or edits a frozen plan.",
+      "readOnlyNote": "Spend and approvals are append-only records of what was authorized and what happened. Nothing here refunds, revokes or edits a frozen plan, and no recorded figure is ever restated.",
+      "reprice": {
+        "action": "Re-price unpriced operations",
+        "busy": "Pricing…",
+        "hint": "A ledger row is priced once, as it is written. If the provider's price list was unreachable in that moment the row has read \"cost unknown\" ever since, even though the token counts it needs are stored beside it. This looks up those rows again at today's rates and fills only the ones with no figure.",
+        "done": "{{priced}} operations priced",
+        "nothing": "Nothing new could be priced",
+        "added": "{{usd}} added to the recorded spend",
+        "stillUnknown": "{{n}} still unknown — no price list names that model",
+        "aggregates": "{{n}} run-level rows stay unknown: the ledger cannot name a single model or credential for them",
+        "remaining": "{{n}} candidates were left past this pass — run it again",
+        "asOf": "A re-priced row records today as the moment its rate was read, not the day the call ran.",
+        "failed": "Could not re-price the ledger: {{error}}"
+      },
       "headers": {
         "benchmark": "Benchmark",
         "owner": "Owner",
