@@ -118,7 +118,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "export_run", group: "Research", scopes: ["mcp:read"],
-    summary: "Export one run's full granular history (every step, prompt, token count, and response) as portable JSON.",
+    summary: "Export one run's authorized history plus archive.files: input, final output, step records, full run JSON and a hash manifest. The chat client must write decoded UTF-8 contents into your selected folder and verify byte counts and SHA-256 before claiming success. Protected intermediate data remains withheld; nothing is deleted.",
   },
   // ── Author ──────────────────────────────────────────────────────
   {

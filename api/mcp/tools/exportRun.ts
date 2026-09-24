@@ -14,6 +14,7 @@ import { getDb } from "../../queries/connection";
 import { users } from "@db/schema";
 import { logger } from "../../lib/logger";
 import { appRouter } from "../../router";
+import { buildRunArchive } from "./runArchive";
 
 const inputSchema = z.object({
   runId: z.number().int().positive(),
@@ -34,7 +35,7 @@ async function makeCaller(ctx: McpAuthContext) {
 export const exportRun: McpTool = {
   name: "export_run",
   description:
-    "Export the full granular execution history of one of your pipeline runs as portable JSON: the run record, every intermediate agent step (role, prompts, context input, tokens used, latency, model and provider), and every agent response (full content). Ownership is verified. Hand the returned JSON to your client's filesystem tools to archive it locally.",
+    "Export the full granular execution history of one of your pipeline runs as portable JSON: the run record, every intermediate agent step (role, prompts, context input, tokens used, latency, model and provider), and every agent response (full content). Ownership is verified and protected-run redaction is preserved. The archive field contains exact UTF-8 files and SHA-256 hashes for input, final output, step records and run JSON. Have the client write and verify these in the user's chosen folder; this tool does not itself save files locally or delete server data.",
   inputSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true, destructiveHint: false },
@@ -45,7 +46,8 @@ export const exportRun: McpTool = {
     logger.info("MCP export_run", { userId: ctx.userId, runId });
     return {
       ...result,
-      message: `Run ${runId} exported (${result.agentRuns.length} steps, ${result.agentResponses.length} responses). To archive locally, ask your chat client to write this JSON to a file.`,
+      archive: buildRunArchive(result),
+      message: `Run ${runId} exported (${result.agentRuns.length} steps, ${result.agentResponses.length} responses). Local files have NOT been saved: the client must write and verify archive.files in the selected folder.`,
     };
   },
 };

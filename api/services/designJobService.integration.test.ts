@@ -190,8 +190,14 @@ describe("MCP completed run answers (DB-backed)", () => {
     expect(await runStatus.handler({ runId }, ctx)).not.toHaveProperty("finalResponse");
     await db.update(schema.swarmRuns).set({ status: "completed" }).where(orm.eq(schema.swarmRuns.id, runId));
     expect(await runStatus.handler({ runId }, ctx)).toMatchObject({ finalResponse, finalResponseId });
+    const { exportRun } = await import("../mcp/tools/exportRun");
+    const exported = await exportRun.handler({ runId }, ctx) as { archive: { files: Array<{ path: string; content: string }> } };
+    expect(exported.archive.files.find((f) => f.path === "input.txt")?.content).toBe("Input");
+    expect(exported.archive.files.find((f) => f.path === "final-output.txt")?.content).toBe(finalResponse);
+    expect(JSON.parse(exported.archive.files.find((f) => f.path === "steps/0001.json")!.content).responses[0].content).toBe(finalResponse);
     const outsider = await seedFixture();
     await expect(runStatus.handler({ runId }, { ...ctx, userId: outsider.userId })).rejects.toThrow("Run not found");
+    await expect(exportRun.handler({ runId }, { ...ctx, userId: outsider.userId })).rejects.toThrow("Run not found");
   });
 });
 
