@@ -4,12 +4,12 @@
 // 2026-09-22). What IS enforced below is provider ownership.
 
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
-import { llmProviders, projects } from "@db/schema";
+import { projects } from "@db/schema";
 import { finalizePipelineCreation } from "../../services/pipelineCreationService";
-import { insertProjectSteps } from "./_shared";
+import { insertProjectSteps, requireOwnedProviders } from "./_shared";
 import {
   findWhileTargetErrors,
   pipelineConfigInputSchema,
@@ -22,7 +22,7 @@ const inputSchema = z.object({
   description: z.string().max(5000).nullish(),
   defaultModel: z.string().max(100).nullish().describe("Default LLM model for runs"),
   defaultProviderId: z.number().int().min(1).nullish().describe(
-    "Which of your configured providers runs the steps (get_settings lists ids). Steps created via MCP have no per-step provider, so without this the run falls back to your first provider regardless of the step model.",
+    "Project default provider (get_settings lists your ids). Each step can select its own providerId; otherwise normal agent/project provider fallback applies.",
   ),
   pipelineConfig: pipelineConfigInputSchema.nullish().describe("Execution settings"),
   steps: pipelineStepsInputSchema.nullish().describe(
@@ -47,20 +47,7 @@ export const createPipeline: McpTool = {
 
     const db = getDb();
 
-    // Ownership check: a foreign provider id would silently fall back to the
-    // user's first provider at run time (see swarmService provider resolution).
-    if (input.defaultProviderId != null) {
-      const [owned] = await db
-        .select({ id: llmProviders.id })
-        .from(llmProviders)
-        .where(and(eq(llmProviders.id, input.defaultProviderId), eq(llmProviders.userId, ctx.userId)))
-        .limit(1);
-      if (!owned) {
-        throw new Error(
-          `Provider ${input.defaultProviderId} is not one of your configured providers. Call get_settings to list your provider ids.`,
-        );
-      }
-    }
+    await requireOwnedProviders(ctx.userId, [input.defaultProviderId, ...(input.steps ?? []).map((s) => s.providerId)]);
 
     await db.insert(projects).values({
       userId: ctx.userId,

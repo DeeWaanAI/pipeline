@@ -15,6 +15,14 @@ const agent = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("pipelineStepInputSchema", () => {
+  it("preserves optional per-step provider ids and rejects malformed ids", () => {
+    expect(pipelineStepInputSchema.parse(agent({ providerId: 12 }))).toHaveProperty("providerId", 12);
+    expect(pipelineStepInputSchema.parse(agent({ providerId: null }))).toHaveProperty("providerId", null);
+    for (const providerId of [0, -1, 1.5, "12"]) {
+      expect(() => pipelineStepInputSchema.parse(agent({ providerId }))).toThrow();
+    }
+  });
+
   it("accepts a plain agent step (defaults stepType to agent)", () => {
     const s = pipelineStepInputSchema.parse(agent());
     expect(s.stepType).toBe("agent");

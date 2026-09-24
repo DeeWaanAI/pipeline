@@ -4,9 +4,9 @@
 // tokens are bearer credentials, so every tool must call this BEFORE
 // returning any data.
 
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../queries/connection";
-import { projects, pipelineSteps } from "@db/schema";
+import { llmProviders, projects, pipelineSteps } from "@db/schema";
 import type { PipelineStepInput } from "./pipelineValidation";
 
 /** Insert validated steps as pipeline_steps rows (stepOrder = 1-based index). */
@@ -25,12 +25,25 @@ export async function insertProjectSteps(
       role: s.stepType === "approval" ? "approval" : (s.role ?? "custom"),
       systemPrompt: s.stepType === "approval" ? (s.systemPrompt ?? "Human review required") : (s.systemPrompt ?? "Process the input"),
       model: s.model ?? null,
+      providerId: s.providerId ?? null,
       temperature: s.temperature ?? "0.7",
       maxTokens: s.maxTokens ?? 4096,
       ifConfig: s.stepType === "if" ? (s.ifConfig ?? null) : null,
       whileConfig: s.stepType === "while" ? (s.whileConfig ?? null) : null,
       isEnabled: true,
     });
+  }
+}
+
+export async function requireOwnedProviders(userId: number, ids: Array<number | null | undefined>): Promise<void> {
+  const providerIds = [...new Set(ids.filter((id): id is number => id != null))];
+  if (!providerIds.length) return;
+  const owned = await getDb().select({ id: llmProviders.id }).from(llmProviders)
+    .where(and(eq(llmProviders.userId, userId), inArray(llmProviders.id, providerIds)));
+  const ownedIds = new Set(owned.map((p) => p.id));
+  const missing = providerIds.find((id) => !ownedIds.has(id));
+  if (missing !== undefined) {
+    throw new Error(`Provider ${missing} is not one of your configured providers. Call get_settings to list your provider ids.`);
   }
 }
 

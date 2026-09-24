@@ -7,9 +7,9 @@ import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
-import { llmProviders, pipelineSteps, projects } from "@db/schema";
+import { pipelineSteps, projects } from "@db/schema";
 import { finalizePipelineCreation } from "../../services/pipelineCreationService";
-import { insertProjectSteps } from "./_shared";
+import { insertProjectSteps, requireOwnedProviders } from "./_shared";
 import {
   findWhileTargetErrors,
   pipelineConfigInputSchema,
@@ -55,24 +55,14 @@ export const updatePipeline: McpTool = {
       if (targetErrors.length > 0) throw new Error(targetErrors.join("; "));
     }
 
+    await requireOwnedProviders(ctx.userId, [input.defaultProviderId, ...(input.steps ?? []).map((s) => s.providerId)]);
+
     // Settings patch (only provided fields)
     const patch: Record<string, unknown> = {};
     if (input.name !== undefined) patch.name = input.name;
     if (input.description !== undefined) patch.description = input.description ?? null;
     if (input.defaultModel !== undefined) patch.defaultModel = input.defaultModel ?? null;
     if (input.defaultProviderId !== undefined) {
-      if (input.defaultProviderId != null) {
-        const [owned] = await db
-          .select({ id: llmProviders.id })
-          .from(llmProviders)
-          .where(and(eq(llmProviders.id, input.defaultProviderId), eq(llmProviders.userId, ctx.userId)))
-          .limit(1);
-        if (!owned) {
-          throw new Error(
-            `Provider ${input.defaultProviderId} is not one of your configured providers. Call get_settings to list your provider ids.`,
-          );
-        }
-      }
       patch.defaultProviderId = input.defaultProviderId ?? null;
     }
     if (input.pipelineConfig !== undefined && input.pipelineConfig !== null) {

@@ -105,6 +105,67 @@ async function seedFixture() {
   return { db, userId, projectId, providerId };
 }
 
+describe("MCP manual pipeline provider routing (DB-backed)", () => {
+  it("round-trips owned per-step providers through create, get, update and templates", async () => {
+    const { db, userId, providerId } = await seedFixture();
+    const [second] = await db.insert(schema.llmProviders).values({
+      userId, name: "second", slug: "fake", baseUrl: "http://localhost:1", apiKeyRef: "dummy", defaultModel: "model-b",
+    });
+    const secondId = Number(second.insertId);
+    const { createPipeline } = await import("../mcp/tools/createPipeline");
+    const { updatePipeline } = await import("../mcp/tools/updatePipeline");
+    const { getPipeline } = await import("../mcp/tools/getPipeline");
+    const ctx = { userId, scopes: new Set(["mcp:read", "mcp:write"]), clientId: "test", requestId: "test", locale: "en" as const };
+    const steps = [
+      { name: "Route A", role: "builder", systemPrompt: "Draft", model: "model-a", providerId },
+      { name: "Route B", role: "refiner", systemPrompt: "Review", model: "model-b", providerId: secondId },
+      { name: "Default", role: "critic", systemPrompt: "Check" },
+    ];
+    const created = await createPipeline.handler({ name: "Multi-provider", defaultProviderId: providerId, steps }, ctx) as { id: number };
+    expect(await getPipeline.handler({ id: created.id }, ctx)).toMatchObject({
+      defaultProviderId: providerId,
+      steps: [{ providerId, model: "model-a" }, { providerId: secondId, model: "model-b" }, { providerId: null }],
+    });
+    const [template] = await db.select().from(schema.pipelineTemplates)
+      .where(orm.eq(schema.pipelineTemplates.sourceProjectId, created.id));
+    expect(template.steps).toMatchObject([{ providerId }, { providerId: secondId }, { providerId: null }]);
+    await updatePipeline.handler({ id: created.id, steps: [{ ...steps[0], providerId: secondId }] }, ctx);
+    expect(await getPipeline.handler({ id: created.id }, ctx)).toMatchObject({
+      defaultProviderId: providerId, steps: [{ providerId: secondId }],
+    });
+    await updatePipeline.handler({ id: created.id, steps: [{ ...steps[0], providerId: null }] }, ctx);
+    expect(await getPipeline.handler({ id: created.id }, ctx)).toMatchObject({
+      defaultProviderId: providerId, steps: [{ providerId: null }],
+    });
+  });
+
+  it("refuses foreign step and default providers before any create or update writes", async () => {
+    const owner = await seedFixture();
+    const foreign = await seedFixture();
+    const { db, userId, projectId } = owner;
+    const { createPipeline } = await import("../mcp/tools/createPipeline");
+    const { updatePipeline } = await import("../mcp/tools/updatePipeline");
+    const ctx = { userId, scopes: new Set(["mcp:read", "mcp:write"]), clientId: "test", requestId: "test", locale: "en" as const };
+    const before = {
+      projects: await db.select().from(schema.projects),
+      steps: await db.select().from(schema.pipelineSteps),
+      agents: await db.select().from(schema.customAgents),
+      templates: await db.select().from(schema.pipelineTemplates),
+    };
+    const step = { name: "Forbidden", role: "builder", systemPrompt: "Draft", providerId: foreign.providerId };
+    for (const patch of [{ steps: [step] }, { defaultProviderId: foreign.providerId }]) {
+      await expect(createPipeline.handler({ name: "Must not exist", ...patch }, ctx)).rejects.toThrow(/not one of your configured providers/);
+      await expect(updatePipeline.handler({ id: projectId, name: "Must not rename", ...patch }, ctx)).rejects.toThrow(/not one of your configured providers/);
+    }
+    expect({
+      projects: await db.select().from(schema.projects),
+      steps: await db.select().from(schema.pipelineSteps),
+      agents: await db.select().from(schema.customAgents),
+      templates: await db.select().from(schema.pipelineTemplates),
+    }).toEqual(before);
+  });
+});
+
 describe("durable design jobs (DB-backed)", () => {
   it("A04/§5.3: start is idempotent per actor key and writes job+outbox atomically", async () => {
     const { userId, projectId, providerId } = await seedFixture();

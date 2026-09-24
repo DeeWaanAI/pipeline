@@ -32,6 +32,7 @@ export const pipelineStepInputSchema = z
     ifConfig: ifConfigSchema.nullish(),
     whileConfig: whileConfigSchema.nullish(),
     model: z.string().max(100).nullish(),
+    providerId: z.number().int().positive().nullish().describe("Your configured provider for this step (get_settings lists ids); omit or null for normal provider fallback."),
     temperature: z.string().max(10).nullish(),
     maxTokens: z.number().int().min(1).max(128000).nullish(),
   })

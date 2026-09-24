@@ -123,7 +123,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   // ── Author ──────────────────────────────────────────────────────
   {
     name: "create_pipeline", group: "Author", scopes: ["mcp:write"],
-    summary: "Create a pipeline step by step: agents run in sequence, and if/while quality gates loop back until the output passes — every step type is open to every account.",
+    summary: "Create a pipeline step by step: agents run in sequence, and if/while quality gates loop back until the output passes — every step type is open to every account. Choose each step's model and owned providerId (get_settings lists ids); get_pipeline returns the saved routes for editing.",
     example: "\"Create a pipeline that drafts a post, critiques it, and refines it until it passes.\"",
   },
   {
