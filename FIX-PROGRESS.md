@@ -6,7 +6,7 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - Local v2 only. No production, provider-sharing changes, or payment work.
 - Tests use their own throwaway databases on localhost:3307; never sweep real user data.
 - Preserve financial/history records and snapshots; additive migrations only.
-- No push without fresh authorization. `origin/main` is at 45f5546; fixes 1-7 are committed LOCALLY (code: `05c7a69`, `7d63e26`, `d016da3`, `245f798`, `538b8fc`, `d711f21`, plus docs commits). Count them with `git rev-list --count origin/main..HEAD`.
+- No push without fresh authorization. `origin/main` is at 45f5546; audit fixes 1-9 are committed LOCALLY (code: `05c7a69`, `7d63e26`, `d016da3`, `245f798`, `538b8fc`, `d711f21`, `a48e3fb`, `79024c3`, plus docs commits). Count with `git rev-list --count origin/main..HEAD`.
 - The working tree is otherwise clean: only the two inherited ` 2.ts` duplicates remain untracked and they stay that way.
 - Preserve inherited UI edits and untracked `api/services/autoDesignService 2.ts` / `db/schema 2.ts`.
 - `npm run check` passes. The full suite is 55 files; `api/services/designJobService.integration.test.ts` can fail the parallel run with `spawnSync npx ETIMEDOUT` inside its `pushSchema()` helper (a 150s drizzle-kit timeout under contention, worst right after a container restart). It passes 8/8 alone — rerun it in isolation before treating it as a real failure.
@@ -21,8 +21,8 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 | 5 | DONE (5a `d016da3`, 5b `245f798`) | Adapters report whether usage was measured; unproven counts reach the ledger as ABSENT and price as UNKNOWN. Legacy rows without the flag are unknown, not zero. |
 | 6 | COMMITTED `538b8fc` | Sweep response reports only the caller's own record counts; the global before/after proof stays internal as booleans. |
 | 7 | CODE COMMITTED `d711f21`; BROWSER PASS STILL OPEN | Feedback UI: consent re-read at send time, server's cap applied, failed reads reported as failures. Needs a signed-in browser check before #21/#22 can close. |
-| 8 | TODO | Remove active billed-team MCP rate-limit branch without changing payment integration; preserve existing records. |
-| 9 | TODO | Follow-up target authorization: feedback reactToMessage and submit accept project/message identifiers; verify ownership/read access before inserting. |
+| 8 | COMMITTED `a48e3fb` | MCP billed-team rate tier removed (solo/admin only); the tier SET is now pinned so re-adding it fails. |
+| 9 | COMMITTED `79024c3` | `submit` and `reactToMessage` authorize the project/message they name, through one shared check. |
 
 ## Usage provenance (item 5, commits `d016da3` + `245f798`)
 - `api/lib/providers/base.ts` `normalizeTokenUsage(prompt, completion, total?)` sets
@@ -67,11 +67,16 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - Verified: `tsc -b`, `npm run i18n:check` (en/zh parity) and `npm run build` all pass. NOT browser-verified — no DOM test tooling exists in this repo and signing in needs the user's own session. The full server suite was last green (`54 passed / 1 skipped`) before this client-only commit; these four files are not imported by any vitest file.
 - Still owed before #21/#22 close: an authenticated pass over the picker (tick, untick during a slow send, hit the cap, break the lookup) and the admin snapshot panel.
 
-## Next agent
-1. Fix 8 next: `api/mcp/register.ts:48` still resolves a billed-team tier from `teamMembers`/`teamSeats` and grants 240 req/min versus 60 (`api/lib/rateLimiter.ts:120`) after team removal (#26) retired the feature. Collapse it to the account tiers that still exist without touching billing integration or historical rows, and pin the limit a signed-in non-admin actually gets.
-2. Then fix 9: `feedback.submit` / `reactToMessage` accept a `projectId`/`targetMessageId` and store them without checking the caller can read that project or message.
-3. Then ask the user for the two things only they can do: the authenticated browser pass for #21/#22, and one real deliver -> selected-folder write -> sweep for #23/#30.
-4. Keep this file current after each verified increment. Scan staged secrets before every commit; a push needs fresh written authorization.
+## Items 8 and 9 (commits `a48e3fb`, `79024c3`)
+- 8: `resolveCustomerTier` no longer joins `teamMembers`/`teamSeats` for a billed subscription; it reads `users.role` alone, and `CustomerTier` is `"solo" | "admin"`. The replaced test pins the whole key set, so a re-added team rung fails. No billing code or stored row touched.
+- 9: `assertFeedbackTargetsVisible` (in the submit service, so the web form, the workbench tool and `reactToMessage` share it) checks a named project with `assertProjectVisible` and a named message with `assertResponseVisible`. There is no `messages` table — a chat message IS an `agent_responses` row, which is why the response helper is the right one. Negative control: pre-fix, the stranger's report was filed successfully.
+
+## Next agent — the queue is empty; what is left needs the user
+1. The authenticated browser pass over #21/#22: the admin panel's v2 operations and the new attachment picker (tick, untick during a slow send, reach the cap, break the lookup, open an admin snapshot and fail it). Nothing in the code is known to be broken here — it is simply unexercised, and the repo has no DOM test tooling, so a human session is the only way to close it.
+2. One real client journey for #23/#30: `deliver` -> the chat client writes the chosen folder -> verify the sha256 -> `sweep`. Items 5-9 have landed, so no known code defect blocks it; it still deletes nothing until the receipt and confirmation both check out.
+3. #40 (should `run_only` shares hide the resolved model, given it is usually the recipient's own) is an owner decision, and #29/#42 belong to the deferred payment work.
+4. Open code boundaries, not yet defects: hidden retries lose earlier-attempt usage, and `evidenceService.ts:354-374` still zero-defaults and sums partial token costs for published evidence.
+5. Keep this file current after each verified increment. Scan staged secrets before every commit; a push needs fresh written authorization.
 
 ## Still-open original acceptance (not achievable from this seat)
 - #21/#22: authenticated browser verification outstanding; the four inherited UI files are still uncommitted.
