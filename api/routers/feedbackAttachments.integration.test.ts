@@ -234,6 +234,7 @@ async function mkUser(label: string, role: "user" | "admin" = "user"): Promise<U
 let users: { owner: UserRow; lender: UserRow; grantee: UserRow; outsider: UserRow; adminUser: UserRow };
 let ownerProjectId = 0;
 let ownerRunId = 0;
+let ownerResponseId = 0;
 let ownerBenchmarkId = 0;
 let lenderProjectId = 0;
 let sharedRunId = 0;
@@ -286,6 +287,7 @@ async function seed() {
   });
   await d.update(schema.swarmRuns).set({ finalResponseId: insertId(resp) })
     .where(eq(schema.swarmRuns.id, ownerRunId));
+  ownerResponseId = insertId(resp);
 
   // ── the owner's own benchmark (no frozen plan, so no case texts to carry) ──
   const [bench] = await d.insert(schema.benchmarks).values({
@@ -680,6 +682,43 @@ describe("D11 consented feedback attachments (isolated localhost MySQL)", () => 
       targetType: "general", feedbackType: "bug", severity: "minor", content: "not mine",
       attachments: [{ kind: "run", refId: ownerRunId, consent: true }],
     }, mcpCtx(users.outsider.id))).rejects.toThrow(/not_found_or_not_authorized/);
+  });
+
+  it("refuses to file a report against a project or message the caller cannot see", async () => {
+    const before = await feedbackCount();
+    // A stranger cannot attribute a report to the owner's pipeline…
+    expect(await refusal(asUser(users.outsider).submit({
+      targetType: "general", feedbackType: "bug", severity: "minor",
+      content: "naming a project that is not mine", projectId: ownerProjectId,
+    }))).toMatch(/not_found_or_not_authorized/);
+    // …nor to one of the owner's messages.
+    expect(await refusal(asUser(users.outsider).submit({
+      targetType: "message", feedbackType: "bug", severity: "minor",
+      content: "naming a message that is not mine", targetMessageId: ownerResponseId,
+    }))).toMatch(/not_found_or_not_authorized/);
+    expect(await refusal(asUser(users.outsider).reactToMessage({
+      projectId: ownerProjectId, messageId: ownerResponseId, reaction: "down",
+    }))).toMatch(/not_found_or_not_authorized/);
+    // An id that resolves to nothing answers identically: nothing is probeable.
+    expect(await refusal(asUser(users.owner).submit({
+      targetType: "message", feedbackType: "bug", severity: "minor",
+      content: "no such message", targetMessageId: 999_999,
+    }))).toMatch(/not_found_or_not_authorized/);
+    expect(await feedbackCount()).toBe(before);
+
+    // The owner, on their own project and their own message: filed, both kept.
+    const filed = await asUser(users.owner).submit({
+      targetType: "message", feedbackType: "bug", severity: "minor",
+      content: "my own message in my own project", projectId: ownerProjectId, targetMessageId: ownerResponseId,
+    });
+    expect(await feedbackCount()).toBe(before + 1);
+    const [row] = await db().select().from(schema.feedback).where(eq(schema.feedback.id, filed.id));
+    expect(row).toMatchObject({ userId: users.owner.id, projectId: ownerProjectId, targetMessageId: ownerResponseId });
+    const reacted = await asUser(users.owner).reactToMessage({
+      projectId: ownerProjectId, messageId: ownerResponseId, reaction: "up",
+    });
+    const [reaction] = await db().select().from(schema.feedback).where(eq(schema.feedback.id, reacted.id));
+    expect(reaction).toMatchObject({ projectId: ownerProjectId, targetMessageId: ownerResponseId, feedbackType: "praise" });
   });
 
   it("scopes feedback lists, signed screenshots and stats to the author even with project filters", async () => {

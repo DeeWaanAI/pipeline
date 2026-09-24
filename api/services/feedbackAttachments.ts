@@ -64,7 +64,7 @@ type DbLike = Pick<ReturnType<typeof getDb>, "insert">;
 import { logger } from "../lib/logger";
 import { DEFAULT_CONSENT_VERSION, scanForSecrets } from "./evidenceService";
 import {
-  NotVisibleError, assertRunVisible, isProtectedRun, projectRunDetail, sharedRunOf,
+  NotVisibleError, assertProjectVisible, assertResponseVisible, assertRunVisible, isProtectedRun, projectRunDetail, sharedRunOf,
 } from "./runAccess";
 import { getSharedRunView, getSharedWorkflow } from "./pipelineSharing";
 import { getProtectedRunView } from "./marketplaceExecutionService";
@@ -557,6 +557,20 @@ export const feedbackSubmitInputSchema = z.object({
 export type FeedbackSubmitInput = z.infer<typeof feedbackSubmitInputSchema>;
 
 /**
+ * What a report is allowed to NAME. A `projectId` / `targetMessageId` used to be
+ * stored on trust, so any account could attribute a report to a pipeline it
+ * cannot see — and support would then read the report as if the reporter could.
+ * Both ids are checked through the same reads the app itself uses, and a stranger
+ * gets the identical not-visible refusal it gets everywhere else.
+ */
+export async function assertFeedbackTargetsVisible(
+  userId: number, targets: { projectId?: number; targetMessageId?: number },
+): Promise<void> {
+  if (targets.projectId !== undefined) await assertProjectVisible(userId, targets.projectId);
+  if (targets.targetMessageId !== undefined) await assertResponseVisible(userId, targets.targetMessageId);
+}
+
+/**
  * One submit path for the form and the workbench. The order is the contract:
  * every attachment is validated and its snapshot built FIRST, so a refusal —
  * missing consent, an object the caller cannot see, a credential in the text —
@@ -566,6 +580,7 @@ export type FeedbackSubmitInput = z.infer<typeof feedbackSubmitInputSchema>;
 export async function submitFeedbackWithAttachments(
   userId: number, input: FeedbackSubmitInput,
 ): Promise<{ id: number; success: true; attachments: AttachmentReceipt[] }> {
+  await assertFeedbackTargetsVisible(userId, input);
   const prepared = await prepareConsentedAttachments(userId, input.attachments ?? []);
   const db = getDb();
   let id = 0;

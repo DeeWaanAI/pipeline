@@ -21,7 +21,7 @@ import { feedback, users } from "@db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { signScreenshotUrl } from "../lib/screenshotUrls";
 import {
-  attachableObjectsFor, feedbackSubmitInputSchema, listOwnAttachments,
+  assertFeedbackTargetsVisible, attachableObjectsFor, feedbackSubmitInputSchema, listOwnAttachments,
   submitFeedbackWithAttachments,
 } from "../services/feedbackAttachments";
 
@@ -69,6 +69,13 @@ export const feedbackRouter = createRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
+
+      // The reaction names a project and one of this account's messages; the
+      // same rule the submit path applies, from the same place, so a reaction
+      // cannot attribute itself to someone else's conversation.
+      await assertFeedbackTargetsVisible(ctx.user.id, {
+        projectId: input.projectId, targetMessageId: input.messageId,
+      });
 
       const type = input.reaction === "up" ? "praise" : "bug";
 
