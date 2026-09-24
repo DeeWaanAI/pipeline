@@ -25,7 +25,7 @@ Updated: 2026-09-24 (browser pass over #21/#22 done; items 52/53 fixed in `3b4f5
 | 9 | COMMITTED `79024c3` | `submit` and `reactToMessage` authorize the project/message they name, through one shared check. |
 | 10 | COMMITTED `3b4f55a` | Admin pagination printed the literal `\u2014` (an escape in JSX text is not a character). |
 | 11 | COMMITTED `3b4f55a` | Attachment picker labels must be unique: two runs of one brief were identical, and consent is per item. |
-| 12 | OPEN — needs the owner's decision | Unpriced ledger rows are never revisited, so the payer-facing floor understates recoverable spend. See "New finding" below. |
+| 12 | IMPLEMENTED `4432229` | Unpriced ledger rows can be re-priced by an admin: NULLs filled, priced figures never restated, one audited action. See "Item 54 implemented". |
 
 ## Usage provenance (item 5, commits `d016da3` + `245f798`)
 - `api/lib/providers/base.ts` `normalizeTokenUsage(prompt, completion, total?)` sets
@@ -137,9 +137,52 @@ Not fixed here because it touches money semantics: the ledger is append-only by 
 re-price must be an explicit, audited action that fills NULLs only and never overwrites a priced
 row. Propose an admin action on the Spend tab. Await the owner's word before writing to money rows.
 
+## Item 54 implemented — the re-price path (this increment)
+The owner's word was "go ahead". What was built, and what it deliberately is not:
+
+- `benchmarkLedger.ts` gains `repriceUnpricedOperations({ limit, resolve })`. It selects only rows
+  with no figure, both token counts measured, an outcome that is not `uncertain`, AND a non-null
+  `provider_ref_id`. That last condition is the whole safety argument: `provider_ref_id` is null on
+  an aggregate row *by design* (a `generation` row covers a whole run, so no single credential or
+  model can be named for it), and re-deriving the run's per-model mix would mean reading a pipeline
+  definition that may have been edited since. Aggregates are counted and reported, never guessed at.
+- Every write re-states `estimated_cost_usd IS NULL` in its own WHERE clause and counts
+  `affectedRows`, so a row priced underneath the pass by a concurrent run is reported as
+  `alreadyPriced` rather than restated. This is what makes the action safe to expose at all.
+- The arithmetic is not duplicated: `priceAttempt` and the re-price both go through the new
+  `priceFromModelNames`, so the per-1k split, the rounding and which basis/version/asOf to record
+  cannot drift between insert-time pricing and later pricing. Side effect worth knowing: a resolver
+  that *throws* on one model name now falls through to the next candidate instead of failing the
+  whole lookup (previously `recordCallAttempt`'s `.catch` swallowed it and the row went unpriced).
+- `ledger` header comment updated: "append-only" now states its one bounded exception.
+- Admin-only tRPC procedure `admin.repriceUnpricedOperations` (no input), one
+  `call_attempt.reprice_unpriced` audit row per pass carrying the full count set, and a
+  `RepriceControl` on the Spend tab that keeps the last result on screen. `admin.spend.readOnlyNote`
+  was rewritten in `en` and `zh` because the tab genuinely is no longer read-only; it now says no
+  recorded figure is ever restated. `reprice.remaining` means "the row cap was hit", not "still
+  unknown" — those are separate lines in the UI on purpose.
+- Tests (4 new, in `adminV2Ops.integration.test.ts`): the scope matrix, the write-race, the
+  disclosure change and the audit row. Negative controls actually run: deleting the write-time
+  `IS NULL` guard turns the race case red with the late pass claiming `priced: 2` it did not earn;
+  dropping `isNotNull(provider_ref_id)` from the select turns the scope case red
+  (`examined 3 ≠ 2`). `benchmarkLedger.ts` was `shasum`-verified byte-identical after each control.
+  The procedure refuses a non-admin and, as the pre-existing pin requires, writes nothing while
+  refusing — including the audit row.
+- Live verification on the real local ledger, as admin on the actual button: 17 operations priced,
+  `$0.02305186` added, the account floor moving `>= $0.02743387` to `>= $0.05048573` (that sum is
+  exact), unpriced 35 → 18, and the 18 aggregate rows named as still unknown. A second click said
+  "Nothing new could be priced". Both passes are readable back out of the Audit Log tab with their
+  counts. `p3-tester` was promoted for this and reverted; `users.id 354` is `user` again.
+- What this does NOT close: the 18 aggregate rows. Pricing them needs the per-model breakdown that
+  existed at run time — either rebuilt from the run's step rows (whose `providerUsed` is a slug, so
+  the model→credential attribution can be ambiguous) or by storing the pricing route on the row,
+  which is additive migration 034. Not attempted here.
+
 ## Next agent — what is left
-1. Item **54** above: the re-price decision. It is the only known code-level defect this session
-   produced, and it is a money-truth issue rather than a display one.
+1. The 18 aggregate ledger rows stay UNKNOWN by design (see the last section). Clearing them needs
+   either a rebuild of each run's per-model breakdown from its step rows — where `providerUsed` is a
+   slug, so model→credential attribution can be ambiguous — or an additive migration 034 storing the
+   pricing route on the row at insert. Ask before writing to money rows again.
 2. One real client journey for #23/#30: `deliver` -> the chat client writes the chosen folder -> verify the sha256 -> `sweep`. Items 5-9 have landed, so no known code defect blocks it; it still deletes nothing until the receipt and confirmation both check out. The browser pass is done (52/53), so #21/#22 have no known-open surface left.
 3. #29 (in-chat subscription) and #42 (the residual `team:sync` writer in `billingService.ts`) belong to the deferred payment work. When that work resumes, re-check `38fd6a4`'s model change against whatever entitlement model lands.
 4. Open code boundaries, not yet defects: hidden retries lose earlier-attempt usage, and `evidenceService.ts:354-374` still zero-defaults and sums partial token costs for published evidence.
