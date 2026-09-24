@@ -6,7 +6,7 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - Local v2 only. No production, provider-sharing changes, or payment work.
 - Tests use their own throwaway databases on localhost:3307; never sweep real user data.
 - Preserve financial/history records and snapshots; additive migrations only.
-- No push without fresh authorization. `origin/main` is at 45f5546; audit fixes 1-9 are committed LOCALLY (code: `05c7a69`, `7d63e26`, `d016da3`, `245f798`, `538b8fc`, `d711f21`, `a48e3fb`, `79024c3`, plus docs commits). Count with `git rev-list --count origin/main..HEAD`.
+- No push without fresh authorization. `origin/main` was pushed at `4f6ce52` on the owner's word; since then `a6acfda` (#40) and its docs commit are LOCAL ONLY — re-check with `git rev-list --count origin/main..HEAD`.
 - The working tree is otherwise clean: only the two inherited ` 2.ts` duplicates remain untracked and they stay that way.
 - Preserve inherited UI edits and untracked `api/services/autoDesignService 2.ts` / `db/schema 2.ts`.
 - `npm run check` passes. The full suite is 55 files; `api/services/designJobService.integration.test.ts` can fail the parallel run with `spawnSync npx ETIMEDOUT` inside its `pushSchema()` helper (a 150s drizzle-kit timeout under contention, worst right after a container restart). It passes 8/8 alone — rerun it in isolation before treating it as a real failure.
@@ -71,15 +71,21 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - 8: `resolveCustomerTier` no longer joins `teamMembers`/`teamSeats` for a billed subscription; it reads `users.role` alone, and `CustomerTier` is `"solo" | "admin"`. The replaced test pins the whole key set, so a re-added team rung fails. No billing code or stored row touched.
 - 9: `assertFeedbackTargetsVisible` (in the submit service, so the web form, the workbench tool and `reactToMessage` share it) checks a named project with `assertProjectVisible` and a named message with `assertResponseVisible`. There is no `messages` table — a chat message IS an `agent_responses` row, which is why the response helper is the right one. Negative control: pre-fix, the stranger's report was filed successfully.
 
+## Item 40 (decision + implementation, commit `a6acfda` — NOT pushed)
+- Owner chose: show the recipient their own model. Implemented as a per-VALUE rule, because the withheld column is genuinely the grantor's whenever the definition pinned a model (`pipelineSharing.ts:688` keeps `s.model` and swaps only the provider).
+- `runAccess`: `withholdsModel(run)` stays "is this a run_only share"; `grantorPinnedModelsFor(run)` loads the snapshot's pinned models; `modelWasGrantorPinned(set, value)` decides per row (trim + case-fold, so a re-spelled echo cannot slip past). `debug.getRunStats`, `export` project backup and `projectRunDetail` (so also the feedback attachment) all apply it.
+- Three configurations are pinned by the sharing suite: pinned step → marker; unpinned step → `grantee-model` visible; `full` share → grantor's name visible. The sharing fake's adapter now echoes the REQUESTED model, as a real host does — with the old `defaultModel` echo the withhold path was untestable, which is why it looked like the recipient's own value earlier in this ticket's history.
+- Prompt/definition redaction unchanged; a `run_only` recipient still cannot read prompts, context or intermediate outputs.
+
 ## Next agent — the queue is empty; what is left needs the user
 1. The authenticated browser pass over #21/#22: the admin panel's v2 operations and the new attachment picker (tick, untick during a slow send, reach the cap, break the lookup, open an admin snapshot and fail it). Nothing in the code is known to be broken here — it is simply unexercised, and the repo has no DOM test tooling, so a human session is the only way to close it.
 2. One real client journey for #23/#30: `deliver` -> the chat client writes the chosen folder -> verify the sha256 -> `sweep`. Items 5-9 have landed, so no known code defect blocks it; it still deletes nothing until the receipt and confirmation both check out.
-3. #40 (should `run_only` shares hide the resolved model, given it is usually the recipient's own) is an owner decision, and #29/#42 belong to the deferred payment work.
+3. #29 (in-chat subscription) and #42 (the residual `team:sync` writer in `billingService.ts`) belong to the deferred payment work. When that work resumes, re-check `a6acfda`'s reveal against whatever entitlement model lands.
 4. Open code boundaries, not yet defects: hidden retries lose earlier-attempt usage, and `evidenceService.ts:354-374` still zero-defaults and sums partial token costs for published evidence.
 5. Keep this file current after each verified increment. Scan staged secrets before every commit; a push needs fresh written authorization.
 
 ## Still-open original acceptance (not achievable from this seat)
 - #21/#22: authenticated browser verification outstanding; the four inherited UI files are still uncommitted.
 - #23/#30: a real client deliver -> selected-folder write -> sweep has never run. Items 5 and 6 have now landed, so the remaining gate is the user's own authorised session, not a known code defect.
-- #40 is an owner decision; #29 and #42 belong to the deferred payment work.
+- #40 is DECIDED and implemented (`a6acfda`): a `run_only` recipient sees the model that served their own call; a model the grantor pinned in the shared snapshot stays withheld (compared trimmed and case-folded). #29 and #42 belong to the deferred payment work.
 - #41 is complete (`45f5546`): two-model aggregate pricing proven through execution; no production fallthrough defect existed.
