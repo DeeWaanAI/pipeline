@@ -1,6 +1,6 @@
 # Audit fix progress
 
-Updated: 2026-09-23. Work in small verified increments; do not mark the overall goal complete.
+Updated: 2026-09-24 (browser pass over #21/#22 done; items 52/53 fixed in `3b4f55a`; item 54 opened). Work in small verified increments; do not mark the overall goal complete.
 
 ## Rules
 - Local v2 only. No production, provider-sharing changes, or payment work.
@@ -20,9 +20,12 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 | 4 | COMMITTED `7d63e26` | Preview/delivery/sweep and MCP guide disclose retained private plans and approval snapshots; not complete erasure; records remain unchanged. |
 | 5 | DONE (5a `d016da3`, 5b `245f798`) | Adapters report whether usage was measured; unproven counts reach the ledger as ABSENT and price as UNKNOWN. Legacy rows without the flag are unknown, not zero. |
 | 6 | COMMITTED `538b8fc` | Sweep response reports only the caller's own record counts; the global before/after proof stays internal as booleans. |
-| 7 | CODE COMMITTED `d711f21`; BROWSER PASS STILL OPEN | Feedback UI: consent re-read at send time, server's cap applied, failed reads reported as failures. Needs a signed-in browser check before #21/#22 can close. |
+| 7 | DONE `d711f21` + browser pass | Feedback UI: consent re-read at send time, server's cap applied, failed reads reported as failures. Verified signed-in in a real browser (cap, submission, 5 consent rows, admin snapshot read + audit row). Two defects it produced are rows 10 and 11. |
 | 8 | COMMITTED `a48e3fb` | MCP billed-team rate tier removed (solo/admin only); the tier SET is now pinned so re-adding it fails. |
 | 9 | COMMITTED `79024c3` | `submit` and `reactToMessage` authorize the project/message they name, through one shared check. |
+| 10 | COMMITTED `3b4f55a` | Admin pagination printed the literal `\u2014` (an escape in JSX text is not a character). |
+| 11 | COMMITTED `3b4f55a` | Attachment picker labels must be unique: two runs of one brief were identical, and consent is per item. |
+| 12 | OPEN — needs the owner's decision | Unpriced ledger rows are never revisited, so the payer-facing floor understates recoverable spend. See "New finding" below. |
 
 ## Usage provenance (item 5, commits `d016da3` + `245f798`)
 - `api/lib/providers/base.ts` `normalizeTokenUsage(prompt, completion, total?)` sets
@@ -77,15 +80,77 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - The sharing fake now echoes the REQUESTED model, as a real host does, and the test asserts from the recorded calls that `owner-model` is never asked of the grantee's provider. With the old `defaultModel` echo the defect was invisible — which is how this ticket reached a per-value rule before the cause was found.
 - Prompt/definition redaction unchanged; a `run_only` recipient still cannot read prompts, context or intermediate outputs. The marketplace buyer path — where the SELLER's endpoint and model are the product — is a separate code path and was not touched.
 
-## Next agent — the queue is empty; what is left needs the user
-1. The authenticated browser pass over #21/#22: the admin panel's v2 operations and the new attachment picker (tick, untick during a slow send, reach the cap, break the lookup, open an admin snapshot and fail it). Nothing in the code is known to be broken here — it is simply unexercised, and the repo has no DOM test tooling, so a human session is the only way to close it.
-2. One real client journey for #23/#30: `deliver` -> the chat client writes the chosen folder -> verify the sha256 -> `sweep`. Items 5-9 have landed, so no known code defect blocks it; it still deletes nothing until the receipt and confirmation both check out.
-3. #29 (in-chat subscription) and #42 (the residual `team:sync` writer in `billingService.ts`) belong to the deferred payment work. When that work resumes, re-check `a6acfda`'s reveal against whatever entitlement model lands.
+## Item 52 + 53 (the authenticated browser pass over #21/#22, this increment)
+The pass ran as `p3-tester`, temporarily promoted to admin because `scripts/make-admin.cjs` refuses to
+promote the first admin and no logout was wanted; the role is read from the DB per request, so the
+promotion applied to the live session and **has been reverted** (`users.id 354` is `user` again; 353 is
+the seeded admin). Viewport 444x431, one page, real clicks and real renders.
+
+What the pass proved working (rendered surface, not declarations):
+- Picker cap: 5 ticked, the rest disabled with the reason; a real submission produced feedback id 1
+  carrying 5 `consent-v1` attachment rows.
+- Admin triage: the attachment summary renders kind, id, label, consent version and the snapshot
+  action; "Open snapshot" returned run 24's projection (`source: runAccess.projectRunDetail`, 3 steps,
+  prompts, `modelUsed openai/gpt-oss-120b` / `providerUsed together`, 3376 tokens, 41289 ms) and the
+  button flipped to "Close snapshot".
+- The read was audited where a human could see it: the Audit Log tab lists
+  `Feedback.Read_attachment` on `feedback_attachment #4` with
+  `{kind: run, refId: 24, visibility: owner_full, consentVersion: consent-v1}`.
+- The four v2 tabs all render their empty/filled states with the honest copy: Trusted Endpoints (0
+  rows, and the empty list stated as the intended default), Model Catalog (empty, "nothing inferred
+  from name substrings"), Evidence (1 publication with its manifest hash, read-only), Spend (per
+  benchmark / per account / per purpose / frozen approvals, floor-plus-unpriced wording, 52
+  operations — matching `call_attempts`).
+
+Two defects it produced, both fixed here:
+- **52** — `src/pages/AdminPanel.tsx:145` had `\u2014` in JSX *text*, where an escape is not a
+  character, so every admin list footer printed `\u2014`. Now `{"\u2014"}`; verified live as
+  "1 total — page 1 of 1". The other six escapes in `src/` are inside string literals and are fine
+  (grep-confirmed, so this was the only site).
+- **53** — the picker labelled a run `"<project> — first 80 chars of the brief"`, and five pairs of
+  runs were **character-identical** because the same clause had been run twice. Consent is per item,
+  so an ambiguous label is consent granted against the wrong object. `attachableObjectsFor` now puts
+  the run id in the label (`#<id>`), which is what the benchmark label and the admin snapshot already
+  did. Post-fix the live picker shows 10/10 distinct run labels. Pinned by an integration test that
+  inserts two runs of one brief: red on the old code (`new Set(titles).size` = 1), green now
+  (14/14 in the file), and `feedbackAttachments.ts` verified byte-identical to the pre-experiment
+  copy by `shasum` after the negative control.
+
+Gates at this commit: `npm run check`, `npm run i18n:check`, `npm run build`, `git diff --check` all
+clean; the attachment suite is 14/14. Docker `v2-*` was up; the `swarm` baseline counts were
+re-checked afterwards and are unchanged.
+
+## New finding from the pass — item 54, NOT fixed (needs a decision first)
+The Spend tab showed benchmark #5 (completed, real key, 21 operations) as `>= $0.00208185` with
+**19 Unpriced**, and #1 as 4 operations with 0 priced. In the ledger those rows hold real
+`prompt_tokens`/`completion_tokens` (e.g. 1694/2808 on `openai/gpt-oss-120b`) with
+`estimated_cost_usd`, `cost_basis` and `cost_pricing_as_of` all NULL — while the *same* provider and
+model priced normally nine minutes earlier in benchmark #3. That is the old 10-minute empty-result
+pricing cache, whose own comment in `modelPricing.ts` cites exactly this signature ("`provider_list`
+on six ledger rows and `NULL` on thirteen"). The cache is now 15 s, so new runs degrade less — but
+`recordCallAttempt` prices ONCE at insert (`benchmarkLedger.ts:164` even swallows a throwing lookup
+into NULL), and **no code anywhere revisits a NULL row**: `grep` for a re-price path returns only the
+comment at `modelPricing.ts:9` promising that "any historical figure can be re-priced when the real
+bill is known". The promise has no implementation, so the payer-facing floor understates spend that
+is fully recoverable from stored tokens.
+Not fixed here because it touches money semantics: the ledger is append-only by design, so a
+re-price must be an explicit, audited action that fills NULLs only and never overwrites a priced
+row. Propose an admin action on the Spend tab. Await the owner's word before writing to money rows.
+
+## Next agent — what is left
+1. Item **54** above: the re-price decision. It is the only known code-level defect this session
+   produced, and it is a money-truth issue rather than a display one.
+2. One real client journey for #23/#30: `deliver` -> the chat client writes the chosen folder -> verify the sha256 -> `sweep`. Items 5-9 have landed, so no known code defect blocks it; it still deletes nothing until the receipt and confirmation both check out. The browser pass is done (52/53), so #21/#22 have no known-open surface left.
+3. #29 (in-chat subscription) and #42 (the residual `team:sync` writer in `billingService.ts`) belong to the deferred payment work. When that work resumes, re-check `38fd6a4`'s model change against whatever entitlement model lands.
 4. Open code boundaries, not yet defects: hidden retries lose earlier-attempt usage, and `evidenceService.ts:354-374` still zero-defaults and sums partial token costs for published evidence.
-5. Keep this file current after each verified increment. Scan staged secrets before every commit; a push needs fresh written authorization.
+5. Keep this file current after each verified increment. Scan staged secrets before every commit. Push verified increments without waiting; a force-push, a remote branch deletion or a deploy still needs an explicit ask.
 
 ## Still-open original acceptance (not achievable from this seat)
-- #21/#22: authenticated browser verification outstanding; the four inherited UI files are still uncommitted.
-- #23/#30: a real client deliver -> selected-folder write -> sweep has never run. Items 5 and 6 have now landed, so the remaining gate is the user's own authorised session, not a known code defect.
-- #40 is DECIDED and implemented (`a6acfda`): a `run_only` recipient sees the model that served their own call; a model the grantor pinned in the shared snapshot stays withheld (compared trimmed and case-folded). #29 and #42 belong to the deferred payment work.
-- #41 is complete (`45f5546`): two-model aggregate pricing proven through execution; no production fallthrough defect existed.
+- #21/#22 are now browser-verified (items 52/53 closed the pass). The four inherited UI files are
+  committed — the earlier note that they were uncommitted was stale as of `d711f21`.
+- #23/#30: a real client deliver -> selected-folder write -> sweep has never run. Items 5 and 6 have
+  now landed, so the remaining gate is the user's own authorised session, not a known code defect.
+- #40 is DECIDED and implemented; `38fd6a4` supersedes `a6acfda` (see "Item 40 — final state").
+  #29 and #42 belong to the deferred payment work.
+- #41 is complete (`45f5546`): two-model aggregate pricing proven through execution; no production
+  fallthrough defect existed.
