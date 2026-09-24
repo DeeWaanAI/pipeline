@@ -201,12 +201,18 @@ export async function generateJudgeCall(args: {
   judge: JudgeSpec;
   ownerId: number;
   prompt: JudgePrompt;
-}): Promise<{ content: string; model: string; promptTokens: number; completionTokens: number }> {
+}): Promise<{ content: string; model: string; promptTokens: number; completionTokens: number; usageComplete: boolean }> {
   const db = getDb();
   const [provider] = await db.select().from(llmProviders).where(eq(llmProviders.id, args.judge.providerId));
   if (!provider || provider.userId !== args.ownerId) throw new Error("Judge provider not found or not owned");
   if (provider.isEnabled === false) throw new Error("Judge provider is disabled");
   const adapter = createProviderAdapter(provider.slug, decryptApiKey(provider.apiKeyRef), provider.baseUrl, args.judge.model);
   const res = await adapter.chat(args.prompt.messages as never, { model: args.judge.model, temperature: args.prompt.temperature, maxTokens: args.prompt.maxTokens });
-  return { content: res.content, model: res.model || args.judge.model, promptTokens: res.usage?.promptTokens ?? 0, completionTokens: res.usage?.completionTokens ?? 0 };
+  return {
+    content: res.content, model: res.model || args.judge.model,
+    promptTokens: res.usage?.promptTokens ?? 0, completionTokens: res.usage?.completionTokens ?? 0,
+    // An adapter that never reported usage must not certify a judge call as
+    // having used zero tokens.
+    usageComplete: res.usage?.complete === true,
+  };
 }

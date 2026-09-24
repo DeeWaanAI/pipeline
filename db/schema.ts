@@ -332,7 +332,10 @@ const agentResponsesTable = mysqlTable("agent_responses", {
     model: string;
     provider: string;
     providerSlug: string;
-    tokensUsed: { prompt: number; completion: number; total: number };
+    // `complete` is absent on rows written before the usage-provenance fix:
+    // their zeros may be a provider that never reported usage, so readers must
+    // treat a missing flag as UNKNOWN, not as measured zero.
+    tokensUsed: { prompt: number; completion: number; total: number; complete?: boolean };
     latencyMs: number;
     temperature: number;
     maxTokens: number;
@@ -1816,7 +1819,7 @@ export const benchmarkRuns = mysqlTable("benchmark_runs", {
   }>(),
   startedAt: timestamp("started_at"),
   finishedAt: timestamp("finished_at"),
-  usageSummary: json("usage_summary").$type<{ promptTokens?: number; completionTokens?: number }>(),
+  usageSummary: json("usage_summary").$type<{ promptTokens?: number; completionTokens?: number; complete?: boolean }>(),
   errorSummary: text("error_summary"), // sanitized
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({

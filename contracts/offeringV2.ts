@@ -1446,6 +1446,7 @@ export const PrivateBenchmarkDtoSchema = z.object({
           .object({
             promptTokens: z.number().int().nonnegative().optional(),
             completionTokens: z.number().int().nonnegative().optional(),
+            complete: z.boolean().optional(),
           })
           .nullable(),
         errorSummary: z.string().nullable(),

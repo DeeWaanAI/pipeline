@@ -555,7 +555,10 @@ async function executeAgentStep(opts: {
     content: llmResult.content,
     metadata: {
       model: llmResult.model, provider: prov!.name, providerSlug: prov!.slug,
-      tokensUsed: { prompt: llmResult.usage.promptTokens, completion: llmResult.usage.completionTokens, total: llmResult.usage.totalTokens },
+      // `complete` says whether the provider actually reported BOTH counts. A
+      // missing usage block arrives here as 0/0, and 0 measured tokens is a
+      // different fact from "not told" — pricing must see the difference.
+      tokensUsed: { prompt: llmResult.usage.promptTokens, completion: llmResult.usage.completionTokens, total: llmResult.usage.totalTokens, complete: llmResult.usage.complete === true },
       latencyMs: llmResult.latencyMs, temperature: parseFloat(temperature ?? "0.7"), maxTokens: maxTokens ?? 4096,
       agentName, agentRole, agentSlug: agentRole,
       pipelineStep: stepNum, iteration: 1,

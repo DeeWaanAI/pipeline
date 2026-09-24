@@ -33,9 +33,21 @@ export interface ChatResponse {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    complete?: boolean;
   };
   model: string;
   latencyMs: number;
+}
+
+export function normalizeTokenUsage(prompt: unknown, completion: unknown, total?: unknown): ChatResponse["usage"] {
+  const valid = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+  const promptTokens = valid(prompt) ? prompt : 0;
+  const completionTokens = valid(completion) ? completion : 0;
+  return {
+    promptTokens, completionTokens,
+    totalTokens: valid(total) ? total : promptTokens + completionTokens,
+    complete: valid(prompt) && valid(completion),
+  };
 }
 
 export interface ModelRates {

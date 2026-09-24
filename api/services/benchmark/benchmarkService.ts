@@ -903,7 +903,9 @@ export async function executeBenchmark(opts: { benchmarkId: number; leaseToken: 
         finishedAt: new Date(),
         errorSummary: ok ? null : safeStr(finalRun?.error ?? "linked run did not complete"),
         executorMetadata: { stepModels: stepResolutionsFromSnapshot(definition).map((s) => ({ stepOrder: s.stepOrder, requestedModel: s.requestedModel ?? "" })), providerRoute: undefined, revisionExposed: undefined },
-        usageSummary: usage,
+        // The partial sum stays here for diagnosis, next to the flag that says
+        // it is not proven; only the ledger row is reduced to absent.
+        usageSummary: { ...usage },
       }).where(eq(benchmarkRuns.id, run.id));
       await recordCallAttempt({
         operationKind: "generation", operationId: run.id, benchmarkId: b.id,
@@ -912,7 +914,10 @@ export async function executeBenchmark(opts: { benchmarkId: number; leaseToken: 
         pricingRoute: singleRouteOfSnapshot(definition),
         pricingSegments: await runModelSegments(swarmRunId, definition),
         outcome: ok ? "success" : "failed",
-        promptTokens: usage.promptTokens, completionTokens: usage.completionTokens,
+        // An unproven total is recorded as ABSENT, not as the partial sum: the
+        // ledger prices absent counts as UNKNOWN rather than as $0 of usage.
+        promptTokens: usage.complete ? usage.promptTokens : null,
+        completionTokens: usage.complete ? usage.completionTokens : null,
         errorMessage: ok ? null : finalRun?.error ?? null,
       });
     } catch (err) {
@@ -1022,8 +1027,10 @@ async function runModelSegments(
   const byModel = new Map<string, { prompt: number; completion: number }>();
   for (const r of responses) {
     const model = r.agentRunId ? modelOf.get(r.agentRunId) : undefined;
-    const tokens = (r.metadata as { tokensUsed?: { prompt?: number; completion?: number } } | null)?.tokensUsed;
-    if (!model || !tokens) return [];
+    const tokens = (r.metadata as { tokensUsed?: { prompt?: number; completion?: number; complete?: boolean } } | null)?.tokensUsed;
+    // Same rule as the aggregate: an unreported count is not a zero to be
+    // summed into one model's segment and priced as if measured.
+    if (!model || !tokens || tokens.complete !== true) return [];
     const acc = byModel.get(model) ?? { prompt: 0, completion: 0 };
     acc.prompt += tokens.prompt ?? 0;
     acc.completion += tokens.completion ?? 0;
@@ -1048,15 +1055,24 @@ async function runModelSegments(
   }));
 }
 
-async function runTokenUsage(swarmRunId: number): Promise<{ promptTokens: number; completionTokens: number }> {
+async function runTokenUsage(swarmRunId: number): Promise<{ promptTokens: number; completionTokens: number; complete: boolean }> {
   const db = getDb();
-  const rows = await db.select({ meta: agentResponses.metadata }).from(agentResponses).where(eq(agentResponses.swarmRunId, swarmRunId));
-  let prompt = 0, completion = 0;
+  const [rows, steps] = await Promise.all([
+    db.select({ meta: agentResponses.metadata }).from(agentResponses).where(eq(agentResponses.swarmRunId, swarmRunId)),
+    db.select({ id: agentRuns.id }).from(agentRuns)
+      .where(and(eq(agentRuns.swarmRunId, swarmRunId), eq(agentRuns.status, "completed"))),
+  ]);
+  let prompt = 0, completion = 0, complete = rows.length > 0;
   for (const r of rows) {
-    const t = (r.meta as { tokensUsed?: { prompt?: number; completion?: number } } | null)?.tokensUsed;
-    prompt += t?.prompt ?? 0; completion += t?.completion ?? 0;
+    const t = (r.meta as { tokensUsed?: { prompt?: number; completion?: number; complete?: boolean } } | null)?.tokensUsed;
+    // A step that ran without a stored, fully-reported usage record makes the
+    // WHOLE run's total unproven — summing the survivors would understate it
+    // and read as a measured number.
+    if (!t || t.complete !== true || typeof t.prompt !== "number" || typeof t.completion !== "number") complete = false;
+    else { prompt += t.prompt; completion += t.completion; }
   }
-  return { promptTokens: prompt, completionTokens: completion };
+  if (rows.length < steps.length) complete = false;
+  return { promptTokens: prompt, completionTokens: completion, complete };
 }
 
 export async function judgePhase(benchmarkId: number): Promise<void> {
@@ -1106,7 +1122,9 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
               operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
               purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
               providerRefId: judge.providerId, requestedModel: judge.model, returnedModel: out.model,
-              outcome: "success", promptTokens: out.promptTokens, completionTokens: out.completionTokens,
+              outcome: "success",
+              promptTokens: out.usageComplete ? out.promptTokens : null,
+              completionTokens: out.usageComplete ? out.completionTokens : null,
               startedAt, finishedAt: new Date(),
             });
           } catch (err) {
@@ -1183,7 +1201,9 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
             operationKind: "judgment", operationId: Number((res as { insertId: number }).insertId), benchmarkId,
             purpose: "private_evaluation", actorId: b.ownerId, payerId: b.ownerId,
             providerRefId: judge.providerId, requestedModel: judge.model, returnedModel: out.model,
-            outcome: "success", promptTokens: out.promptTokens, completionTokens: out.completionTokens,
+            outcome: "success",
+            promptTokens: out.usageComplete ? out.promptTokens : null,
+            completionTokens: out.usageComplete ? out.completionTokens : null,
             startedAt, finishedAt: new Date(),
           });
         } catch (err) {

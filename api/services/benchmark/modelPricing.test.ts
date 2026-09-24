@@ -2,16 +2,48 @@
 // covered by the live path in modelPricing; what must not regress is the
 // unit conversion, the fallback order, and "unknown is never zero".
 
-import { afterEach, describe, expect, it } from "vitest";
-import { toModelRates } from "../../lib/providers/openai";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createOpenAIAdapter, toModelRates } from "../../lib/providers/openai";
+import { createAnthropicAdapter } from "../../lib/providers/anthropic";
 import { rateForAttempt, resolveModelPricing } from "./modelPricing";
 import { singleRouteOfSnapshot } from "./versionService";
 import type { SnapshotStep, VersionDefinition } from "./benchmarkTypes";
 
 const originalVector = process.env.V2_PRICE_VECTOR_JSON;
 afterEach(() => {
+  vi.unstubAllGlobals();
   if (originalVector === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
   else process.env.V2_PRICE_VECTOR_JSON = originalVector;
+});
+
+describe.each(["openai", "anthropic"] as const)("%s usage provenance", (provider) => {
+  it.each([
+    { label: "absent", prompt: undefined, completion: undefined, complete: false },
+    { label: "partial input", prompt: 12, completion: undefined, complete: false },
+    { label: "partial output", prompt: undefined, completion: 8, complete: false },
+    { label: "null", prompt: null, completion: null, complete: false },
+    { label: "string", prompt: "12", completion: 8, complete: false },
+    { label: "negative", prompt: -1, completion: 8, complete: false },
+    { label: "fractional", prompt: 1.5, completion: 8, complete: false },
+    { label: "measured zero", prompt: 0, completion: 0, complete: true },
+    { label: "measured usage", prompt: 12, completion: 8, complete: true },
+  ])("distinguishes $label from measured zero", async ({ prompt, completion, complete }) => {
+    const usage = provider === "openai"
+      ? { prompt_tokens: prompt, completion_tokens: completion }
+      : { input_tokens: prompt, output_tokens: completion };
+    const body = { model: "test-model", choices: [{ message: { content: "answer" } }], content: [{ type: "text", text: "answer" }], usage };
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    const adapter = provider === "openai"
+      ? createOpenAIAdapter("fixture-key", "https://provider.test/v1", "test-model")
+      : createAnthropicAdapter("fixture-key", "https://provider.test/v1", "test-model");
+    const response = await adapter.chat([{ role: "user", content: "test" }]);
+    expect(response.usage).toMatchObject({ complete });
+    expect(Number.isFinite(response.usage.promptTokens)).toBe(true);
+    expect(response.usage.promptTokens).toBeGreaterThanOrEqual(0);
+    if (complete) expect(response.usage.totalTokens).toBe(Number(prompt) + Number(completion));
+    expect(fetch).toHaveBeenCalledOnce();
+  });
 });
 
 describe("provider list-price conversion", () => {

@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatOptions, ChatResponse, LLMProviderAdapter, ModelRates } from "./base";
+import { normalizeTokenUsage } from "./base";
 
 interface ProviderConfig {
   name: string;
@@ -171,11 +172,7 @@ export function createOpenAIAdapter(
 
       return {
         content: data.choices[0]?.message?.content ?? "",
-        usage: {
-          promptTokens: data.usage?.prompt_tokens ?? 0,
-          completionTokens: data.usage?.completion_tokens ?? 0,
-          totalTokens: data.usage?.total_tokens ?? 0,
-        },
+        usage: normalizeTokenUsage(data.usage?.prompt_tokens, data.usage?.completion_tokens, data.usage?.total_tokens),
         model: data.model ?? (options?.model ?? defaultModel),
         latencyMs,
       };

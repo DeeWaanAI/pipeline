@@ -16,8 +16,10 @@ const exec = vi.hoisted(() => ({
   calls: [] as Array<{ swarmRunId: number; versionId: number | undefined; stepModels: Array<string | null> }>,
   /** Case inputs whose generation should fail, to exercise partial + resume. */
   failInputs: new Set<string>(),
+  /** Flip to false to make the adapter behave like a host that reports no usage. */
+  reportUsage: true,
 }));
-const judge = vi.hoisted(() => ({ calls: 0, score: 7 }));
+const judge = vi.hoisted(() => ({ calls: 0, score: 7, reportUsage: true }));
 
 vi.mock("../swarmService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../swarmService")>();
@@ -45,6 +47,11 @@ vi.mock("../swarmService", async (importOriginal) => {
       let totalTokens = 0;
       for (const step of definition.steps) {
         const stepOrder = Number(step.stepOrder ?? 1);
+        // What the real adapters hand back when the host reports no usage at
+        // all: zeros carrying `complete: false`, never a bare 0.
+        const usage = exec.reportUsage
+          ? { prompt: 120, completion: 30, total: 150, complete: true }
+          : { prompt: 0, completion: 0, total: 0, complete: false };
         const [ar] = await db.insert(schema.agentRuns).values({
           swarmRunId: params.swarmRunId, projectId: run.projectId, agentName: "Fake", agentRole: step.role ?? "builder",
           pipelineStep: stepOrder, userPrompt: run.userPrompt, status: "completed",
@@ -55,13 +62,13 @@ vi.mock("../swarmService", async (importOriginal) => {
           projectId: run.projectId, responseType: "final", content: `output for: ${run.userPrompt}`,
           metadata: {
             model: step.model ?? "unknown", provider: "fake", providerSlug: "fake",
-            tokensUsed: { prompt: 120, completion: 30, total: 150 }, latencyMs: 5, temperature: 0.7,
+            tokensUsed: usage, latencyMs: 5, temperature: 0.7,
             maxTokens: 1024, agentName: "Fake", agentRole: step.role ?? "builder", agentSlug: "fake",
             pipelineStep: stepOrder, iteration: 1, buildMethod: "fake", sourceResponseIds: [],
           },
         });
         finalResponseId = Number((resp as { insertId: number }).insertId);
-        totalTokens += 150;
+        totalTokens += usage.total;
       }
       await db.update(schema.swarmRuns).set({
         status: "completed", finalResponseId,
@@ -80,7 +87,11 @@ vi.mock("./judgeService", async (importOriginal) => {
       const scores = Object.fromEntries(["accuracy", "completeness", "instructionFit", "clarity"].map((d) => [d, judge.score]));
       return {
         content: JSON.stringify({ scores, rationale: "fake verdict" }),
-        model: args.judge.model, promptTokens: 400, completionTokens: 60,
+        model: args.judge.model,
+        // Same shape `generateJudgeCall` returns: counts plus whether the host
+        // actually reported them.
+        promptTokens: judge.reportUsage ? 400 : 0, completionTokens: judge.reportUsage ? 60 : 0,
+        usageComplete: judge.reportUsage,
       };
     },
   };
@@ -138,6 +149,8 @@ function resetFakes() {
   exec.failInputs.clear();
   judge.calls = 0;
   judge.score = 7;
+  exec.reportUsage = true;
+  judge.reportUsage = true;
 }
 
 /** Owner + provider + workflow. `gated` adds an if-step so A02 can prove the
@@ -491,6 +504,54 @@ describe("private evaluation execution (DB-backed)", () => {
       if (previous === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
       else process.env.V2_PRICE_VECTOR_JSON = previous;
       pricing.resetPricingCache();
+    }
+  });
+
+  it("a host that reports no usage leaves the run UNKNOWN rather than a free 0-token run", async () => {
+    resetFakes();
+    exec.reportUsage = false;
+    judge.reportUsage = false;
+    const prevVector = process.env.V2_PRICE_VECTOR_JSON;
+    process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({
+      "base-model": { in: 0.2, out: 0.6 },
+      "judge-model": { in: 1, out: 2 },
+    });
+    const pricing = await import("./modelPricing");
+    const { benchmarkLedgerTotals, costDisclosure } = await import("./benchmarkLedger");
+    pricing.resetPricingCache();
+    try {
+      const f = await seedFixture();
+      const { benchmarkId, bench } = await startAndExecute({
+        userId: f.userId, projectId: f.projectId,
+        cases: [{ inputText: "task one" }],
+        judges: [{ providerId: f.providerId, model: "judge-model" }],
+      });
+      // The WORK succeeded and is still recorded; only its cost is unprovable.
+      expect(bench.state).toBe("completed");
+      for (const kind of ["generation", "judgment"] as const) {
+        const [row] = await attemptsOf(benchmarkId, kind);
+        expect(row.promptTokens).toBeNull();
+        expect(row.completionTokens).toBeNull();
+        expect(row.estimatedCostUsd).toBeNull();
+        expect(row.costBasis).toBeNull();
+        expect(row.costCompleteness).toBe("unknown");
+      }
+      const totals = await benchmarkLedgerTotals(benchmarkId);
+      // "partial" is the aggregate's word for NOT EVERY ROW IS PRICED, which is
+      // what an all-unknown ledger is; the anti-lie lives in the disclosure,
+      // which must refuse to name a bill (the D9 finding-1 pin).
+      expect(totals.costCompleteness).toBe("partial");
+      expect(totals.pricedOperations).toBe(0);
+      const disclosure = costDisclosure(totals);
+      expect(disclosure.knownUsd).toBeNull();
+      expect(disclosure.unpricedOperations).toBe(2);
+      expect(disclosure.display).toMatch(/FLOOR and not the total owed/);
+      expect(JSON.stringify(disclosure)).not.toMatch(/"knownUsd":"0\.00000000"/);
+    } finally {
+      if (prevVector === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
+      else process.env.V2_PRICE_VECTOR_JSON = prevVector;
+      pricing.resetPricingCache();
+      resetFakes();
     }
   });
 

@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatOptions, ChatResponse, LLMProviderAdapter, ContentPart } from "./base";
+import { normalizeTokenUsage } from "./base";
 
 interface ProviderConfig {
   name: string;
@@ -141,11 +142,7 @@ export function createAnthropicAdapter(
 
       return {
         content: textContent,
-        usage: {
-          promptTokens: data.usage?.input_tokens ?? 0,
-          completionTokens: data.usage?.output_tokens ?? 0,
-          totalTokens: (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0),
-        },
+        usage: normalizeTokenUsage(data.usage?.input_tokens, data.usage?.output_tokens),
         model: data.model ?? (options?.model ?? defaultModel),
         latencyMs,
       };
