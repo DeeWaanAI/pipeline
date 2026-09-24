@@ -6,7 +6,7 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - Local v2 only. No production, provider-sharing changes, or payment work.
 - Tests use their own throwaway databases on localhost:3307; never sweep real user data.
 - Preserve financial/history records and snapshots; additive migrations only.
-- No push without fresh authorization. `origin/main` is at 45f5546; fixes 1-5 are committed LOCALLY as `05c7a69`, `7d63e26`, `d016da3`, `245f798` (+ this doc).
+- No push without fresh authorization. `origin/main` is at 45f5546; fixes 1-6 are committed LOCALLY as `05c7a69`, `7d63e26`, `d016da3`, `245f798`, `538b8fc` (+ docs commits).
 - Preserve inherited UI edits and untracked `api/services/autoDesignService 2.ts` / `db/schema 2.ts`.
 - `npm run check` passes. The full suite is 55 files; `api/services/designJobService.integration.test.ts` can fail the parallel run with `spawnSync npx ETIMEDOUT` inside its `pushSchema()` helper (a 150s drizzle-kit timeout under contention, worst right after a container restart). It passes 8/8 alone — rerun it in isolation before treating it as a real failure.
 
@@ -18,7 +18,7 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 | 3 | COMMITTED `7d63e26` | Bundle v2 delivers/hashes full executionState and runParamsPrompt; changed content and old signed receipts refused; unrelated parameters preserved. |
 | 4 | COMMITTED `7d63e26` | Preview/delivery/sweep and MCP guide disclose retained private plans and approval snapshots; not complete erasure; records remain unchanged. |
 | 5 | DONE (5a `d016da3`, 5b `245f798`) | Adapters report whether usage was measured; unproven counts reach the ledger as ABSENT and price as UNKNOWN. Legacy rows without the flag are unknown, not zero. |
-| 6 | TODO | Sweep response: remove other accounts' whole-table counts; test empty-account caller. |
+| 6 | COMMITTED `538b8fc` | Sweep response reports only the caller's own record counts; the global before/after proof stays internal as booleans. |
 | 7 | TODO | Feedback UI: submission/consent race, five-attachment limit, query errors; browser-test before completion. |
 | 8 | TODO | Remove active billed-team MCP rate-limit branch without changing payment integration; preserve existing records. |
 | 9 | TODO | Follow-up target authorization: feedback reactToMessage and submit accept project/message identifiers; verify ownership/read access before inserting. |
@@ -57,14 +57,16 @@ Updated: 2026-09-23. Work in small verified increments; do not mark the overall 
 - Full-suite state at each step: 31 delivery + 12 feedback + 19 help + 19 benchmark tests passed serially; `npm run check` and `git diff --check` clean.
 - Reproduce: `MYSQL_ROOT_URL=<root URL of the local v2 stack> npx vitest run <files> --no-file-parallelism --silent`. Each integration file falls back to the docker-compose `localhost:3307` root URL, whose credential is already in those committed fixtures.
 
+- `538b8fc` (fix 6): `takeCensus` still counts whole tables, but the sweep response now carries `yourRecords` scoped to the caller (`accountRecordCounts`) plus the global `unchanged` booleans and `verifiedAcross`. Both new assertions were run against the pre-fix production file — copied aside and restored byte-identical — and fail there (undefined / other tenants' totals), pass now. Delivery 31/31; full suite 54 passed / 1 skipped with exit code 0 captured directly.
+
 ## Next agent
-1. `git status`/`git diff` first: only the four inherited `src/` UI files are uncommitted (plus the two duplicate ` 2.ts` files, which stay untracked). Do not redo fixes 1-5.
-2. Fix 6 next: `takeCensus` counts WHOLE tables with no tenant filter and `sweepDeliveredData` returns those totals, so any signed-in account can read other tenants' purchase/run/consent counts. Make the preserved-record proof per-account or drop the numbers, and pin it with an empty-account caller.
-3. Then fix 7 (feedback UI: submission/consent race, the 5-attachment limit, query errors shown as empty) and its authenticated browser pass; fix 8 (billed-team MCP rate branch still grants 240 vs 60 req/min at `api/mcp/register.ts:48` + `api/lib/rateLimiter.ts:120`); fix 9 (feedback submit/react target authorization).
+1. `git status`/`git diff` first: only the four inherited `src/` UI files are uncommitted (plus the two duplicate ` 2.ts` files, which stay untracked). Do not redo fixes 1-6.
+2. Fix 7 next — the feedback UI in those four files. Three known defects: the submit closure keeps the attachments selected before a slow screenshot upload finishes (unticking or closing does not stop them being sent); the picker lets a user tick past the server's 5-attachment cap and the whole report is then rejected; and a failed query renders as an empty list or a `{}` snapshot instead of an error. Fix them, then the authenticated browser pass is the only thing left for #21/#22.
+3. Then fix 8 (billed-team MCP rate branch still grants 240 vs 60 req/min at `api/mcp/register.ts:48` + `api/lib/rateLimiter.ts:120`) and fix 9 (feedback submit/react target authorization).
 4. Keep this file current after each verified increment. Scan staged secrets before every commit; a push needs fresh written authorization.
 
 ## Still-open original acceptance (not achievable from this seat)
 - #21/#22: authenticated browser verification outstanding; the four inherited UI files are still uncommitted.
-- #23/#30: a real client deliver -> selected-folder write -> sweep has never run. Do not run one until 5b and fix 6 land.
+- #23/#30: a real client deliver -> selected-folder write -> sweep has never run. Items 5 and 6 have now landed, so the remaining gate is the user's own authorised session, not a known code defect.
 - #40 is an owner decision; #29 and #42 belong to the deferred payment work.
 - #41 is complete (`45f5546`): two-model aggregate pricing proven through execution; no production fallthrough defect existed.
