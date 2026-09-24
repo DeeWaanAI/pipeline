@@ -40,7 +40,7 @@ const FINAL_TEXT = "The deed is translated into French.";
 const OWNER_KEY = "sk-owner-OWN-KEY-1234567890123";
 const GRANTEE_KEY = "sk-grantee-OWN-KEY-123456789012";
 
-type SeenCall = { slug: string; apiKey: string; baseUrl: string; system: string };
+type SeenCall = { slug: string; apiKey: string; baseUrl: string; system: string; model: string | undefined };
 const seen = vi.hoisted(() => ({ calls: [] as SeenCall[] }));
 const isolated = vi.hoisted(() => ({ db: null as MySql2Database<typeof schema & typeof relations> | null }));
 
@@ -62,7 +62,7 @@ vi.mock("../lib/providers", async (importOriginal) => {
       name: "Fake", slug, defaultBaseUrl: baseUrl, supportedModels: [defaultModel],
       async chat(messages: Array<{ role: string; content: string }>, options?: { model?: string }) {
         const system = String(messages[0]?.content ?? "");
-        seen.calls.push({ slug, apiKey, baseUrl, system });
+        seen.calls.push({ slug, apiKey, baseUrl, system, model: options?.model });
         return {
           content: system.includes("SHAREOWNER") ? `ECHO: ${system}` : FINAL_TEXT,
           // A real host names the model it SERVED, which is the one that was
@@ -177,10 +177,9 @@ async function mkUser(label: string): Promise<UserRow> {
 }
 
 /** The owner's pipeline: two steps, the first carrying the secret, bound to the
- *  OWNER's provider so a run that used it instead of the recipient's would be
- *  visible in `seen.calls`. `pinModel: false` leaves the steps unmodellled, so
- *  the run resolves the RECIPIENT's own default — the case #40 is about. */
-async function fixture(mode: "run_only" | "full" = "run_only", canModify = false, pinModel = true) {
+ *  OWNER's provider and pinning `owner-model`, so a run that used either instead
+ *  of the recipient's own would be visible in `seen.calls`. */
+async function fixture(mode: "run_only" | "full" = "run_only", canModify = false) {
   const owner = await mkUser("Share owner");
   const grantee = await mkUser("Share recipient");
   const outsider = await mkUser("Share outsider");
@@ -200,12 +199,12 @@ async function fixture(mode: "run_only" | "full" = "run_only", canModify = false
     {
       projectId, stepOrder: 1, stepType: "agent", name: "Draft", role: "builder",
       systemPrompt: SECRET, isEnabled: true,
-      providerId: Number((ownerProvider as { insertId: number }).insertId), model: pinModel ? "owner-model" : null,
+      providerId: Number((ownerProvider as { insertId: number }).insertId), model: "owner-model",
     },
     {
       projectId, stepOrder: 2, stepType: "agent", name: "Polish", role: "polisher",
       systemPrompt: "Make the translation presentation-ready.", isEnabled: true,
-      providerId: Number((ownerProvider as { insertId: number }).insertId), model: pinModel ? "owner-model" : null,
+      providerId: Number((ownerProvider as { insertId: number }).insertId), model: "owner-model",
     },
   ]);
   const [template] = await db().insert(schema.pipelineTemplates).values({
@@ -597,49 +596,45 @@ describe("pipeline sharing between two accounts + publish lineage (isolated loca
   // not given, and `debug.getRunStats` is a read that bypasses the export
   // projection entirely. The `full` control matters as much: without it, a
   // blanket "always withheld" would pass this file.
-  it("shows a run_only recipient their OWN model and withholds only the grantor's pinned one", async () => {
+  it("runs a shared pipeline on the recipient's own model and shows it to them", async () => {
+    const restricted = await fixture("run_only");
+    const callsBefore = seen.calls.length; // the recorder is per-process, not per-test
+    const ran = await runShared(restricted);
     const callerFor = (user: UserRow) => appMod.appRouter.createCaller({
       user, remoteIp: "test-ip",
     } as unknown as Parameters<typeof appMod.appRouter.createCaller>[0]);
 
-    // The grantor pinned `owner-model`, and the host names the model it served:
-    // that name is the grantor's design, so it stays withheld.
-    const pinned = await fixture("run_only");
-    const ranPinned = await runShared(pinned);
-    const asGrantee = await callerFor(pinned.grantee).debug.getRunStats({
-      swarmRunId: ranPinned.receipt.swarmRunId,
+    // The grantor pinned `owner-model`. It must not be what their credential is
+    // asked to serve: the recipient brings their own key AND their own model,
+    // and a name their host does not serve would fail the run outright.
+    const thisRun = seen.calls.slice(callsBefore);
+    expect(thisRun.length).toBeGreaterThan(0);
+    for (const call of thisRun) {
+      expect(call.model ?? "grantee-model").toBe("grantee-model");
+    }
+    expect(thisRun.map((c) => c.model)).not.toContain("owner-model");
+
+    // And because that value is the recipient's own, the read shows it — no
+    // marker, on either share mode (ticket #40).
+    const asGrantee = await callerFor(restricted.grantee).debug.getRunStats({
+      swarmRunId: ran.receipt.swarmRunId,
     });
     expect(asGrantee.steps.length).toBeGreaterThan(0);
     for (const step of asGrantee.steps) {
-      expect(step.modelUsed).toBe("withheld_run_only_share");
-    }
-    expect(JSON.stringify(asGrantee)).not.toMatch(/owner-model/);
-    expect(JSON.stringify(asGrantee)).not.toMatch(SECRET_MARKERS);
-
-    // The grantor pinned NOTHING, so the model that served the call is the
-    // recipient's own default, resolved by their credential and billed to them.
-    // #40: that is their fact to see.
-    const unpinned = await fixture("run_only", false, false);
-    const ranUnpinned = await runShared(unpinned);
-    const asOwnModelGrantee = await callerFor(unpinned.grantee).debug.getRunStats({
-      swarmRunId: ranUnpinned.receipt.swarmRunId,
-    });
-    expect(asOwnModelGrantee.steps.length).toBeGreaterThan(0);
-    for (const step of asOwnModelGrantee.steps) {
       expect(step.modelUsed).toBe("grantee-model");
     }
+    // The grantor's prompts and definition are still withheld, so dropping the
+    // model restriction did not widen anything else.
+    expect(JSON.stringify(asGrantee)).not.toMatch(SECRET_MARKERS);
+    expect(JSON.stringify(asGrantee)).not.toMatch(/owner-model/);
 
-    // Control: a `full` recipient was given the definition, so the grantor's
-    // pinned name is theirs to read. Without this the withheld marker above
-    // would pass for a blanket rule.
     const entitled = await fixture("full");
     const ranEntitled = await runShared(entitled);
     const asFull = await callerFor(entitled.grantee).debug.getRunStats({
       swarmRunId: ranEntitled.receipt.swarmRunId,
     });
-    expect(asFull.steps.map((s: { modelUsed: string }) => s.modelUsed)).toContain("owner-model");
     for (const step of asFull.steps) {
-      expect(step.modelUsed).not.toBe("withheld_run_only_share");
+      expect(step.modelUsed).toBe("grantee-model");
     }
   });
 

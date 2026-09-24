@@ -1,63 +1,60 @@
-// Which model a step pins is part of a `run_only` grantor's definition, so the
-// read surfaces must withhold it. These are the four cases the withholding is
-// decided by; the surfaces (`export.ts`, `debug.getRunStats`) call this one
-// predicate rather than each re-deriving the mode from `run_params`.
+// Ticket #40 (owner decision): the model that ran a step is NOT withheld.
+//
+// It used to be, for `run_only` shares, on the reasoning that a step's model is
+// part of the grantor's definition. That was only true because a shared run
+// executed the GRANTOR's pinned model on the recipient's credential — which is
+// both a leak and a broken promise, since the recipient supplies their own key
+// and their own models. `pipelineSharing.loadAuthorizedSharedSnapshotSteps` now
+// drops that pin the way it already dropped the grantor's provider binding, so
+// the value on a recipient's step row is their own model and there is nothing
+// left to withhold. These are the two halves of that rule.
 
-import { describe, it, expect } from "vitest";
-import { MODEL_BEARING_RUN_COLUMNS, isProtectedRun, modelWasGrantorPinned, withholdsModel } from "./runAccess";
+import { describe, expect, it, vi } from "vitest";
 
-const shared = (mode: "run_only" | "full") => ({ runParams: { sharedRun: { shareId: 7, mode, granteeId: 3 } } });
+vi.mock("../queries/connection", () => ({
+  getDb: () => { throw new Error("the redaction rule must not reach the database"); },
+}));
 
-describe("withholdsModel", () => {
-  it("withholds the grantor's model from a run_only recipient", () => {
-    expect(withholdsModel(shared("run_only"))).toBe(true);
+import {
+  PROMPT_BEARING_RUN_COLUMNS, isProtectedRun, redactProtectedAgentRun, sharedRunOf,
+} from "./runAccess";
+import type { agentRuns } from "@db/schema";
+
+const stepRow = {
+  id: 1, swarmRunId: 7, projectId: 3, agentName: "Draft", agentRole: "builder",
+  pipelineStep: 1, iteration: 1, status: "completed",
+  systemPrompt: "GRANTOR SYSTEM PROMPT: read /vault/deeds",
+  userPrompt: "GRANTOR STEP PROMPT", contextInput: "GRANTOR CONTEXT",
+  modelUsed: "grantee-model", providerUsed: "grantee-provider", tokensUsed: 13,
+} as unknown as typeof agentRuns.$inferSelect;
+
+const runOnly = { runParams: { sharedRun: { shareId: 7, mode: "run_only", granteeId: 3 } } };
+
+describe("the redaction rule (ticket #40)", () => {
+  it("drops the grantor's prompt text and nothing else", () => {
+    const redacted = redactProtectedAgentRun(stepRow);
+    for (const column of PROMPT_BEARING_RUN_COLUMNS) expect(redacted[column]).toBeUndefined();
+    expect(Object.keys(redacted).sort()).toEqual(
+      Object.keys(stepRow).filter((k) => !(PROMPT_BEARING_RUN_COLUMNS as readonly string[]).includes(k)).sort(),
+    );
   });
 
-  it("does not withhold from a full recipient, who was given the definition", () => {
-    expect(withholdsModel(shared("full"))).toBe(false);
+  it("shows the model that served the call, even to a run_only recipient", () => {
+    expect(redactProtectedAgentRun(stepRow).modelUsed).toBe("grantee-model");
+    // The same projection is what the caller's own surface sees: no marker, and
+    // no second, narrower answer for a `full` share.
+    expect(JSON.stringify(redactProtectedAgentRun(stepRow))).not.toMatch(/withheld/);
   });
 
-  it("does not withhold from a marketplace buyer run, whose manifest names the models on purpose", () => {
-    const buyerRun = { runParams: { protectedRun: { listingId: 4 } } };
-    expect(isProtectedRun(buyerRun)).toBe(true);
-    expect(withholdsModel(buyerRun)).toBe(false);
+  it("still recognises a run_only shared run as protected, and names its mode", () => {
+    expect(isProtectedRun(runOnly)).toBe(true);
+    expect(sharedRunOf(runOnly)?.mode).toBe("run_only");
   });
 
-  it("does not withhold from an ordinary owner run, and never throws on a missing row", () => {
-    expect(withholdsModel({ runParams: { projectId: 1 } })).toBe(false);
-    expect(withholdsModel(null)).toBe(false);
-    expect(withholdsModel(undefined)).toBe(false);
-  });
-
-  it("names the step column the read projections drop, and no prompt column", () => {
-    expect([...MODEL_BEARING_RUN_COLUMNS]).toEqual(["modelUsed"]);
-  });
-});
-
-// #40: the restriction is per VALUE, not per run. A `run_only` recipient runs on
-// their own credential, so the model that served them is theirs to see; a name
-// the grantor pinned in the definition is the grantor's design.
-describe("modelWasGrantorPinned", () => {
-  const grantorPinned = new Set(["owner-model", " Other-Model "]);
-  const decide = (v: string | null | undefined) => modelWasGrantorPinned(grantorPinned, v);
-
-  it("withholds the name the grantor chose, however the host spells or spaces it", () => {
-    expect(decide("  Other-Model  ")).toBe(true);
-    expect(decide("OWNER-MODEL")).toBe(true);
-    expect(decide("other-model")).toBe(true);
-  });
-
-  it("shows the recipient's own resolved model", () => {
-    expect(decide("grantee-model")).toBe(false);
-  });
-
-  it("shows an empty or absent value rather than inventing a restriction", () => {
-    expect(decide(null)).toBe(false);
-    expect(decide(undefined)).toBe(false);
-    expect(decide("   ")).toBe(false);
-  });
-
-  it("nothing is pinned when the grantor pinned nothing, so every value shows", () => {
-    expect(modelWasGrantorPinned(new Set(), "owner-model")).toBe(false);
+  it("leaves an owner's own run unredacted, and never throws on a missing row", () => {
+    expect(isProtectedRun({ runParams: { projectId: 1 } })).toBe(false);
+    expect(isProtectedRun(null)).toBe(false);
+    expect(isProtectedRun(undefined)).toBe(false);
+    expect(sharedRunOf(null)).toBeNull();
   });
 });

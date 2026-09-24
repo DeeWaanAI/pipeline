@@ -37,8 +37,8 @@
 // nothing more". That is what these five functions guarantee, and it is why this
 // file contains no `select()` against `agentRuns`, `agentResponses` or
 // `pipelineSteps` at all. The protection decision is never re-derived here
-// either: it is read from `runAccess.isProtectedRun` / `sharedRunOf` /
-// `withholdsModel`, the single place spec §8.1 states it.
+// either: it is read from `runAccess.isProtectedRun` / `projectRunDetail`, the
+// single place spec §8.1 states it.
 //
 // OWNERSHIP AND EXISTENCE. Every refusal is the same shape the rest of the
 // codebase uses — `not_found_or_not_authorized` via `runAccess.NotVisibleError`

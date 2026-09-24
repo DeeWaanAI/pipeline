@@ -685,9 +685,16 @@ export async function loadAuthorizedSharedSnapshotSteps(args: {
   }
   const { resolveSnapshotSteps } = await import("./benchmark/versionService");
   const definition = JSON.parse(String(version.definition)) as VersionDefinition;
+  // The recipient runs the workflow on THEIR credential, so the model that
+  // serves it is theirs too: the grantor's pinned model name is dropped here
+  // exactly as their provider binding is, and the engine resolves the
+  // recipient's own default. Sending a grantor-chosen model name to an endpoint
+  // the recipient controls would both fail on any host that does not serve that
+  // id and disclose a step of the grantor's design.
   const steps = resolveSnapshotSteps(definition).map((s) => ({
     ...s,
     providerId: provider.id,
+    model: null,
     agentId: null, // never resolve a grantor-owned customAgent record
   }));
   return { steps };
