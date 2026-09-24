@@ -142,7 +142,7 @@ function Pagination({
   return (
     <div className="flex items-center justify-between px-1 pt-3">
       <span className="text-[11px] text-neutral-500">
-        {total} {t("pages:admin.pagination.total")} \u2014 {t("pages:admin.pagination.page")} {page} {t("pages:admin.pagination.of")} {totalPages}
+        {total} {t("pages:admin.pagination.total")} {"\u2014"} {t("pages:admin.pagination.page")} {page} {t("pages:admin.pagination.of")} {totalPages}
       </span>
       <div className="flex items-center gap-1">
         <Button

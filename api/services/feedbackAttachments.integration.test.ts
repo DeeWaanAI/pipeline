@@ -1022,6 +1022,31 @@ describe("D11 consented feedback attachments at the service boundary (isolated l
     expect(fa.parseSnapshot('{"visibility":"owner_full"}')).toEqual({ visibility: "owner_full" });
   });
 
+  it("gives two runs of the SAME brief different picker labels", async () => {
+    // Consent is per item, so a label that fits two objects is a consent given
+    // for the wrong one: re-running the same clause is the normal case (an
+    // expensive step retried, a comparison re-run with different settings).
+    const same = "13. AUDIT AND FEES. Vendor may, on ten (10) business days notice, audit Customer.";
+    const ids: number[] = [];
+    for (let i = 0; i < 2; i++) {
+      const [row] = await db().insert(schema.swarmRuns).values({
+        projectId: ownerProjectId, userId: owner.id, userPrompt: same,
+        status: "completed", currentStep: "done", pipelineVersion: "custom-v2",
+        runParams: { source: "execute", prompt: same, stateless: true },
+      });
+      ids.push(insertId(row));
+    }
+
+    const pickerRuns = (await fa.attachableObjectsFor(owner.id)).runs
+      .filter((r) => ids.includes(r.refId));
+    expect(pickerRuns.length).toBe(2);
+    // Without this pin both labels are the project name plus the same 80 chars.
+    expect(new Set(pickerRuns.map((r) => r.title)).size).toBe(2);
+    for (const id of ids) expect(pickerRuns.find((r) => r.refId === id)?.title).toContain(`#${id}`);
+    // The label stays a label: the brief is truncated, not reproduced.
+    for (const r of pickerRuns) expect(r.title.length).toBeLessThan(130);
+  });
+
   it("refuses to file a credential that rode along in the text, naming the category only", async () => {
     const before = await attachmentCount();
     const message = await refusal(fa.prepareConsentedAttachments(owner.id, [

@@ -672,10 +672,12 @@ export async function attachableObjectsFor(userId: number, projectId?: number): 
     ],
     runs: runs.map((r) => ({
       refId: r.id, kind: "run" as const, status: r.status, startedAt: r.startedAt ?? null,
-      // A label, not a transcript: the first line of what they typed, so a
-      // picker with ten runs is readable. Content only ever enters a snapshot
-      // through the projection functions above.
-      title: `${r.projectName ?? "run"} — ${(r.prompt ?? "").replace(/\s+/g, " ").slice(0, 80)}`,
+      // A label, not a transcript: the run's own id plus the first line of what
+      // they typed, so a picker with ten runs is readable AND two runs of the
+      // same clause are distinguishable — consent is per item, so an ambiguous
+      // label is a consent given for the wrong object. Content only ever enters
+      // a snapshot through the projection functions above.
+      title: `${r.projectName ?? "run"} #${r.id} — ${(r.prompt ?? "").replace(/\s+/g, " ").slice(0, 80)}`,
     })),
     benchmarks: benchRows.map((b) => ({
       refId: b.id, kind: "benchmark" as const, state: b.state,
