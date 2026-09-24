@@ -17,8 +17,8 @@ import type { HttpBindings } from "@hono/node-server";
 import { logger } from "../lib/logger";
 import { checkCustomerRateLimit, type CustomerTier } from "../lib/rateLimiter";
 import { getDb } from "../queries/connection";
-import { users, teamMembers, teamSeats } from "@db/schema";
-import { eq, and, isNotNull, sql } from "drizzle-orm";
+import { users } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { authenticate } from "./context";
 import { registerOAuthRoutes, requestOrigin } from "./auth";
 import {
@@ -37,10 +37,12 @@ declare module "hono" {
 }
 
 // ─── Per-customer rate-limit tier resolution (Phase 3) ─────────────
-// solo (default) / team / admin. Resolved once per request and cached
-// briefly in-process so high-frequency MCP traffic doesn't hit the DB on
-// every call. "team" = user is a member of any team whose team_seats row
-// carries a stripeSubscriptionId (billed team); "admin" = users.role='admin'.
+// solo (default) / admin. Resolved once per request and cached briefly
+// in-process so high-frequency MCP traffic doesn't hit the DB on every call.
+// "admin" = users.role='admin'. There used to be a third rung here: a member
+// of a billed team got 4x the budget. Teams were removed (ticket #26), and a
+// limit that survives from a retired product is a benefit nobody can see the
+// terms of — so it is gone rather than kept "for compatibility".
 const TIER_CACHE_TTL_MS = 60_000;
 const TIER_CACHE_MAX = 10_000;
 const tierCache = new Map<number, { tier: CustomerTier; expiry: number }>();
@@ -52,28 +54,13 @@ async function resolveCustomerTier(userId: number): Promise<CustomerTier> {
 
   let tier: CustomerTier = "solo";
   try {
-    // Single join: role + whether ANY team membership is billed. groupBy +
-    // MAX collapses many memberships into one row so we only need .limit(1).
     const [row] = await getDb()
-      .select({
-        role: users.role,
-        billedTeamId: sql<number | null>`MAX(${teamSeats.id})`,
-      })
+      .select({ role: users.role })
       .from(users)
-      .leftJoin(teamMembers, eq(teamMembers.userId, users.id))
-      .leftJoin(
-        teamSeats,
-        and(
-          eq(teamSeats.teamId, teamMembers.teamId),
-          isNotNull(teamSeats.stripeSubscriptionId),
-        ),
-      )
       .where(eq(users.id, userId))
-      .groupBy(users.id)
       .limit(1);
 
     if (row?.role === "admin") tier = "admin";
-    else if (row?.billedTeamId != null) tier = "team";
   } catch (err) {
     logger.warn("MCP: tier resolution failed — defaulting to solo", {
       userId,

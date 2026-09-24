@@ -111,15 +111,16 @@ export const RATE_LIMITS = {
 // Budgets are requests-per-minute enforced as a FIXED WINDOW counter
 // (maxTokens doubles as the per-window cap):
 //
-//   solo  (default)          60 req/min  — everyone else
-//   team  (~4× solo)        240 req/min  — member of a billed team
-//                                          (team_seats row w/ stripeSubscriptionId)
+//   solo  (default)          60 req/min  — everyone who is not an admin
 //   admin (~10× solo)       600 req/min  — users.role = 'admin'
-export type CustomerTier = "solo" | "team" | "admin";
+//
+// A "team" tier used to sit between them and multiply the budget of anyone on a
+// billed team. Teams were removed (ticket #26); the tier goes with them rather
+// than lingering as an entitlement no product page offers.
+export type CustomerTier = "solo" | "admin";
 
 export const CUSTOMER_RATE_LIMITS: Record<CustomerTier, RateLimitConfig> = {
   solo: { maxTokens: 60, refillRate: 60 / 60, windowMs: 60_000 },
-  team: { maxTokens: 240, refillRate: 240 / 60, windowMs: 60_000 },
   admin: { maxTokens: 600, refillRate: 600 / 60, windowMs: 60_000 },
 };
 

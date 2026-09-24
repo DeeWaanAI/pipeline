@@ -93,11 +93,13 @@ describe("RATE_LIMITS profiles", () => {
 });
 
 describe("CUSTOMER_RATE_LIMITS (per-customer tiers)", () => {
-  it("team ≈ 4× solo and admin = 10× solo", () => {
+  it("offers exactly the two tiers the product still has", () => {
+    // Teams were removed (ticket #26). Naming the absent rung is the point: a
+    // re-added "team" key would fail here rather than quietly restore a 4x
+    // budget for a product nobody sells.
+    expect(Object.keys(CUSTOMER_RATE_LIMITS).sort()).toEqual(["admin", "solo"]);
     expect(CUSTOMER_RATE_LIMITS.solo.maxTokens).toBe(60);
-    expect(CUSTOMER_RATE_LIMITS.team.maxTokens).toBe(240);
     expect(CUSTOMER_RATE_LIMITS.admin.maxTokens).toBe(600);
-    expect(CUSTOMER_RATE_LIMITS.team.maxTokens).toBe(4 * CUSTOMER_RATE_LIMITS.solo.maxTokens);
     expect(CUSTOMER_RATE_LIMITS.admin.maxTokens).toBe(10 * CUSTOMER_RATE_LIMITS.solo.maxTokens);
   });
 
