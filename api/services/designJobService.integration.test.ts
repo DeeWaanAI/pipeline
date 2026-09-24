@@ -166,6 +166,35 @@ describe("MCP manual pipeline provider routing (DB-backed)", () => {
   });
 });
 
+describe("MCP completed run answers (DB-backed)", () => {
+  it("returns a long final answer and its judging reference only to authorized callers", async () => {
+    const { db, userId, projectId } = await seedFixture();
+    const { runStatus } = await import("../mcp/tools/getRunStatus");
+    const ctx = { userId, scopes: new Set(["mcp:read"]), clientId: "test", requestId: "test", locale: "en" as const };
+    const [run] = await db.insert(schema.swarmRuns).values({ userId, projectId, userPrompt: "Input", status: "running" });
+    const runId = Number(run.insertId);
+    const [step] = await db.insert(schema.agentRuns).values({
+      swarmRunId: runId, projectId, agentName: "Writer", agentRole: "builder", pipelineStep: 1, userPrompt: "Input",
+    });
+    const finalResponse = "Full answer 雪\n".repeat(2000) + "END";
+    const [response] = await db.insert(schema.agentResponses).values({
+      swarmRunId: runId, projectId, agentRunId: Number(step.insertId), responseType: "output", content: finalResponse,
+      metadata: {
+        model: "fake", provider: "fake", providerSlug: "fake", tokensUsed: { prompt: 1, completion: 2, total: 3, complete: true },
+        latencyMs: 1, temperature: 0, maxTokens: 4096, agentName: "Writer", agentRole: "builder", agentSlug: "writer",
+        pipelineStep: 1, iteration: 1, buildMethod: "test", sourceResponseIds: [],
+      },
+    });
+    const finalResponseId = Number(response.insertId);
+    await db.update(schema.swarmRuns).set({ finalResponseId }).where(orm.eq(schema.swarmRuns.id, runId));
+    expect(await runStatus.handler({ runId }, ctx)).not.toHaveProperty("finalResponse");
+    await db.update(schema.swarmRuns).set({ status: "completed" }).where(orm.eq(schema.swarmRuns.id, runId));
+    expect(await runStatus.handler({ runId }, ctx)).toMatchObject({ finalResponse, finalResponseId });
+    const outsider = await seedFixture();
+    await expect(runStatus.handler({ runId }, { ...ctx, userId: outsider.userId })).rejects.toThrow("Run not found");
+  });
+});
+
 describe("durable design jobs (DB-backed)", () => {
   it("A04/§5.3: start is idempotent per actor key and writes job+outbox atomically", async () => {
     const { userId, projectId, providerId } = await seedFixture();

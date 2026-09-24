@@ -9,7 +9,7 @@ const fixture = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock("./tools/index", async () => {
   const { z } = await import("zod");
   return {
-    TOOLS: ["benchmark_status", "export_run", "export_batch_results", "list_pipelines"].map((name) => ({
+    TOOLS: ["run_status", "benchmark_status", "export_run", "export_batch_results", "list_pipelines"].map((name) => ({
       name,
       description: "Local result rendering fixture",
       inputSchema: z.object({}),
@@ -127,6 +127,18 @@ describe("readable MCP results", () => {
 });
 
 describe("lossless exports", () => {
+  it("includes the whole completed answer for text-only chat clients", () => {
+    const finalResponse = "Answer\n" + "long answer 雪 ".repeat(1800) + "\n````\n<script>literal</script>\r\nEND";
+    const payload = { status: "completed", finalResponse, finalResponseId: 42 };
+    const result = renderToolResult("run_status", payload);
+    const text = textOf(result);
+    expect(text).toContain("## Complete final response");
+    expect(JSON.parse(block(text, "json"))).toEqual({ finalResponse, finalResponseId: 42 });
+    expect(result.structuredContent).toBe(payload);
+    expect(text).not.toContain("<script>");
+    expect(textOf(renderToolResult("run_status", { status: "running" }))).not.toContain("## Complete final response");
+  });
+
   it("keeps consent previews complete for text-only clients", () => {
     const payload = { previewHash: "a".repeat(64), manifest: { cases: Array.from({ length: 20 }, (_, i) => ({ input: `Case ${i}: ${"x".repeat(800)}` })) } };
     const text = textOf(renderToolResult("preview_evidence", payload));
@@ -178,6 +190,7 @@ describe("server boundary through the real MCP SDK", () => {
     ["benchmark_status", false],
     ["benchmark_status", 0],
     ["benchmark_status", "unknown"],
+    ["run_status", { status: "completed", finalResponse: "Answer through SDK\nEND", finalResponseId: 42 }],
     ["export_run", { agentResponses: [{ content: "```\n<script>data</script>" }], cost: null }],
     ["export_batch_results", { csv: 'id,text\r\n1,"a\nb"\r\n' }],
   ])("validates structuredContent for %s (%j)", async (name, payload) => {
@@ -198,6 +211,10 @@ describe("server boundary through the real MCP SDK", () => {
       expect(textOf(validated)).toMatch(/^# /);
       expect(JSON.parse(JSON.stringify(validated)).structuredContent).toEqual(expected);
       if (name.startsWith("export_")) expect(JSON.parse(block(textOf(validated), "json"))).toEqual(payload);
+      if (name === "run_status") {
+        const answer = payload as { finalResponse: string; finalResponseId: number };
+        expect(JSON.parse(block(textOf(validated), "json"))).toEqual({ finalResponse: answer.finalResponse, finalResponseId: answer.finalResponseId });
+      }
     } finally {
       await client.close();
       await server.close();

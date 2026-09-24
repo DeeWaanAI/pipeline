@@ -7,19 +7,18 @@ import { eq, asc } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
 import { swarmRuns, agentRuns, agentResponses } from "@db/schema";
-import { canAccessProject, truncate } from "./_shared";
+import { canAccessProject } from "./_shared";
 
 const inputSchema = z.object({
   runId: z.number().int().positive(),
 });
 
 const MAX_STEPS = 100;
-const MAX_RESPONSE_CHARS = 16000;
 
 export const runStatus: McpTool = {
   name: "run_status",
   description:
-    "Get the status of a pipeline run: current step, per-step agent progress with token/latency usage, totals, and the final response once completed.",
+    "Get the status of a pipeline run: current step, per-step agent progress with token/latency usage, totals, and the complete final response once completed. Show that answer in chat; finalResponseId identifies it for judging. Use export_run separately for the full local archive.",
   inputSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
@@ -55,7 +54,7 @@ export const runStatus: McpTool = {
         .from(agentResponses)
         .where(eq(agentResponses.id, run.finalResponseId))
         .limit(1);
-      if (resp) finalResponse = truncate(resp.content, MAX_RESPONSE_CHARS);
+      if (resp) finalResponse = resp.content;
     }
 
     return {
@@ -72,7 +71,11 @@ export const runStatus: McpTool = {
         tokensUsed: s.tokensUsed ?? 0,
         latencyMs: s.latencyMs ?? 0,
       })),
-      ...(finalResponse !== undefined ? { finalResponse } : {}),
+      ...(finalResponse !== undefined ? {
+        finalResponse,
+        finalResponseId: run.finalResponseId,
+        next: "Show the complete finalResponse to the user. Use finalResponseId to judge this output. For local archival, call export_run and use the chat client's file tools to save it in the user's chosen folder; do not claim it is saved until the write succeeds.",
+      } : {}),
       // swarm_runs has no error column; surface a status-derived hint only.
       ...(run.status === "failed" ? { error: run.error ?? "Pipeline run failed" } : {}),
     };
