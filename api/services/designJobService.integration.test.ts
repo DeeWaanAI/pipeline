@@ -112,6 +112,10 @@ describe("durable design jobs (DB-backed)", () => {
     const r2 = await svc.startDesignJob({ userId, projectId, task: "translate docs", providerId, idempotencyKey: "k1" });
     expect(r2.job.id).toBe(r1.job.id);
     expect(r2.reused).toBe(true);
+    const { applyDesignJobTool } = await import("../mcp/tools/designJobStatus");
+    expect(await applyDesignJobTool.handler({ jobId: r1.job.id }, {
+      userId, scopes: new Set(["mcp:write"]), clientId: "test", requestId: "test", locale: "en",
+    })).toMatchObject({ ok: false, state: "not_ready" });
 
     const db = (await import("../queries/connection")).getDb();
     const outbox = await db.select().from(schema.jobOutbox).where(orm.eq(schema.jobOutbox.resourceId, r1.job.id));
@@ -151,9 +155,16 @@ describe("durable design jobs (DB-backed)", () => {
     expect(steps).toHaveLength(1);
     expect(steps[0].name).toBe("Old Step");
 
-    // Apply succeeds on an unchanged project.
-    const applied = await svc.applyDesignJob({ userId, jobId: job.id });
-    expect(applied.state).toBe("applied");
+    const { applyDesignJobTool } = await import("../mcp/tools/designJobStatus");
+    const ctx = { userId, scopes: new Set(["mcp:write"]), clientId: "test", requestId: "test", locale: "en" as const };
+    const outsider = await seedFixture();
+    expect(await applyDesignJobTool.handler({ jobId: job.id }, { ...ctx, userId: outsider.userId }))
+      .toEqual({ ok: false, state: "not_ready", message: "Job not found" });
+    expect(await db.select().from(schema.pipelineSteps).where(orm.eq(schema.pipelineSteps.projectId, projectId))).toEqual(steps);
+    const applied = await applyDesignJobTool.handler({ jobId: job.id }, ctx);
+    expect(applied).toMatchObject({ ok: true, state: "applied" });
+    expect(await applyDesignJobTool.handler({ jobId: job.id }, ctx))
+      .toEqual({ ok: true, state: "applied", message: "Already applied" });
     steps = await db.select().from(schema.pipelineSteps).where(orm.eq(schema.pipelineSteps.projectId, projectId));
     expect(steps).toHaveLength(2);
     expect(steps.map((s) => s.role)).toEqual(["builder", "refiner"]);
@@ -175,9 +186,11 @@ describe("durable design jobs (DB-backed)", () => {
     await db.update(schema.pipelineSteps).set({ systemPrompt: "owner edited this" })
       .where(orm.eq(schema.pipelineSteps.projectId, projectId));
 
-    const res = await svc.applyDesignJob({ userId, jobId: job.id });
-    expect(res.state).toBe("revision_conflict");
-    expect(res.ok).toBe(false);
+    const { applyDesignJobTool } = await import("../mcp/tools/designJobStatus");
+    const res = await applyDesignJobTool.handler({ jobId: job.id }, {
+      userId, scopes: new Set(["mcp:write"]), clientId: "test", requestId: "test", locale: "en",
+    });
+    expect(res).toMatchObject({ state: "revision_conflict", ok: false });
 
     // Existing steps preserved (the edit survives) and the candidate is retained.
     const steps = await db.select().from(schema.pipelineSteps).where(orm.eq(schema.pipelineSteps.projectId, projectId));

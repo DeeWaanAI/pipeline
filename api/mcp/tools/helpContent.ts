@@ -142,7 +142,12 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "design_job_status", group: "Author", scopes: ["mcp:read"], flag: "v2DesignJobs",
-    summary: "Poll a design job: queued → running → succeeded/failed/cancelled, with the retained candidate and per-attempt records.",
+    summary: "Poll a design job: queued → running → succeeded/failed/cancelled, with the retained candidate version id and per-attempt records. Apply a successful candidate with apply_design_job after approval.",
+  },
+  {
+    name: "apply_design_job", group: "Author", scopes: ["mcp:write"], flag: "v2DesignJobs",
+    summary: "Apply a successful design candidate to its original pipeline after you approve replacing the steps. No new LLM call. A changed project returns revision_conflict; an unfinished job returns not_ready. Use get_pipeline to inspect the applied steps before running.",
+    example: "Apply the successful design job to my pipeline.",
   },
   {
     name: "cancel_design_job", group: "Author", scopes: ["mcp:write"], flag: "v2DesignJobs",

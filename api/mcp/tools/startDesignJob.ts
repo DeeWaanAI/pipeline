@@ -24,7 +24,7 @@ const inputSchema = z.object({
 export const startDesignJobTool: McpTool = {
   name: "start_design_job",
   description:
-    "Start a DURABLE auto-design job: the platform designs the optimal agent pipeline for your objective on a configured LLM provider, without needing a live session. Returns a job id immediately — poll design_job_status, then apply it via the web UI/API when the job succeeds. Replaces the synchronous design_pipeline for background use.",
+    "Start a DURABLE auto-design job: the platform designs the optimal agent pipeline for your objective on a configured LLM provider, without needing a live session. Returns a job id immediately — poll design_job_status, then use apply_design_job after the user approves applying the successful candidate. Replaces the synchronous design_pipeline for background use.",
   inputSchema,
   requiredScopes: ["mcp:write"],
   featureFlag: "v2DesignJobs",
@@ -65,7 +65,7 @@ export const startDesignJobTool: McpTool = {
       projectId,
       state: job.state,
       reused,
-      next: "Poll design_job_status; when state=succeeded, review the candidate and apply it. The project is NOT modified until apply.",
+      next: "Poll design_job_status; when state=succeeded and the user approves replacing the steps, call apply_design_job with jobId. Then inspect the steps with get_pipeline. The project is NOT modified until apply.",
     };
   },
 };

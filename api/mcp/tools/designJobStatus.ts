@@ -4,14 +4,14 @@
 
 import { z } from "zod";
 import type { McpTool, McpAuthContext } from "../types";
-import { cancelDesignJob, getDesignJob } from "../../services/designJobService";
+import { applyDesignJob, cancelDesignJob, getDesignJob } from "../../services/designJobService";
 
 const statusSchema = z.object({ jobId: z.number().int().positive() });
 
 export const designJobStatus: McpTool = {
   name: "design_job_status",
   description:
-    "Poll a durable auto-design job. States: queued → running → succeeded/failed/cancelled. On success the candidate is retained as a pipeline version — apply it deliberately (design_jobs.apply in the web/API); it is never applied automatically, and a project edited meanwhile yields a retained 'revision_conflict' instead of an overwrite.",
+    "Poll a durable auto-design job. States: queued → running → succeeded/failed/cancelled. On success the candidate is retained as a pipeline version — apply it deliberately with apply_design_job; it is never applied automatically, and a project edited meanwhile yields a retained 'revision_conflict' instead of an overwrite.",
   inputSchema: statusSchema,
   requiredScopes: ["mcp:read"],
   featureFlag: "v2DesignJobs",
@@ -21,6 +21,20 @@ export const designJobStatus: McpTool = {
     const job = await getDesignJob({ userId: ctx.userId, jobId });
     if (!job) throw new Error("Job not found");
     return job;
+  },
+};
+
+export const applyDesignJobTool: McpTool = {
+  name: "apply_design_job",
+  description:
+    "Apply a successful durable design job to its original pipeline after the user approves replacing the steps. Uses the retained candidate without another LLM call. Returns applied, not_ready or revision_conflict; a changed project is not overwritten. Read the applied pipeline with get_pipeline before running it.",
+  inputSchema: statusSchema,
+  requiredScopes: ["mcp:write"],
+  featureFlag: "v2DesignJobs",
+  annotations: { readOnlyHint: false, destructiveHint: true },
+  handler: async (args: unknown, ctx: McpAuthContext) => {
+    const { jobId } = statusSchema.parse(args);
+    return applyDesignJob({ userId: ctx.userId, jobId });
   },
 };
 

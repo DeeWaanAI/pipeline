@@ -13,6 +13,21 @@ import { HELP_CATALOG, buildHelp } from "./helpContent";
 const ALL_SCOPES = ["mcp:read", "mcp:write", "mcp:run", "team:read", "team:write"];
 
 describe("MCP tool registry", () => {
+  it("offers explicit, write-scoped application of a durable design candidate", async () => {
+    const tool = TOOLS.find((t) => t.name === "apply_design_job");
+    expect(tool).toBeDefined();
+    expect(tool?.requiredScopes).toEqual(["mcp:write"]);
+    expect(tool?.featureFlag).toBe("v2DesignJobs");
+    expect(tool?.annotations).toEqual({ readOnlyHint: false, destructiveHint: true });
+    const ctx = { userId: 1, scopes: new Set(["mcp:write"]), clientId: "c", requestId: "r", locale: "en" as const };
+    await expect(tool!.handler({ jobId: -1 }, ctx)).rejects.toThrow();
+    const base = { capabilities: [], scopes: ["mcp:read", "mcp:write"], hasProvider: true, samplingSupported: null };
+    for (const enabled of [false, true]) {
+      const help = buildHelp({ ...base, flags: { v2DesignJobs: enabled } });
+      expect(help.sections.flatMap((s) => s.tools).some((t) => t.name === "apply_design_job")).toBe(enabled);
+    }
+  });
+
   it("lists every tool through the SDK, including feature-gated schemas", async () => {
     const server = new McpServer({ name: "registry-test", version: "1" });
     const client = new Client({ name: "registry-client", version: "1" });

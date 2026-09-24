@@ -10,7 +10,7 @@ import { createPipeline } from "./createPipeline";
 import { updatePipeline } from "./updatePipeline";
 import { designPipeline } from "./designPipeline";
 import { startDesignJobTool } from "./startDesignJob";
-import { designJobStatus, cancelDesignJobTool } from "./designJobStatus";
+import { designJobStatus, applyDesignJobTool, cancelDesignJobTool } from "./designJobStatus";
 import { BENCHMARK_TOOLS } from "./benchmarkTools";
 import { deewaanaiHelp } from "./help";
 import { suggestLlmProviders } from "./suggestProviders";
@@ -56,6 +56,7 @@ export const TOOLS: McpTool[] = [
   // Offering redesign v2 — durable design jobs (hidden unless v2DesignJobs flag)
   startDesignJobTool,
   designJobStatus,
+  applyDesignJobTool,
   cancelDesignJobTool,
   // Offering redesign v2 — private evaluation (hidden unless v2Benchmarks
   // flag). Owner decision D9: this is the evaluation workbench.

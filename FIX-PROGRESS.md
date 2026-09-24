@@ -178,6 +178,15 @@ The owner's word was "go ahead". What was built, and what it deliberately is not
   the model→credential attribution can be ambiguous) or by storing the pricing route on the row,
   which is additive migration 034. Not attempted here.
 
+## User journey increments (2026-09-24)
+Work in small verified increments; choose sensible defaults rather than asking about routine design options.
+
+- #55 DONE: `apply_design_job` now exposes the existing design apply service via MCP (`mcp:write`, `v2DesignJobs`, destructive hint). Start/status/help point to it. No new paid call; apply remains deliberate. Registry pin failed before implementation, then registry/help 28/28 and isolated design-job integration 8/8 passed; `npm run check` passed. The integration cases invoke the MCP handler for success, another-account refusal, queued refusal, repeated apply and revision conflict. No UI changes or external chat-client run claimed.
+- #56 NEXT: verify and expose per-step owned provider selection in manual MCP creation/update. Preserve project defaults and reject other accounts' providers.
+- #57 PENDING: complete final-output retrieval and per-run artifacts (input, intermediate outputs, final output) for chat-client folder writing. Hosted MCP cannot push files onto a client disk. Keep hash verification and optional sweep separate; never auto-delete.
+- #58 PENDING: actual platform judging-prompt review/edit workflow, preserving the exact version used for judging. Existing rubric APIs and fixed prompt variants do not prove an editable platform workbench exists.
+- #59 PENDING: exercise the full beta publish and friend-sharing journey. Existing tools are not proof the complete external-client journey works. Seller identity/tax onboarding remains a separate commercial integration; no provider can be assumed to handle every seller tax obligation without eligibility and jurisdiction checks.
+
 ## Next agent — what is left
 1. The 18 aggregate ledger rows stay UNKNOWN by design (see the last section). Clearing them needs
    either a rebuild of each run's per-model breakdown from its step rows — where `providerUsed` is a
