@@ -36,7 +36,7 @@ import {
 import type { BenchmarkCallPlan, JudgePromptVariant, RubricSpec, SnapshotStep } from "./benchmark/benchmarkTypes";
 import { panelVariants } from "./benchmark/benchmarkTypes";
 import { assessBenchmarkPanel } from "./benchmark/judgePanel";
-import { judgePromptVersionFor, VARIANT_FRAMING } from "./benchmark/judgeService";
+import { judgePromptVersionFor, previewJudgePrompts, VARIANT_FRAMING } from "./benchmark/judgeService";
 import { ProtectedExecutionError, resolveProtectedExecutionRight } from "./marketplaceExecutionService";
 import { assertOriginalCreatorMaySellVersion } from "./workflowLineage";
 
@@ -293,32 +293,40 @@ export async function buildEvidencePreview(opts: {
   });
 
   const variantsRun = panelVariants(plan.judges);
+  const customized = Object.values(plan.judgePromptOverrides ?? {}).some(Boolean);
+  const effectiveKind = plan.executionMode === "grade_only" ? "rubric" : plan.judgmentKind;
+  const judgeIdentities = customized
+    ? plan.judges.flatMap((j) => variantsRun.map((variant) => ({ ...j, variant })))
+    : plan.judges;
   const judging: PublicJudging = {
     rubric: contractRubric(plan.rubric),
     // D12: every prompt variant the panel ran is disclosed with its own
     // version tag and exact template — the reader must see all three framings
     // a 3×3 panel used, not one representative.
-    judgePrompts: variantsRun.map((v) => ({
-      judgePromptVersion: judgePromptVersionFor(v),
-      // The template is published, not the per-run concatenation: the resolved
-      // inputs are listed separately so nothing hidden is smuggled in.
-      promptText: renderJudgeTemplate(plan.rubric, v),
-    })),
+    judgePrompts: customized
+      ? previewJudgePrompts({ ...plan, judgmentKind: effectiveKind }).map((p) => ({
+        judgePromptVersion: p.promptVersion,
+        promptText: p.messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n"),
+      }))
+      : variantsRun.map((v) => ({
+        judgePromptVersion: judgePromptVersionFor(v),
+        promptText: renderJudgeTemplate(plan.rubric, v),
+      })),
     resolvedJudgeInputs: cases.map((c) => ({
       stableCaseId: c.stableCaseId,
       stableCandidateIds: cands.map((k) => k.stableCandidateId),
-      referenceMaterialIncluded: publishInputs && Boolean(c.expectedOutput),
+      referenceMaterialIncluded: publishInputs && Boolean(c.expectedOutput) && (!customized || effectiveKind === "rubric"),
       hiddenSellerInstructionsIncluded: false as const,
     })),
-    judges: plan.judges.map((j) => ({
+    judges: judgeIdentities.map((j) => ({
       judgeSlot: j.slot,
       judgeModel: j.model,
       judgeProviderRoute: null,
-      judgePromptVersion: judgePromptVersionFor(j.variant),
+      judgePromptVersion: judgePromptVersionFor(j.variant, plan.judgePromptOverrides),
       ...(j.variant ? { variant: j.variant } : {}),
       revision: null,
       notExposedReason: REVISION_NOT_EXPOSED,
-      settings: { temperature: 0, maxTokens: 2048, isolation: "no tools, no memory, no credentials reachable from the judge call" },
+      settings: { temperature: 0, maxTokens: customized && effectiveKind === "pairwise" ? 1024 : 2048, isolation: "no tools, no memory, no credentials reachable from the judge call" },
     })),
     judgments: judgments.map((j) => {
       const notes = j.validationNotes as { outOfRange?: string[]; missingDimensions?: string[] } | null;

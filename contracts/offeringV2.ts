@@ -184,9 +184,8 @@ export const JudgmentKindSchema = z.enum(["rubric", "pairwise"]);
 export type JudgmentKind = z.infer<typeof JudgmentKindSchema>;
 /**
  * Judge prompt variants (decision D12). THE canonical closed list — defined
- * once here and imported by the benchmark services; a variant is referenced
- * by name, never free text, so a frozen plan cannot smuggle a bespoke prompt
- * past the hash. Each variant asks the SAME rubric question in a meaningfully
+ * once here and imported by the benchmark services. Optional framing overrides
+ * are part of the frozen plan hash. Each variant asks the SAME rubric question in a meaningfully
  * different order/framing (anchored scale first, free comment first, checklist
  * first) while the judge still returns the same validated JSON shape.
  * An evidence-grade panel has 3 judges × 3 variants = 9 ratings per output.
@@ -194,6 +193,14 @@ export type JudgmentKind = z.infer<typeof JudgmentKindSchema>;
 export const JUDGE_PROMPT_VARIANTS = ["anchored_scale", "comment_first", "checklist_first"] as const;
 export const JudgePromptVariantSchema = z.enum(JUDGE_PROMPT_VARIANTS);
 export type JudgePromptVariant = z.infer<typeof JudgePromptVariantSchema>;
+export const JudgePromptKeySchema = z.enum(["default", ...JUDGE_PROMPT_VARIANTS]);
+export type JudgePromptKey = z.infer<typeof JudgePromptKeySchema>;
+export const JudgePromptOverrideSchema = z.object({
+  system: z.string().max(2000),
+  preface: z.string().max(4000),
+}).strict();
+export const JudgePromptOverridesSchema = z.partialRecord(JudgePromptKeySchema, JudgePromptOverrideSchema);
+export type JudgePromptOverrides = z.infer<typeof JudgePromptOverridesSchema>;
 export const PairPreferenceSchema = z.enum(["a", "b", "tie"]);
 export type PairPreference = z.infer<typeof PairPreferenceSchema>;
 /** Mirrors `benchmarkJudgments.orientation` (recorded/randomized for paired checks). */

@@ -1,10 +1,10 @@
 // Shared v2 evaluation types (offering redesign spec §4/§6/§9). Leaf module:
 // no DB imports — safe for swarmService and the benchmark services alike.
 
-import { JUDGE_PROMPT_VARIANTS, type JudgePromptVariant } from "../../../contracts/offeringV2";
+import { JUDGE_PROMPT_VARIANTS, type JudgePromptKey, type JudgePromptOverrides, type JudgePromptVariant } from "../../../contracts/offeringV2";
 
 export { JUDGE_PROMPT_VARIANTS };
-export type { JudgePromptVariant };
+export type { JudgePromptKey, JudgePromptOverrides, JudgePromptVariant };
 
 /** One canonical pipeline step inside an immutable version snapshot. */
 export interface SnapshotStep {
@@ -157,6 +157,7 @@ export interface BenchmarkCallPlan {
   cases: CaseSpec[];
   candidates: CandidateSpec[];
   judges: JudgeSpec[];
+  judgePromptOverrides?: JudgePromptOverrides;
   rubric: RubricSpec;
   /** Deterministic validators: empty unless an isolated sandbox exists, and
    *  never enabled when it doesn't (spec §7.1). */

@@ -11,7 +11,8 @@
 
 import { z } from "zod";
 import type { McpTool, McpAuthContext } from "../types";
-import { JUDGE_PROMPT_VARIANTS } from "../../../contracts/offeringV2";
+import { JUDGE_PROMPT_VARIANTS, JudgePromptOverridesSchema } from "../../../contracts/offeringV2";
+import { getJudgePromptEditor, saveJudgePromptEditor } from "../../services/benchmark/judgePromptEditor";
 import {
   approveBenchmarkSpend, cancelBenchmark, createBenchmarkDraft, getBenchmarkProgress,
   listBenchmarkSummaries, prepareCasesDraft, prepareRubricDraft, quoteBenchmark, resumeBenchmark, startBenchmark,
@@ -305,6 +306,29 @@ export const resumeBenchmarkTool: McpTool = {
   },
 };
 
+const promptPreviewSchema = idSchema.extend({ overrides: JudgePromptOverridesSchema.optional() });
+const promptSaveSchema = idSchema.extend({ expectedRevision: z.string().length(64), overrides: JudgePromptOverridesSchema });
+
+export const getJudgePromptsTool: McpTool = {
+  name: "get_judge_prompts",
+  description: "Read the exact judging templates for your evaluation, or preview draft overrides without saving or spending. Returns the revision required to save. The platform editor is at /judging?benchmarkId=<id>; fixed isolation rules and JSON output shape are not editable.",
+  inputSchema: promptPreviewSchema,
+  requiredScopes: ["mcp:read"],
+  featureFlag: "v2Benchmarks",
+  annotations: { readOnlyHint: true },
+  handler: async (args, ctx) => getJudgePromptEditor({ userId: ctx.userId, ...promptPreviewSchema.parse(args) }),
+};
+
+export const saveJudgePromptsTool: McpTool = {
+  name: "save_judge_prompts",
+  description: "Save judging instructions on an owned draft using the revision from get_judge_prompts. Overrides replace only a variant's system framing and scoring procedure; safety rules stay fixed. Started evaluations are immutable. Changes require a fresh quote and spend approval; this tool makes no LLM call.",
+  inputSchema: promptSaveSchema,
+  requiredScopes: ["mcp:write"],
+  featureFlag: "v2Benchmarks",
+  annotations: { readOnlyHint: false },
+  handler: async (args, ctx) => saveJudgePromptEditor({ userId: ctx.userId, ...promptSaveSchema.parse(args) }),
+};
+
 export const BENCHMARK_TOOLS: McpTool[] = [
   createBenchmarkTool,
   prepareBenchmarkRubricTool,
@@ -316,4 +340,6 @@ export const BENCHMARK_TOOLS: McpTool[] = [
   listBenchmarksTool,
   cancelBenchmarkTool,
   resumeBenchmarkTool,
+  getJudgePromptsTool,
+  saveJudgePromptsTool,
 ];

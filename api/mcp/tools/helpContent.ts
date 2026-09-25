@@ -197,6 +197,14 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Continue a partial or cancelled plan under its frozen hash. Finished work is never re-run and attempts are appended, never overwritten; needs a fresh approval because resuming spends again.",
   },
   {
+    name: "get_judge_prompts", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
+    summary: "Read complete judging templates or preview custom framing without spending. Returns the revision for saving; the platform editor is /judging?benchmarkId=<id>.",
+  },
+  {
+    name: "save_judge_prompts", group: "Evaluate", scopes: ["mcp:write"], flag: "v2Benchmarks",
+    summary: "Save custom judging framing on an owned draft using its revision. Started evaluations stay immutable. Re-quote and approve after edits; no LLM call is made here.",
+  },
+  {
     name: "memory_append", group: "Author", scopes: ["mcp:write"],
     summary: "Add a note to your persistent project memory (survives across chats).",
   },

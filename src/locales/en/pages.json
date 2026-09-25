@@ -1,4 +1,33 @@
 {
+  "judging": {
+    "title": "Judging prompts",
+    "intro": "Review and edit the judging instructions for an evaluation created in chat. Each judge uses every selected prompt variant.",
+    "evaluation": "Evaluation",
+    "select": "Select an evaluation",
+    "discard": "Discard unsaved prompt edits?",
+    "loading": "Loading judging plan…",
+    "empty": "No evaluations yet. Create a benchmark in chat, then open it here.",
+    "reload": "Reload saved plan",
+    "noPrompts": "This evaluation has no judging prompts.",
+    "editable": "Draft: judging instructions can be edited without making a paid call.",
+    "locked": "Read-only: this evaluation has started. Create a new benchmark to change its judging instructions.",
+    "safety": "Edit the judge's framing and scoring procedure. Data-isolation instructions and the required JSON result format stay fixed.",
+    "approval": "Saving changes invalidates earlier quotes and approvals. Re-quote and approve before starting. Custom prompts are disclosed with published evidence.",
+    "criteria": "View scoring criteria and weights",
+    "variant": "Prompt variant",
+    "system": "Judge framing",
+    "preface": "Scoring procedure",
+    "preview": "Preview unsaved prompts",
+    "save": "Save judging prompts",
+    "saving": "Saving…",
+    "reset": "Restore this variant's default",
+    "saved": "Judging prompts saved. Re-quote before starting.",
+    "unsaved": "Unsaved changes. Preview to inspect the full messages before saving.",
+    "previewTitle": "Preview of current edits",
+    "savedPreview": "Saved prompt template",
+    "placeholders": "Task and output placeholders are replaced with evaluation data at execution. Reference material is included only when the case provides it.",
+    "variants": { "default": "Original single prompt", "anchored_scale": "Anchored scale", "comment_first": "Comment first", "checklist_first": "Checklist first" }
+  },
   "myData": {
     "title": "My Data",
     "tabs": {

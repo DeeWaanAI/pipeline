@@ -43,17 +43,21 @@ vi.mock("./swarmService", async (importOriginal) => {
   };
 });
 
+const judgeInputs = vi.hoisted(() => [] as string[]);
 vi.mock("./benchmark/judgeService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./benchmark/judgeService")>();
   return {
     ...actual,
-    generateJudgeCall: async () => ({
+    generateJudgeCall: async (args: { prompt: { messages: Array<{ content: string }> } }) => {
+      judgeInputs.push(args.prompt.messages.map((m) => m.content).join("\n"));
+      return {
       content: JSON.stringify({
         scores: { accuracy: 8, completeness: 7, instructionFit: 9, clarity: 6 },
         rationale: "solid but terse",
       }),
       model: "judge-model", promptTokens: 400, completionTokens: 60,
-    }),
+      };
+    },
   };
 });
 
@@ -145,11 +149,12 @@ const evidencePanel = (f: { providerId: number }) => [
 ];
 
 /** A completed benchmark whose children were really executed by the plan. */
-async function completedBenchmark(f: Awaited<ReturnType<typeof seedFixture>>) {
+async function completedBenchmark(f: Awaited<ReturnType<typeof seedFixture>>, judgePromptOverrides?: import("../../contracts/offeringV2").JudgePromptOverrides) {
   const benchmarkId = await svc.createBenchmarkDraft({
     userId: f.userId, projectId: f.projectId,
     cases: [{ inputText: "clause one" }, { inputText: "clause two" }],
     judges: evidencePanel(f),
+    ...(judgePromptOverrides ? { judgePromptOverrides } : {}),
   });
   const quote = await svc.quoteBenchmark({ userId: f.userId, benchmarkId });
   const approval = await svc.approveBenchmarkSpend({ userId: f.userId, benchmarkId, planHash: quote.planHash });
@@ -208,6 +213,22 @@ const listingRow = async (id: number) => {
 
 describe("evidence publication (DB-backed)", () => {
   beforeAll(async () => { await setPublicationFlag(true); });
+
+  it("executes edited judging instructions and discloses their recorded versions", async () => {
+    const f = await seedFixture();
+    const overrides = { anchored_scale: { system: "Review business usefulness.", preface: "Check practical recommendations before assigning scores." } };
+    const offset = judgeInputs.length;
+    const { benchmarkId } = await completedBenchmark(f, overrides);
+    const calls = judgeInputs.slice(offset);
+    expect(calls.filter((text) => text.includes(overrides.anchored_scale.system))).toHaveLength(6);
+    expect(calls.filter((text) => text.includes(overrides.anchored_scale.preface))).toHaveLength(6);
+    const preview = await ev.buildEvidencePreview({ userId: f.userId, benchmarkId, publicationKind: "seller", consentVersion: "consent-v1" });
+    const { judgePromptVersionFor } = await import("./benchmark/judgeService");
+    const version = judgePromptVersionFor("anchored_scale", overrides);
+    expect(preview.manifest.judging.judgePrompts.find((p) => p.judgePromptVersion === version)?.promptText).toContain(overrides.anchored_scale.preface);
+    expect(preview.manifest.judging.judgments.filter((j) => j.judgePromptVersion === version)).toHaveLength(6);
+    expect(preview.manifest.judging.judges.filter((j) => j.judgePromptVersion === version)).toHaveLength(3);
+  });
 
   it("builds a manifest that satisfies the frozen public contract and repeats byte-for-byte", async () => {
     const f = await seedFixture();

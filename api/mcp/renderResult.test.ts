@@ -146,7 +146,7 @@ describe("lossless exports", () => {
     expect(JSON.parse(block(text, "json"))).toEqual(payload);
   });
 
-  it.each(["export_pipeline", "export_my_data", "export_run"])("round-trips complete %s JSON", (tool) => {
+  it.each(["export_pipeline", "export_my_data", "export_run", "get_judge_prompts"])("round-trips complete %s JSON", (tool) => {
     const payload = {
       plan: Array.from({ length: 75 }, (_, id) => ({ id, prompt: '<b>content</b> & `code`\n```````\n# injected\n' + "x".repeat(700) })),
       nullCost: null,

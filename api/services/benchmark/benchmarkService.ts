@@ -18,6 +18,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { JudgePromptOverridesSchema } from "../../../contracts/offeringV2";
 import {
   agentResponses, benchmarkCandidates, benchmarkCases, benchmarkJudgments, benchmarkRuns,
   benchmarks, callAttempts, llmProviders, pipelineVersions, projects, spendApprovals, swarmRuns,
@@ -30,7 +31,7 @@ import { resolveModelPricing, type PricingSource, type ResolvedPricing } from ".
 import {
   VALIDATORS_DISABLED_REASON, panelVariants,
   type BenchmarkCallPlan, type CallCounts, type CandidateSpec, type CaseSpec,
-  type JudgePromptVariant, type JudgeSpec, type RubricSpec, type SnapshotStep, type ValidatorSpec, type VersionDefinition,
+  type JudgePromptOverrides, type JudgePromptVariant, type JudgeSpec, type RubricSpec, type SnapshotStep, type ValidatorSpec, type VersionDefinition,
 } from "./benchmarkTypes";
 import {
   computeCounts, expandDraftCandidates, hashPlan, planPreflightErrors,
@@ -70,6 +71,7 @@ export interface CreateBenchmarkInput {
   executionMode?: BenchmarkCallPlan["executionMode"];
   cases: Array<{ inputText: string; origin?: CaseSpec["origin"]; baseCaseId?: string; expectedOutput?: string }>;
   judges: Array<{ providerId: number; model: string; variant?: JudgePromptVariant }>;
+  judgePromptOverrides?: JudgePromptOverrides;
   candidates?: Array<{
     label?: string; overrideModel?: string; overrideProviderId?: number;
     isFrontierSoloBaseline?: boolean; baselinePrompt?: string;
@@ -89,6 +91,7 @@ interface DraftPlan {
   cases: CaseSpec[];
   candidates: Array<Omit<CandidateSpec, "baseVersionId"> & { baseVersionId?: number }>;
   judges: JudgeSpec[];
+  judgePromptOverrides?: JudgePromptOverrides;
   rubric: RubricSpec;
   /** Always empty/disabled in this deployment — see spec §7.1. Carried in the
    *  plan so the quote and the published manifest can DISCLOSE that no
@@ -173,6 +176,7 @@ function toDraftPlan(input: CreateBenchmarkInput): DraftPlan {
       ...(j.variant ? { variant: j.variant } : {}),
     })),
     rubric: input.rubric ?? DEFAULT_RUBRIC,
+    ...(input.judgePromptOverrides !== undefined ? { judgePromptOverrides: JudgePromptOverridesSchema.parse(input.judgePromptOverrides) } : {}),
     validators: [],
     generationRepeats,
     judgmentKind,
@@ -714,6 +718,11 @@ export async function startBenchmark(opts: {
   if (finalHash !== opts.planHash) return { ok: false, error: "plan_changed — the frozen plan differs from the approved quote; obtain a new quote and approval (A06)" };
 
   await db.transaction(async (tx) => {
+    const [current] = await tx.select({ state: benchmarks.state, plan: benchmarks.plan }).from(benchmarks)
+      .where(eq(benchmarks.id, b.id)).for("update");
+    if (!current || current.state !== "draft" || current.plan !== b.plan) {
+      throw new Error("plan_changed — the draft changed or started while preparing execution; re-quote before starting");
+    }
     await tx.insert(benchmarkCases).values(plan.cases.map((c, i) => ({
       benchmarkId: b.id, stableCaseId: c.stableCaseId, caseOrder: i + 1,
       inputText: c.inputText, origin: c.origin ?? "user",
@@ -1092,7 +1101,7 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
     for (const run of runs) {
       for (const judge of plan.judges) {
         for (const variant of variants) {
-          const promptVersion = judgePromptVersionFor(variant);
+          const promptVersion = judgePromptVersionFor(variant, plan.judgePromptOverrides);
           const dup = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
             .where(and(eq(benchmarkJudgments.runId, run.id), eq(benchmarkJudgments.judgeSlot, judge.slot), eq(benchmarkJudgments.judgePromptVersion, promptVersion)))
             .limit(1);
@@ -1101,6 +1110,7 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
           const prompt = buildRubricJudgePrompt({
             taskInput: String(kase.inputText), candidateOutput: String(run.outputText ?? ""),
             rubric: plan.rubric,
+            judgePromptOverrides: plan.judgePromptOverrides,
             ...(kase.expectedOutput ? { referenceMaterial: String(kase.expectedOutput) } : {}),
             ...(variant ? { variant } : {}),
           });
@@ -1171,7 +1181,7 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
       // same presentation order — the variant is the only thing being tested.
       const orientation = parseInt(sha256(`${first.id}:${second.id}:${judge.slot}`).slice(0, 4), 16) % 2 ? "ab" : "ba";
       for (const variant of panelVariants(plan.judges)) {
-        const promptVersion = judgePromptVersionFor(variant);
+        const promptVersion = judgePromptVersionFor(variant, plan.judgePromptOverrides);
         const dup = await db.select({ id: benchmarkJudgments.id }).from(benchmarkJudgments)
           .where(and(eq(benchmarkJudgments.runAId, first.id), eq(benchmarkJudgments.runBId, second.id), eq(benchmarkJudgments.judgeSlot, judge.slot), eq(benchmarkJudgments.judgePromptVersion, promptVersion)))
           .limit(1);
@@ -1182,6 +1192,7 @@ export async function judgePhase(benchmarkId: number): Promise<void> {
         const prompt = buildPairwiseJudgePrompt({
           taskInput: String(kase.inputText), outputA: String(presentedA.outputText ?? ""), outputB: String(presentedB.outputText ?? ""),
           rubric: plan.rubric,
+          judgePromptOverrides: plan.judgePromptOverrides,
           ...(variant ? { variant } : {}),
         });
         const startedAt = new Date();
@@ -1241,7 +1252,7 @@ async function iccDisclosure(
   raterScores: Map<number, Map<string, number>>,
 ) {
   const variants = panelVariants(plan.judges);
-  const raterKeys = variants.flatMap((v) => plan.judges.map((j) => `${j.slot}|${judgePromptVersionFor(v)}`));
+  const raterKeys = variants.flatMap((v) => plan.judges.map((j) => `${j.slot}|${judgePromptVersionFor(v, plan.judgePromptOverrides)}`));
   const design = {
     rows: "cases (each completed candidate output graded by the whole panel)",
     columns: "raters (judge slot × prompt variant)",

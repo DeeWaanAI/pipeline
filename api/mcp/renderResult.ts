@@ -126,7 +126,7 @@ export function renderToolResult(toolName: string, result: unknown): CallToolRes
   }
 
   const consentPreview = isRecord(payload) && typeof payload.previewHash === "string";
-  if (/(^|_)export(_|$)/.test(toolName) || consentPreview) {
+  if (/(^|_)export(_|$)/.test(toolName) || toolName === "get_judge_prompts" || consentPreview) {
     // Consent and exports must remain inspectable even in text-only clients.
     const json = JSON.stringify(payload, null, 2).replace(/[<>&]/g, (char) =>
       `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,

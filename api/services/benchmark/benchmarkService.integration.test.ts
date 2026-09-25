@@ -99,6 +99,57 @@ const createInput = (f: { userId: number; projectId: number; providerId: number 
   judges: [{ providerId: f.providerId, model: "fake-model" }],
 });
 
+describe("judging prompt editor (DB-backed)", () => {
+  it("previews without writes, saves with revision checks, invalidates approvals and freezes at start", async () => {
+    const f = await seedFixture();
+    const outsider = await seedFixture();
+    const benchmarkId = await svc.createBenchmarkDraft(createInput(f, 1));
+    const { getJudgePromptEditor, saveJudgePromptEditor } = await import("./judgePromptEditor");
+    const opts = { userId: f.userId, benchmarkId };
+    const before = await getJudgePromptEditor(opts);
+    const quote = await svc.quoteBenchmark(opts);
+    const spendApprovalId = await svc.approveBenchmarkSpend({ ...opts, planHash: quote.planHash });
+    const overrides = { default: { system: "Evaluate for a business reader.", preface: "Check actionable advice before scoring." } };
+    const preview = await getJudgePromptEditor({ ...opts, overrides });
+    expect(preview.prompts[0].messages[0].content).toContain(overrides.default.system);
+    expect((await getJudgePromptEditor(opts)).revision).toBe(before.revision);
+    await expect(getJudgePromptEditor({ ...opts, userId: outsider.userId })).rejects.toThrow("Benchmark not found");
+    await expect(saveJudgePromptEditor({ ...opts, userId: outsider.userId, expectedRevision: before.revision, overrides })).rejects.toThrow("Benchmark not found");
+    const saved = await saveJudgePromptEditor({ ...opts, expectedRevision: before.revision, overrides });
+    expect(saved.overrides).toEqual(overrides);
+    expect(saved.prompts[0].promptVersion).not.toBe(before.prompts[0].promptVersion);
+    expect(saved.revision).not.toBe(before.revision);
+    const currentQuote = await svc.quoteBenchmark(opts);
+    expect(currentQuote.planHash).not.toBe(quote.planHash);
+    expect(await svc.startBenchmark({ ...opts, planHash: quote.planHash, spendApprovalId })).toMatchObject({ ok: false });
+    await expect(saveJudgePromptEditor({ ...opts, expectedRevision: before.revision, overrides: {} })).rejects.toThrow("changed");
+    const newApproval = await svc.approveBenchmarkSpend({ ...opts, planHash: currentQuote.planHash });
+    expect(await svc.startBenchmark({ ...opts, planHash: currentQuote.planHash, spendApprovalId: newApproval })).toMatchObject({ ok: true });
+    const started = await getJudgePromptEditor(opts);
+    expect(started.editable).toBe(false);
+    expect(started.prompts).toEqual(saved.prompts);
+    await expect(saveJudgePromptEditor({ ...opts, expectedRevision: started.revision, overrides: {} })).rejects.toThrow("immutable");
+    expect((await getJudgePromptEditor(opts)).overrides).toEqual(overrides);
+  });
+
+  it("allows only one concurrent save from a revision and can restore defaults", async () => {
+    const f = await seedFixture();
+    const benchmarkId = await svc.createBenchmarkDraft(createInput(f, 1));
+    const { getJudgePromptEditor, saveJudgePromptEditor } = await import("./judgePromptEditor");
+    const opts = { userId: f.userId, benchmarkId };
+    const before = await getJudgePromptEditor(opts);
+    const results = await Promise.allSettled(["UPPER", "upper"].map((system) => saveJudgePromptEditor({
+      ...opts, expectedRevision: before.revision, overrides: { default: { system, preface: "Score" } },
+    })));
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    const current = await getJudgePromptEditor(opts);
+    const reset = await saveJudgePromptEditor({ ...opts, expectedRevision: current.revision, overrides: {} });
+    expect(reset.prompts).toEqual(before.prompts);
+    expect(JSON.parse((await benchmarkRow(benchmarkId)).plan!)).not.toHaveProperty("judgePromptOverrides");
+  });
+});
+
 describe("private evaluation golden path (DB-backed)", () => {
   it("create stores a draft with NO frozen version yet (pipeline_version_id is NULL)", async () => {
     const f = await seedFixture();

@@ -40,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         { path: "/", icon: LayoutDashboard, label: t("nav.dashboard") },
         { path: "/pipelines", icon: Workflow, label: t("nav.myPipelines", "My Pipelines") },
         { path: "/agents", icon: Bot, label: t("nav.myAgents") },
+        { path: "/judging", icon: ClipboardCheck, label: t("nav.judging") },
       ],
     },
     {

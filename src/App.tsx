@@ -19,6 +19,7 @@ const CreatorDashboard = lazy(() => import("./pages/CreatorDashboard"));
 const ReviewerPortal = lazy(() => import("./pages/ReviewerPortal"));
 const ReviewerReview = lazy(() => import("./pages/ReviewerReview"));
 const MyData = lazy(() => import("./pages/MyData"));
+const JudgingPrompts = lazy(() => import("./pages/JudgingPrompts"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const TestFixtures = lazy(() => import("./pages/TestFixtures"));
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/reviewer/portal" element={<ReviewerPortal />} />
           <Route path="/reviewer/review/:listingId" element={<ReviewerReview />} />
           <Route path="/my-data" element={<MyData />} />
+          <Route path="/judging" element={<JudgingPrompts />} />
           <Route path="/test-fixtures" element={<TestFixtures />} />
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/connect" element={<Connect />} />

@@ -9,7 +9,8 @@ import { isFeatureEnabled } from "../plugins/featureFlags";
 import { desc, eq } from "drizzle-orm";
 import { benchmarks } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { JudgePromptVariantSchema } from "../../contracts/offeringV2";
+import { JudgePromptOverridesSchema, JudgePromptVariantSchema } from "../../contracts/offeringV2";
+import { getJudgePromptEditor, saveJudgePromptEditor } from "../services/benchmark/judgePromptEditor";
 import {
   approveBenchmarkSpend, cancelBenchmark, createBenchmarkDraft, getBenchmarkProgress,
   prepareCasesDraft, prepareRubricDraft, quoteBenchmark, resumeBenchmark, startBenchmark,
@@ -103,6 +104,7 @@ export const benchmarkRouter = createRouter({
         })).max(4),
         judges: z.array(z.object({ slot: z.number().int().min(1), providerId: z.number().int().positive(), model: z.string().min(1).max(120), variant: JudgePromptVariantSchema.optional() })).min(1).max(5),
         rubric: rubricSchema,
+        judgePromptOverrides: JudgePromptOverridesSchema.optional(),
         validators: z.array(validatorSchema).max(4).default([]),
         generationRepeats: z.number().int().min(1).max(5),
         judgmentKind: z.enum(["rubric", "pairwise"]),
@@ -115,6 +117,20 @@ export const benchmarkRouter = createRouter({
         userId: ctx.user.id, benchmarkId: input.benchmarkId,
         draft: input.draft as unknown as Parameters<typeof updateBenchmarkDraft>[0]["draft"],
       });
+    }),
+
+  judgePrompts: authedQuery
+    .input(z.object({ benchmarkId: z.number().int().positive(), overrides: JudgePromptOverridesSchema.optional() }))
+    .query(async ({ input, ctx }) => {
+      await assertV2(ctx.user.id);
+      return getJudgePromptEditor({ userId: ctx.user.id, ...input });
+    }),
+
+  saveJudgePrompts: authedQuery
+    .input(z.object({ benchmarkId: z.number().int().positive(), expectedRevision: z.string().length(64), overrides: JudgePromptOverridesSchema }))
+    .mutation(async ({ input, ctx }) => {
+      await assertV2(ctx.user.id);
+      return saveJudgePromptEditor({ userId: ctx.user.id, ...input });
     }),
 
   quote: authedQuery
