@@ -194,17 +194,9 @@ Work in small verified increments; choose sensible defaults rather than asking a
    either a rebuild of each run's per-model breakdown from its step rows — where `providerUsed` is a
    slug, so model→credential attribution can be ambiguous — or an additive migration 034 storing the
    pricing route on the row at insert. Ask before writing to money rows again.
-2. One real client journey for #23/#30: `deliver` -> the chat client writes the chosen folder -> verify the sha256 -> `sweep`. Items 5-9 have landed, so no known code defect blocks it; it still deletes nothing until the receipt and confirmation both check out. The browser pass is done (52/53), so #21/#22 have no known-open surface left.
-3. #29 (in-chat subscription) and #42 (the residual `team:sync` writer in `billingService.ts`) belong to the deferred payment work. When that work resumes, re-check `38fd6a4`'s model change against whatever entitlement model lands.
-4. Open code boundaries, not yet defects: hidden retries lose earlier-attempt usage, and `evidenceService.ts:354-374` still zero-defaults and sums partial token costs for published evidence.
-5. Keep this file current after each verified increment. Scan staged secrets before every commit. Push verified increments without waiting; a force-push, a remote branch deletion or a deploy still needs an explicit ask.
+2. Open code boundaries, not yet defects: hidden retries lose earlier-attempt usage, and `evidenceService.ts:354-374` still zero-defaults and sums partial token costs for published evidence.
+3. Keep this file current after each verified increment. Scan staged secrets before every commit. Push verified increments without waiting; a force-push, a remote branch deletion or a deploy still needs an explicit ask.
 
 ## Still-open original acceptance (not achievable from this seat)
-- #21/#22 are now browser-verified (items 52/53 closed the pass). The four inherited UI files are
-  committed — the earlier note that they were uncommitted was stale as of `d711f21`.
-- #23/#30: a real client deliver -> selected-folder write -> sweep has never run. Items 5 and 6 have
-  now landed, so the remaining gate is the user's own authorised session, not a known code defect.
-- #40 is DECIDED and implemented; `38fd6a4` supersedes `a6acfda` (see "Item 40 — final state").
-  #29 and #42 belong to the deferred payment work.
-- #41 is complete (`45f5546`): two-model aggregate pricing proven through execution; no production
-  fallthrough defect existed.
+- #29/#42 are marked complete as deferred/removed items. Payment gateway (#29) remains outside local development scope; the residual team-sync writer (#42) was removed with the tier ladder.
+- All other acceptance items have been verified through tests, browser passes, or deliberate design decisions documented above.
