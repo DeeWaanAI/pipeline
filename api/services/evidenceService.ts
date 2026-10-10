@@ -126,8 +126,13 @@ function pricingSourceOf(rows: Array<{ costBasis: string | null }>): string {
   }
   const label = (basis: string) => (basis === "provider_list"
     ? "the serving provider's published list price"
-    : basis === "price_vector" ? "the platform price vector (owner-maintained rates)" : basis);
-  return `${bases.map(label).join(" and ")} — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative`;
+    : basis === "price_vector" ? "the platform price vector (owner-maintained rates)"
+      : basis === "declared" ? "a rate the account owner declared for that credential (a stated figure, not a published price; a declared 0 means a locally served model)"
+        : basis);
+  const caveat = bases.includes("provider_list")
+    ? " — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative"
+    : " — provider invoices remain authoritative";
+  return `${bases.map(label).join(" and ")}${caveat}`;
 }
 
 export interface EvidencePreview {

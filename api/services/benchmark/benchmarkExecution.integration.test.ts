@@ -455,6 +455,76 @@ describe("private evaluation execution (DB-backed)", () => {
     }
   });
 
+  it("prices from an owner-declared rate only where nothing published knows the model, and a declared 0 as a real zero", async () => {
+    const f = await seedFixture();
+    const db = await connection();
+    const [benchmark] = await db.insert(schema.benchmarks).values({
+      ownerId: f.userId, sourceProjectId: f.projectId, executionMode: "grade_only", state: "completed",
+    });
+    const benchmarkId = Number((benchmark as { insertId: number }).insertId);
+    const ledger = await import("./benchmarkLedger");
+    const pricing = await import("./modelPricing");
+    const previous = process.env.V2_PRICE_VECTOR_JSON;
+    process.env.V2_PRICE_VECTOR_JSON = JSON.stringify({ "published-model": { in: 1, out: 2 } });
+    pricing.resetPricingCache();
+    try {
+      for (const [modelId, input, output] of [
+        ["local-model", 0, 0], ["obscure-model", 3, 12], ["published-model", 1000, 2000],
+      ] as const) {
+        await db.insert(schema.declaredModelPrices).values({
+          providerRefId: f.providerId, modelId, createdBy: f.userId,
+          inputUsdPerMillion: input.toFixed(8), outputUsdPerMillion: output.toFixed(8),
+        });
+      }
+
+      // Entered per 1M, resolved per 1k — the unit the ledger and the adapters
+      // share. Whitespace and case must not defeat the owner's own entry.
+      expect(await pricing.rateForAttempt(f.providerId, " Local-Model ")).toMatchObject({
+        basis: "declared", rates: { in: 0, out: 0 },
+      });
+      expect(await pricing.rateForAttempt(f.providerId, "obscure-model")).toMatchObject({
+        basis: "declared", rates: { in: 0.003, out: 0.012 },
+      });
+      // A declaration is the LAST source: it may end an UNKNOWN, never overwrite
+      // a price the host or the platform actually states.
+      expect((await pricing.rateForAttempt(f.providerId, "published-model"))?.basis).toBe("price_vector");
+
+      // Quote and actual must consult the same sources in the same order, or an
+      // approved plan hash binds different numbers than the ones billed.
+      const quoted = await pricing.resolveModelPricing({
+        providerIds: [f.providerId], models: ["obscure-model", "local-model", "published-model"],
+      });
+      expect(quoted.sourceByModel).toEqual({
+        "obscure-model": "declared", "local-model": "declared", "published-model": "price_vector",
+      });
+      expect(quoted.missing).toEqual([]);
+
+      const id = await ledger.recordCallAttempt({
+        operationKind: "judgment", operationId: 910_001, benchmarkId, purpose: "private_evaluation",
+        actorId: f.userId, payerId: f.userId, providerRefId: f.providerId, requestedModel: "local-model",
+        outcome: "success", promptTokens: 1200, completionTokens: 300,
+      });
+      const [row] = await db.select().from(schema.callAttempts).where(eq(schema.callAttempts.id, id));
+      // Zero from a declaration is complete, not unknown: the disclosure can
+      // say so because the basis is its own value.
+      expect(row).toMatchObject({
+        estimatedCostUsd: "0.00000000", costBasis: "declared", costCompleteness: "complete",
+      });
+      const [other] = await db.select().from(schema.callAttempts).where(eq(schema.callAttempts.id,
+        await ledger.recordCallAttempt({
+          operationKind: "judgment", operationId: 910_002, benchmarkId, purpose: "private_evaluation",
+          actorId: f.userId, payerId: f.userId, providerRefId: f.providerId, requestedModel: "obscure-model",
+          outcome: "success", promptTokens: 1000, completionTokens: 1000,
+        })));
+      expect(Number(other.estimatedCostUsd)).toBeCloseTo(0.015, 8);
+      const disclosure = ledger.costDisclosure(await ledger.benchmarkLedgerTotals(benchmarkId));
+      expect(disclosure.pricingBases).toContain("declared");
+    } finally {
+      if (previous === undefined) delete process.env.V2_PRICE_VECTOR_JSON;
+      else process.env.V2_PRICE_VECTOR_JSON = previous;
+    }
+  });
+
   it("keeps missing ledger usage unpriced even at known rates, while measured zero remains a real zero", async () => {
     const f = await seedFixture();
     const db = await connection();

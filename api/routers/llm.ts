@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { llmProviders, users } from "@db/schema";
+import { declaredModelPrices, llmProviders, users } from "@db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { createProviderAdapter, getProviderDefaults } from "../lib/providers";
 import { encrypt, decrypt, getMasterKey } from "../services/cryptoService";
@@ -137,6 +137,89 @@ export const llmRouter = createRouter({
         }
         throw e;
       }
+      return { success: true };
+    }),
+
+  // ─── Declared model prices (migration 034) ─────────────────────────
+  // The last rate source: used only when neither the host's published list nor
+  // the platform vector knows the model. Entered per 1M tokens because that is
+  // the unit provider consoles and local-model docs use; the ledger converts.
+  // A declared 0 is a real statement ("this model runs on my own hardware"),
+  // which is why it is kept distinct from UNKNOWN everywhere it is disclosed.
+
+  listDeclaredPrices: authedQuery.query(async ({ ctx }) => {
+    return getDb()
+      .select({
+        id: declaredModelPrices.id,
+        providerRefId: declaredModelPrices.providerRefId,
+        providerName: llmProviders.name,
+        modelId: declaredModelPrices.modelId,
+        inputUsdPerMillion: declaredModelPrices.inputUsdPerMillion,
+        outputUsdPerMillion: declaredModelPrices.outputUsdPerMillion,
+        updatedAt: declaredModelPrices.updatedAt,
+      })
+      .from(declaredModelPrices)
+      .innerJoin(llmProviders, eq(declaredModelPrices.providerRefId, llmProviders.id))
+      .where(eq(llmProviders.userId, ctx.user.id))
+      .orderBy(desc(declaredModelPrices.id));
+  }),
+
+  setDeclaredPrice: authedQuery
+    .input(z.object({
+      providerId: z.number().int().positive(),
+      modelId: z.string().min(1).max(191),
+      inputUsdPerMillion: z.number().min(0).max(100000),
+      outputUsdPerMillion: z.number().min(0).max(100000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [provider] = await db
+        .select({ id: llmProviders.id })
+        .from(llmProviders)
+        .where(and(eq(llmProviders.id, input.providerId), eq(llmProviders.userId, ctx.user.id)))
+        .limit(1);
+      // Same error as "does not exist": a foreign provider id must not be
+      // distinguishable from a missing one.
+      if (!provider) throw new Error("Provider not found");
+      const modelId = input.modelId.trim();
+      if (!modelId) throw new Error("A model id is required");
+      const values = {
+        inputUsdPerMillion: input.inputUsdPerMillion.toFixed(8),
+        outputUsdPerMillion: input.outputUsdPerMillion.toFixed(8),
+      };
+      await db
+        .insert(declaredModelPrices)
+        .values({ providerRefId: provider.id, modelId, createdBy: ctx.user.id, ...values })
+        .onDuplicateKeyUpdate({ set: { ...values, createdBy: ctx.user.id } });
+      const [row] = await db
+        .select({
+          id: declaredModelPrices.id,
+          providerRefId: declaredModelPrices.providerRefId,
+          modelId: declaredModelPrices.modelId,
+          inputUsdPerMillion: declaredModelPrices.inputUsdPerMillion,
+          outputUsdPerMillion: declaredModelPrices.outputUsdPerMillion,
+          updatedAt: declaredModelPrices.updatedAt,
+        })
+        .from(declaredModelPrices)
+        .where(and(eq(declaredModelPrices.providerRefId, provider.id), eq(declaredModelPrices.modelId, modelId)))
+        .limit(1);
+      return row;
+    }),
+
+  deleteDeclaredPrice: authedQuery
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const [owned] = await db
+        .select({ id: declaredModelPrices.id })
+        .from(declaredModelPrices)
+        .innerJoin(llmProviders, eq(declaredModelPrices.providerRefId, llmProviders.id))
+        .where(and(eq(declaredModelPrices.id, input.id), eq(llmProviders.userId, ctx.user.id)))
+        .limit(1);
+      if (!owned) throw new Error("Price entry not found");
+      await db.delete(declaredModelPrices).where(eq(declaredModelPrices.id, input.id));
+      // Removing a declaration cannot corrupt anything: the model simply goes
+      // back to UNKNOWN unless the host or the vector states a price.
       return { success: true };
     }),
 

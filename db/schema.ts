@@ -82,6 +82,29 @@ export const llmProviders = mysqlTable("llm_providers", {
   userIdIdx: index("idx_llm_providers_user_id").on(table.userId),
 }));
 
+// Owner-declared per-model prices (migration 034). The LAST rate source: live
+// provider list -> platform price vector -> this. A declaration never overrides
+// a number the host publishes, it turns UNKNOWN into a figure, and it is always
+// disclosed under its own basis. Per 1M tokens as the provider consoles show it;
+// a real 0.00 means a local model, which is a stated fact and not a missing
+// measurement. Keyed by credential because the same model id on two hosts can
+// cost differently.
+export const declaredModelPrices = mysqlTable("declared_model_prices", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  providerRefId: int("provider_ref_id")
+    .references(() => llmProviders.id, { onDelete: "cascade" })
+    .notNull(),
+  modelId: varchar("model_id", { length: 191 }).notNull(),
+  inputUsdPerMillion: decimal("input_usd_per_million", { precision: 18, scale: 8 }).notNull(),
+  outputUsdPerMillion: decimal("output_usd_per_million", { precision: 18, scale: 8 }).notNull(),
+  createdBy: int("created_by")
+    .references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  providerModelUq: uniqueIndex("uq_declared_price_provider_model").on(table.providerRefId, table.modelId),
+}));
+
 // ─── PROJECTS ──────────────────────────────────────────────────────
 export const projects = mysqlTable("projects", {
   id: int("id").autoincrement().primaryKey().notNull(),

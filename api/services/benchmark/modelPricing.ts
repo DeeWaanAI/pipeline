@@ -9,7 +9,7 @@
 // figure can be re-priced when the real bill is known.
 
 import { inArray } from "drizzle-orm";
-import { llmProviders } from "@db/schema";
+import { declaredModelPrices, llmProviders } from "@db/schema";
 import { getDb } from "../../queries/connection";
 import { createProviderAdapter } from "../../lib/providers";
 import { decrypt, getMasterKey } from "../cryptoService";
@@ -30,7 +30,10 @@ export const PRICING_CACHE_TTL_MS = 10 * 60 * 1000;
 export const PRICING_MISS_TTL_MS = 15_000;
 const PROVIDER_TIMEOUT_MS = 8_000;
 
-export type PricingSource = "provider_list" | "price_vector";
+/** `declared` is the account owner's own stated rate for a credential they own
+ *  (migration 034) — including a deliberate 0 for a locally served model. It is
+ *  never called a provider's published price, and never the platform vector. */
+export type PricingSource = "provider_list" | "price_vector" | "declared";
 
 export interface ResolvedPricing {
   rates: Record<string, ModelRates>;
@@ -101,6 +104,60 @@ export function lookupRate(rates: Record<string, ModelRates>, model: string): Mo
   return key ? rates[key] : undefined;
 }
 
+/**
+ * The owner's own stated rates for the credentials named, converted to the
+ * per-1k unit the ledger uses (declarations are entered per 1M, because that is
+ * the unit the provider consoles show). Read on every lookup and deliberately
+ * NOT cached: a declaration is a number the owner just typed, and serving a
+ * ten-minute-old copy would price the next call with a figure they have already
+ * corrected.
+ */
+async function declaredRatesFor(
+  providerIds: number[],
+): Promise<Map<string, { rates: ModelRates; asOf: Date }>> {
+  const out = new Map<string, { rates: ModelRates; asOf: Date }>();
+  if (!providerIds.length) return out;
+  // Like the live fetch above, a failed price lookup must be able to make the
+  // answer UNKNOWN and nothing worse: it cannot fail the quote or the ledger
+  // row it is annotating. An empty map is exactly that.
+  let rows: Array<{
+    modelId: string; inputUsdPerMillion: string; outputUsdPerMillion: string; updatedAt: Date;
+  }> = [];
+  try {
+    const found = await getDb().select({
+      modelId: declaredModelPrices.modelId,
+      inputUsdPerMillion: declaredModelPrices.inputUsdPerMillion,
+      outputUsdPerMillion: declaredModelPrices.outputUsdPerMillion,
+      updatedAt: declaredModelPrices.updatedAt,
+    }).from(declaredModelPrices).where(inArray(declaredModelPrices.providerRefId, [...new Set(providerIds)]));
+    if (Array.isArray(found)) rows = found;
+  } catch (err) {
+    logger.warn("declared price lookup failed; the model stays UNKNOWN rather than guessed", {
+      providerIds, error: (err as Error).message,
+    });
+    return out;
+  }
+  const disputed = new Set<string>();
+  for (const r of rows) {
+    const key = String(r.modelId ?? "").trim().toLowerCase();
+    // A row with no model id prices nothing; skipping it must not take the
+    // whole lookup down, because "no rate" is a valid answer and a throw is not.
+    if (!key) continue;
+    const rates = { in: Number(r.inputUsdPerMillion) / 1000, out: Number(r.outputUsdPerMillion) / 1000 };
+    const prior = out.get(key);
+    // Two of the SAME owner's credentials disagreeing about one model id is a
+    // mistake only they can fix. Picking either number would present a guess as
+    // a measurement, so a disputed model goes back to UNKNOWN instead.
+    if (prior && (prior.rates.in !== rates.in || prior.rates.out !== rates.out)) {
+      disputed.add(key);
+      out.delete(key);
+    } else if (!prior && !disputed.has(key)) {
+      out.set(key, { rates, asOf: r.updatedAt });
+    }
+  }
+  return out;
+}
+
 export interface AttemptRate {
   rates: ModelRates;
   basis: PricingSource;
@@ -112,9 +169,14 @@ export interface AttemptRate {
 /**
  * One attempt's rate, from the same sources and in the same priority order as
  * `resolveModelPricing`: ask the provider that served the call, then the local
- * vector, then say unknown. Used by the ledger so actuals and the quote the user
- * approved are built from the same numbers (spec §9) — a quote priced live and
- * an actual priced from a stale vector is not a comparable pair.
+ * vector, then the owner's declared rate for that credential, then say unknown.
+ * Used by the ledger so actuals and the quote the user approved are built from
+ * the same numbers (spec §9) — a quote priced live and an actual priced from a
+ * stale vector is not a comparable pair.
+ *
+ * Declared comes LAST on purpose: it is the one source that is not a published
+ * number, so it may only turn UNKNOWN into a figure, never replace a price the
+ * host actually states.
  *
  * Returns null when nothing is known. Null must never be recorded as 0.
  */
@@ -130,6 +192,10 @@ export async function rateForAttempt(
   }
   const vector = lookupRate(readPriceVector(), m);
   if (vector) return { rates: vector, basis: "price_vector", asOf: null };
+  if (typeof providerRefId === "number") {
+    const declared = (await declaredRatesFor([providerRefId])).get(m.toLowerCase());
+    if (declared) return { rates: declared.rates, basis: "declared", asOf: declared.asOf };
+  }
   return null;
 }
 
@@ -143,6 +209,9 @@ export async function resolveModelPricing(opts: {
   }
 
   const vector = readPriceVector();
+  // Same third source, same order, so a quote and the actuals it is approved
+  // against can never disagree about whether a declared rate was used.
+  const declared = await declaredRatesFor(opts.providerIds.filter((id): id is number => typeof id === "number"));
   const rates: ResolvedPricing["rates"] = {};
   const sourceByModel: ResolvedPricing["sourceByModel"] = {};
   const missing: string[] = [];
@@ -157,6 +226,12 @@ export async function resolveModelPricing(opts: {
     if (fallback) {
       rates[model] = fallback;
       sourceByModel[model] = "price_vector";
+      continue;
+    }
+    const stated = declared.get(model.trim().toLowerCase());
+    if (stated) {
+      rates[model] = stated.rates;
+      sourceByModel[model] = "declared";
       continue;
     }
     missing.push(model);
