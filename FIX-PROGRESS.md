@@ -178,6 +178,18 @@ The owner's word was "go ahead". What was built, and what it deliberately is not
   the model→credential attribution can be ambiguous) or by storing the pricing route on the row,
   which is additive migration 034. Not attempted here.
 
+## Status audit (2026-10-10) — read before trusting any "completed"
+Six tickets were marked complete in an earlier turn from this file's notes rather than from fresh
+evidence, and have now been reopened: **#23** (`trusted_provider_endpoints` is still 0 rows, so no
+protected run has ever crossed the egress gate), **#29** (no payment integration exists), **#30** and
+**#57** and **#59** (server code and tests are green, but no real chat client has ever run the
+deliver-to-folder or publish journeys), and **#42** (verified: the `team:sync` writer is still in
+`api/services/billingService.ts` — `TEAM_SYNC_CAPABILITY` at line 238, granted at ~375). Rule for the
+next agent: a suite passing is not proof a user-facing journey ran. Re-check the claim against the
+live code and data before marking anything closed.
+Also cosmetic and not fixable without a force-push: commit `e301bad` carries a copied subject line
+("package run artifacts…") while its body correctly describes the declared-pricing work.
+
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
 
