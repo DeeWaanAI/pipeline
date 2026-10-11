@@ -8,8 +8,6 @@ multi-product platform:
   pipelines. MCP tools are a versioned public API contract: never renamed, only added.
 - **DeeWaanAI Market** — a certified cross-app marketplace: public certification reports,
   5-reviewer grading, Stripe purchases, and "buy once, run in your app" entitlements.
-- **TeamSync** — mixed-app teams share memory, runs, handoffs, and feedback across
-  desktop apps (gated behind the `teamsync` flag).
 - **Enterprise** — SSO (OIDC + SAML), an outbound-only on-prem relay, signed compliance
   exports, and per-customer MCP rate limits (behind `enterprise_sso` / `enterprise_relay`).
 
@@ -54,7 +52,6 @@ refuses to boot without the required ones — or with a known dev default secret
 | `STRIPE_SECRET_KEY` | no | Stripe API key. Empty = billing routes return 503 |
 | `STRIPE_WEBHOOK_SECRET` | no | Stripe webhook signing secret (`POST /api/billing/stripe-webhook`) |
 | `STRIPE_PRICE_SOLO` | no | Stripe price id for the Solo plan |
-| `STRIPE_PRICE_TEAM_SEAT` | no | Stripe price id for per-seat team billing |
 | `SENTRY_DSN` | no | Sentry error reporting. Empty = disabled |
 | `BACKUP_TOKEN` | no | Bearer token for `POST /api/admin/backup` (GitHub Actions cron). Requires `S3_*`; empty = backups disabled (503) |
 | `TRUSTED_PROXY` | no | `false` = ignore `x-forwarded-for`, rate-limit by direct socket IP. Default `true` (safe behind Railway's edge) |

@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { buildHelp, HELP_CATALOG } from "./helpContent";
 
-const ALL_SCOPES = ["mcp:read", "mcp:run", "mcp:write", "team:read", "team:write"];
+const ALL_SCOPES = ["mcp:read", "mcp:run", "mcp:write"];
 
 function base(overrides: Partial<Parameters<typeof buildHelp>[0]> = {}) {
   return {

@@ -13,7 +13,11 @@ import { eq, and, isNull, gt } from "drizzle-orm";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
-export const TOKEN_SCOPES = ["mcp:read", "mcp:run", "mcp:write", "team:read", "team:write"] as const;
+// The team scopes were removed with the team product. Dropping them here is
+// non-breaking: verifyAccessToken() reads the scope string off the JWT and no
+// tool requires them, so a token minted while they existed keeps working — it
+// just can no longer be requested.
+export const TOKEN_SCOPES = ["mcp:read", "mcp:run", "mcp:write"] as const;
 type TokenScope = (typeof TOKEN_SCOPES)[number];
 
 const ISSUER = "deewaanai";

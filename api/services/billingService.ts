@@ -6,7 +6,7 @@
 
 import Stripe from "stripe";
 import { getDb } from "../queries/connection";
-import { subscriptions, idempotencyKeys, teamSeats, teams } from "@db/schema";
+import { subscriptions, idempotencyKeys } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
@@ -227,84 +227,20 @@ async function upsertSubscription(opts: {
   }
 }
 
-// ─── Team seat helpers — RECONCILIATION ONLY ────────────────────────
-// Team features and per-seat checkout were removed (ticket #26), but a
-// team-seat subscription bought before that change can still be LIVE, so its
-// Stripe events must keep being recorded instead of throwing. Nothing new can
-// be purchased on this path. `team:sync` gates no capability any more; the
-// grant/revoke below just keeps the entitlement ledger honest about what the
-// subscription paid for.
-// Capability the team owner holds while a team seat subscription is active.
-const TEAM_SYNC_CAPABILITY = "team:sync";
-
-/** Upsert the single team_seats row for a team (team_id is UNIQUE). */
-async function upsertTeamSeats(opts: {
-  teamId: number;
-  seats: number;
-  stripeSubscriptionId: string;
-  stripeSubscriptionItemId: string | null;
-}): Promise<void> {
-  const db = getDb();
-  const [existing] = await db.select()
-    .from(teamSeats)
-    .where(eq(teamSeats.teamId, opts.teamId))
-    .limit(1);
-
-  if (existing) {
-    if (
-      existing.seats === opts.seats &&
-      existing.stripeSubscriptionId === opts.stripeSubscriptionId &&
-      existing.stripeSubscriptionItemId === opts.stripeSubscriptionItemId
-    ) {
-      logger.info("Team seats already up to date — skipping", { teamId: opts.teamId });
-      return;
-    }
-    await db.update(teamSeats)
-      .set({
-        seats: opts.seats,
-        stripeSubscriptionId: opts.stripeSubscriptionId,
-        stripeSubscriptionItemId: opts.stripeSubscriptionItemId,
-      })
-      .where(eq(teamSeats.teamId, opts.teamId));
-  } else {
-    await db.insert(teamSeats).values({
-      teamId: opts.teamId,
-      seats: opts.seats,
-      stripeSubscriptionId: opts.stripeSubscriptionId,
-      stripeSubscriptionItemId: opts.stripeSubscriptionItemId,
-    });
-  }
-}
-
-/**
- * Grant/revoke the owner's team:sync capability for a team seat
- * subscription. Idempotent: re-granting the same sourceRef is a no-op
- * (mirrors syncSubscriptionEntitlements).
- */
-async function syncTeamSyncEntitlement(opts: {
-  ownerId: number;
-  active: boolean;
-  sourceRef: string;
-}): Promise<void> {
-  if (opts.active) {
-    const existing = await entitlementService.getActiveEntitlements("user", opts.ownerId);
-    if (existing.some((e) => e.capability === TEAM_SYNC_CAPABILITY && e.sourceRef === opts.sourceRef)) return;
-    await entitlementService.grant({
-      subjectType: "user",
-      subjectId: opts.ownerId,
-      capability: TEAM_SYNC_CAPABILITY,
-      source: "subscription",
-      sourceRef: opts.sourceRef,
-    });
-  } else {
-    await entitlementService.revoke({
-      subjectType: "user",
-      subjectId: opts.ownerId,
-      capability: TEAM_SYNC_CAPABILITY,
-      source: "subscription",
-      sourceRef: opts.sourceRef,
-    });
-  }
+// ─── Team seats: retired, events ignored ────────────────────────────
+// Team features and per-seat checkout were removed (ticket #26). A team-seat
+// subscription bought before that change can still be LIVE and keep sending
+// Stripe events, so those events must be handled rather than throw.
+//
+// They are now claimed and IGNORED. `team:sync` gated no capability at all, so
+// the entitlement it granted bought nothing, and writing `team_seats` again
+// would keep a retired product alive in the money ledger. Ignoring is also what
+// stops a legacy event falling through to the generic branch below, which would
+// record a team subscription as an individual plan and grant individual
+// entitlements for it. The tables stay exactly as they are — no drop, no
+// rewrite of history.
+function ignoreTeamSeatEvent(eventId: string, type: string): void {
+  logger.info("Ignoring Stripe event for the retired team-seat product", { eventId, type });
 }
 
 // ─── Webhook entry point ────────────────────────────────────────────
@@ -354,35 +290,9 @@ export async function handleStripeEvent(rawBody: string, signature: string): Pro
         break;
       }
 
-      // ─── Team seat subscription (Phase 2 TeamSync) ──────────────
+      // ─── Team seat subscription (retired product) ─────────────────
       if (session.metadata?.type === "team_seats") {
-        const teamId = parseInt(session.metadata?.teamId ?? "", 10);
-        const stripeSubscriptionId = typeof session.subscription === "string"
-          ? session.subscription
-          : session.subscription?.id;
-        if (!teamId || Number.isNaN(teamId) || !stripeSubscriptionId) {
-          logger.warn("team_seats checkout.session.completed missing metadata", { eventId: event.id });
-          break;
-        }
-        const subscription = await client.subscriptions.retrieve(stripeSubscriptionId);
-        const item = subscription.items?.data?.[0];
-        await upsertTeamSeats({
-          teamId,
-          seats: item?.quantity ?? 1,
-          stripeSubscriptionId,
-          stripeSubscriptionItemId: item?.id ?? null,
-        });
-        // Grant the owner team:sync while the subscription is active.
-        const db = getDb();
-        const [team] = await db.select({ ownerId: teams.ownerId })
-          .from(teams)
-          .where(eq(teams.id, teamId))
-          .limit(1);
-        if (team) {
-          await syncTeamSyncEntitlement({ ownerId: team.ownerId, active: true, sourceRef: stripeSubscriptionId });
-        } else {
-          logger.warn("team_seats checkout for unknown team", { eventId: event.id, teamId });
-        }
+        ignoreTeamSeatEvent(event.id, "checkout.session.completed");
         break;
       }
 
@@ -412,34 +322,11 @@ export async function handleStripeEvent(rawBody: string, signature: string): Pro
     case "customer.subscription.updated": {
       const sub = event.data.object as Stripe.Subscription;
 
-      // ─── Team seat subscription (Phase 2 TeamSync) ──────────────
-      // Intercept before the generic branch so team subscriptions never
-      // land in the user-level `subscriptions` table.
+      // ─── Team seat subscription (retired product) ─────────────────
+      // Intercepted before the generic branch on purpose: letting it through
+      // would record a team subscription as an individual plan.
       if (sub.metadata?.type === "team_seats") {
-        const teamId = parseInt(sub.metadata?.teamId ?? "", 10);
-        if (!teamId || Number.isNaN(teamId)) {
-          logger.warn("team_seats subscription.updated missing teamId", { eventId: event.id });
-          break;
-        }
-        const db = getDb();
-        const item = sub.items?.data?.[0];
-        const [seatRow] = await db.select()
-          .from(teamSeats)
-          .where(eq(teamSeats.teamId, teamId))
-          .limit(1);
-        if (seatRow && item?.quantity && seatRow.seats !== item.quantity) {
-          await db.update(teamSeats)
-            .set({ seats: item.quantity })
-            .where(eq(teamSeats.teamId, teamId));
-        }
-        const [team] = await db.select({ ownerId: teams.ownerId })
-          .from(teams)
-          .where(eq(teams.id, teamId))
-          .limit(1);
-        if (team) {
-          const active = sub.status === "active" || sub.status === "trialing";
-          await syncTeamSyncEntitlement({ ownerId: team.ownerId, active, sourceRef: sub.id });
-        }
+        ignoreTeamSeatEvent(event.id, "customer.subscription.updated");
         break;
       }
 
@@ -466,31 +353,12 @@ export async function handleStripeEvent(rawBody: string, signature: string): Pro
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
 
-      // ─── Team seat subscription (Phase 2 TeamSync) ──────────────
+      // ─── Team seat subscription (retired product) ───────────────
+      // Deleting the row here would rewrite the history of a product we no
+      // longer sell. A `team:sync` grant issued before the retirement stays
+      // inert: no code reads that capability any more.
       if (sub.metadata?.type === "team_seats") {
-        const db = getDb();
-        // The team_seats row is the canonical link; metadata teamId is a fallback.
-        const [seatRow] = await db.select()
-          .from(teamSeats)
-          .where(eq(teamSeats.stripeSubscriptionId, sub.id))
-          .limit(1);
-        const metaTeamId = parseInt(sub.metadata?.teamId ?? "", 10);
-        const resolvedTeamId = seatRow?.teamId ?? (Number.isNaN(metaTeamId) ? null : metaTeamId);
-        if (seatRow) {
-          // No status column on team_seats — removal IS deactivation.
-          await db.delete(teamSeats).where(eq(teamSeats.id, seatRow.id));
-        }
-        if (resolvedTeamId) {
-          const [team] = await db.select({ ownerId: teams.ownerId })
-            .from(teams)
-            .where(eq(teams.id, resolvedTeamId))
-            .limit(1);
-          if (team) {
-            await syncTeamSyncEntitlement({ ownerId: team.ownerId, active: false, sourceRef: sub.id });
-          }
-        } else {
-          logger.warn("team_seats subscription.deleted with no matching team", { eventId: event.id });
-        }
+        ignoreTeamSeatEvent(event.id, "customer.subscription.deleted");
         break;
       }
 

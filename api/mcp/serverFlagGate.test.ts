@@ -26,7 +26,7 @@ const auth: McpAuthContext = {
   clientId: "flag-gate-test",
   requestId: "req-1",
   locale: "en",
-  scopes: new Set(["mcp:read", "mcp:write", "mcp:run", "team:read", "team:write"]),
+  scopes: new Set(["mcp:read", "mcp:write", "mcp:run"]),
 };
 
 async function liveSurface() {

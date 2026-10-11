@@ -190,6 +190,24 @@ live code and data before marking anything closed.
 Also cosmetic and not fixable without a force-push: commit `e301bad` carries a copied subject line
 ("package run artifacts…") while its body correctly describes the declared-pricing work.
 
+## #42 CLOSED — team removal finished (2026-10-11)
+Evidence, not notes: `api/services/billingService.ts` no longer contains `TEAM_SYNC_CAPABILITY`,
+`upsertTeamSeats` or `syncTeamSyncEntitlement`. All three `team_seats` webhook branches now call
+`ignoreTeamSeatEvent` — the event is claimed in `idempotency_keys` and dropped, so a LIVE legacy
+subscription cannot throw (Stripe retry storm) and cannot fall through to the generic branch and be
+recorded as an individual plan. `teamSeats`/`teams` are gone from the file's imports; the TABLES are
+untouched (additive-migrations-only, history preserved). `TOKEN_SCOPES` lost `team:read`/`team:write`
+(the OAuth layer already refused them via `MCP_SCOPES` in `api/mcp/auth.ts`, so no token minted after
+2026-09 could hold them and old ones still verify — nothing requires those scopes). Unused
+`STRIPE_PRICE_TEAM_SEAT` removed from `api/lib/env.ts`, README, DEPLOY.md and the flag seed SQL;
+ENGINEERING.md §3 now describes the one arm `can()` actually has.
+
+New pin: `api/services/billingService.test.ts` (4 tests). Negative control was run — neutering the
+`customer.subscription.deleted` intercept turned exactly that case red with "expected … to not contain
+insert into subscriptions", so the passing runs are not a deaf harness. `npm run check` clean; 43 tests
+green across billing/token/entitlement/MCP-scope suites. NOT verified: no real Stripe test event was
+delivered to a running server (that needs live keys — #23/#29 still open).
+
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
 

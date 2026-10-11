@@ -10,7 +10,7 @@ import { TOOLS } from "./index";
 import { BENCHMARK_TOOLS } from "./benchmarkTools";
 import { HELP_CATALOG, buildHelp } from "./helpContent";
 
-const ALL_SCOPES = ["mcp:read", "mcp:write", "mcp:run", "team:read", "team:write"];
+const ALL_SCOPES = ["mcp:read", "mcp:write", "mcp:run"];
 
 describe("MCP tool registry", () => {
   it("offers explicit, write-scoped application of a durable design candidate", async () => {

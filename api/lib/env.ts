@@ -39,7 +39,6 @@ export const env = {
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
   stripePriceSolo: process.env.STRIPE_PRICE_SOLO ?? "",
-  stripePriceTeamSeat: process.env.STRIPE_PRICE_TEAM_SEAT ?? "",
   // Dedicated HMAC key for signed compliance exports. Separating it from
   // APP_SECRET means session-secret rotation no longer breaks verification
   // of historical audit exports. Empty = fall back to APP_SECRET (legacy).

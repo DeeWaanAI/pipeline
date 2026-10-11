@@ -57,13 +57,11 @@ describe("issueAccessToken / verifyAccessToken", () => {
 });
 
 describe("TOKEN_SCOPES", () => {
-  it("declares the MCP and team scope vocabulary", () => {
+  it("declares only the MCP scope vocabulary — the team scopes are retired", () => {
     expect([...TOKEN_SCOPES]).toEqual([
       "mcp:read",
       "mcp:run",
       "mcp:write",
-      "team:read",
-      "team:write",
     ]);
   });
 });

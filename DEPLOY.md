@@ -89,14 +89,13 @@ INSERT INTO feature_flags (`key`, name, description, enabled, rollout_percent) V
   ('local_folder', 'Local Folder Access', 'Link local project folders', 1, 100),
   ('store_relaunch', 'Store Relaunch', 'Stripe marketplace purchases', 1, 100),
   ('marketplace_ai_triage', 'Marketplace AI Triage', 'Platform AI triage for marketplace submissions (non-gating)', 1, 100),
-  ('teamsync', 'TeamSync', 'Cross-app team collaboration', 0, 0),
   ('enterprise_sso', 'Enterprise SSO', 'OIDC/SAML login', 0, 0),
   ('enterprise_relay', 'Enterprise Relay', 'On-prem relay', 0, 0),
   ('gitee_sync', 'Gitee Sync', 'Gitee repo integration (incomplete feature)', 0, 0),
   ('mcp_sampling', 'MCP Sampling', 'Let MCP tools use the connected desktop app LLM (auto-detected per client)', 0, 0);
 ```
 
-(`teamsync`, the two enterprise flags, and `gitee_sync` stay off until you've tested them live — the burial checklist in `ENGINEERING.md` explains when to remove them entirely. `companion_mcp` needs no flag — it's permanently on.)
+(the two enterprise flags and `gitee_sync` stay off until you've tested them live — the burial checklist in `ENGINEERING.md` explains when to remove them entirely. `companion_mcp` needs no flag — it's permanently on.)
 
 Marketplace trust flow (see `DeeWaanAI-Next/MARKETPLACE-TRUST-SPEC.md`): submissions pass a deterministic security scan → optional platform AI triage (`marketplace_ai_triage` + `AI_TRIAGE_*` env vars; off/unconfigured = skipped, non-gating) → `certifying` (visible, not buyable) → blind human review (5×3, kappa > 0.60) → `published` (buyable). AI never publishes; humans gate buyability.
 
@@ -116,7 +115,7 @@ Marketplace trust flow (see `DeeWaanAI-Next/MARKETPLACE-TRUST-SPEC.md`): submiss
 ## Step 9 — Stripe when you're ready (test mode, 15 min)
 
 1. stripe.com → keep **Test mode** ON → Developers → API keys → copy the **secret key** (`sk_test_...`) into Railway variable `STRIPE_SECRET_KEY`.
-2. Create two test prices (Products → Add product: "Solo" monthly + "Team Seat" monthly) → copy each `price_...` id into `STRIPE_PRICE_SOLO` / `STRIPE_PRICE_TEAM_SEAT`.
+2. Create one test price (Products → Add product: "Solo" monthly) → copy its `price_...` id into `STRIPE_PRICE_SOLO`. There is no per-seat/team price any more — quantity is always 1.
 3. Developers → Webhooks → Add endpoint: `https://<your-domain>/api/billing/stripe-webhook`, events: `checkout.session.completed`, `customer.subscription.*`, `charge.refunded` → copy the **Signing secret** (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
 4. Buy a listing with test card `4242 4242 4242 4242` (any expiry/CVC). No real money moves.
 
@@ -130,7 +129,7 @@ Marketplace trust flow (see `DeeWaanAI-Next/MARKETPLACE-TRUST-SPEC.md`): submiss
 - **Costs:** watch the Railway usage page weekly during beta; ~$25–45/mo is normal for light traffic.
 - **Redeploys:** every `git push` to `main` redeploys automatically — and every push runs the CI gates (`.github/workflows/ci.yml`: typecheck, i18n parity, tests, build, plus integration tests against real MySQL/Redis). A red CI run means don't celebrate the deploy; check Actions first.
 - **If the app crashes:** app service → "Deployments" → click the deployment → "View Logs". The `/api/health` check will show `degraded` if the database is unreachable.
-- **Going live with real payments:** flip Stripe to live mode keys (same three variables) and buy a real domain (Railway Settings → Networking → Custom Domain, ~$12/yr at any registrar). The full go-live acceptance checklist (Stripe card swipe, two-desktop TeamSync, live SSO, on-prem relay, read replica) is in `DeeWaanAI-Next/ACCEPTANCE.md`.
+- **Going live with real payments:** flip Stripe to live mode keys (same three variables) and buy a real domain (Railway Settings → Networking → Custom Domain, ~$12/yr at any registrar). The full go-live acceptance checklist (Stripe card swipe, live SSO, on-prem relay, read replica) is in `DeeWaanAI-Next/ACCEPTANCE.md`.
 
 ## Optional: dedicated worker service (before heavy traffic)
 

@@ -40,15 +40,14 @@
 //   # Requires at least one row in `users` (the first signup becomes admin).
 //
 // OFFLINE LIMITATIONS (deliberately NOT covered here):
-//   - `checkout.session.completed` with metadata.type="team_seats" calls
-//     stripe.subscriptions.retrieve() — a LIVE Stripe API call. It cannot be
-//     tested offline and is excluded rather than faked. Cover it with the
-//     live test-card cycle in DeeWaanAI-Next/ACCEPTANCE.md (section A).
-//   - Stripe Checkout session CREATION (billing.checkout etc.) also calls
-//     the live API and is out of scope; this script exercises webhook
-//     PROCESSING only.
-//   - All other webhook branches (marketplace purchase/refund covered here;
-//     generic + team subscription.updated/deleted) make no Stripe API calls.
+//   - Stripe Checkout session CREATION (billing.checkout etc.) calls the live
+//     API and is out of scope; this script exercises webhook PROCESSING only.
+//   - The retired `team_seats` branches make no API calls any more — they claim
+//     the event and log that it was ignored. Pinned offline in
+//     api/services/billingService.test.ts instead of here.
+//   - All other webhook branches (marketplace purchase/refund covered here,
+//     plus the generic subscription.updated/deleted path) make no Stripe API
+//     calls.
 // ═══════════════════════════════════════════════════════════════════
 import fs from "fs";
 import Stripe from "stripe";

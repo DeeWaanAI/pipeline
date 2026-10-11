@@ -38,7 +38,6 @@ api/
                            entitlementSync.ts   marketplace purchase fulfill/refund
                            auditExport.ts       signed compliance ledger + CSV (admin)
                            swarmService.ts      executeSwarmRun — pipeline execution
-                           sharedMemory.ts      TeamSync shared memory + optimistic locks
                            sso.ts               OIDC/SAML connections (secrets AES-256-GCM)
                            eventBus.ts          pipeline event fan-out (local + Redis)
                            memoryManager, projectIntelligence, projectFilesDisk,
@@ -197,19 +196,21 @@ legacy `submitReview` 5×3+kappa path is kept intact as the anchor.
 
 ## 3. Entitlements (read this before touching auth checks)
 
-`api/services/entitlements.ts` is the single brain. `can(userId, capability, ctx?)`
+`api/services/entitlements.ts` is the single brain. `can(userId, capability)`
 resolves in order:
 
-1. unexpired `entitlements` rows (user scope, then team scope when `ctx.teamId`),
-2. active/trialing `subscriptions` row → `PLAN_CAPABILITIES[plan]` (`api/config/plans.ts`),
-3. user `tier` → `TIER_CAPABILITIES`,
-4. unexpired `voucher_redemptions` tier.
+1. unexpired `entitlements` rows (user scope — the only scope),
+2. nothing else. Everything not gated by a row below is open to every signed-in account.
 
-Capability vocabulary: `pipeline:fixed`, `pipeline:custom`, `pipeline:autodesign`,
-`llm:1`, `llm:3`, `marketplace:publish`, plus grant-based `pipeline:run:<listingId>`,
-`tier:<tier>`, `team:sync`. New authorization checks should call `can()` — do not add
-raw `tier ===` comparisons. Tier reads that are display-only (badges, admin management)
-are fine.
+The old arms — an active/trialing subscription through `PLAN_CAPABILITIES`, `users.tier`
+through `TIER_CAPABILITIES`, and voucher redemptions — were removed with the plan and tier
+ladders (owner decision 2026-09-22). DeeWaanAI sells one flat per-account subscription.
+
+Capability vocabulary: grant-based `pipeline:run:<listingId>` (a marketplace purchase) and
+whatever an admin records manually. `team:sync` is retired: no code reads it, and a legacy
+`team_seats` Stripe event is now claimed and ignored. New authorization checks should call
+`can()` — do not add raw `tier ===` comparisons. Tier reads that are display-only (badges,
+admin management) are fine.
 
 ---
 
