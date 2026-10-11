@@ -205,6 +205,10 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Save custom judging framing on an owned draft using its revision. Started evaluations stay immutable. Re-quote and approve after edits; no LLM call is made here.",
   },
   {
+    name: "export_benchmark", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
+    summary: "Export one private evaluation as an exact local archive — the frozen plan, the full text of every judging prompt the panel used, every case input and candidate output, every judgment including the failures, the cost ledger rows, and a SHA-256 manifest. Read out the manifest's `incomplete` list: those are bodies the server no longer holds and cannot recover. Writes nothing itself and sweeps nothing.",
+  },
+  {
     name: "memory_append", group: "Author", scopes: ["mcp:write"],
     summary: "Add a note to your persistent project memory (survives across chats).",
   },

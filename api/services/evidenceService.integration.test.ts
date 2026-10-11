@@ -685,4 +685,35 @@ describe("evidence publication (DB-backed)", () => {
     // The listing the withdrawn manifest supported is no longer buyable.
     expect((await listingRow(listingId)).listing.status).toBe("unpublished");
   });
+  it("hands a whole evaluation to the client as files it can verify (local-archive half of #69)", async () => {
+    const { createHash } = await import("node:crypto");
+    const f = await seedFixture();
+    const { benchmarkId } = await completedBenchmark(f);
+    const bx = await import("./benchmark/benchmarkExport");
+    const { archive, benchmark } = await bx.exportBenchmarkArchive({ userId: f.userId, benchmarkId });
+
+    const paths = archive.files.map((x) => x.path);
+    expect(paths).toContain("plan.json");
+    // D12: the reader gets every framing the panel used, not one representative.
+    expect(paths.filter((x) => x.startsWith("judge-prompts/"))).toHaveLength(3);
+    expect(paths.filter((x) => x.startsWith("cases/")).length).toBeGreaterThan(0);
+    expect(paths).toEqual(expect.arrayContaining(["judgments.json", "ledger.json", "manifest.json", "benchmark.json"]));
+    const prompt = archive.files.find((x) => x.path.startsWith("judge-prompts/"))!;
+    expect(prompt.content).toContain("{{CANDIDATE_OUTPUT}}");   // the template, not a summary of it
+
+    for (const file of archive.files) {
+      expect(file.bytes).toBe(Buffer.byteLength(file.content, "utf8"));
+      expect(file.sha256).toBe(createHash("sha256").update(file.content, "utf8").digest("hex"));
+    }
+    // The hash a third party will match published evidence against, and the
+    // execution credential that must never travel.
+    expect(String(benchmark.planHash)).toMatch(/^[0-9a-f]{64}$/);
+    expect(Object.keys(JSON.parse(archive.files.find((x) => x.path === "benchmark.json")!.content))).not.toContain("leaseToken");
+
+    // Another account is refused exactly as a non-existent benchmark would be.
+    const stranger = await seedFixture();
+    await expect(bx.exportBenchmarkArchive({ userId: stranger.userId, benchmarkId }))
+      .rejects.toThrow(/not_found_or_not_authorized/);
+  });
 });
+

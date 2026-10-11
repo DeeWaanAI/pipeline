@@ -10,6 +10,7 @@
 // call is appended to call_attempts.
 
 import { z } from "zod";
+import { exportBenchmarkTool } from "./exportBenchmark";
 import type { McpTool, McpAuthContext } from "../types";
 import { JUDGE_PROMPT_VARIANTS, JudgePromptOverridesSchema } from "../../../contracts/offeringV2";
 import { getJudgePromptEditor, saveJudgePromptEditor } from "../../services/benchmark/judgePromptEditor";
@@ -342,4 +343,5 @@ export const BENCHMARK_TOOLS: McpTool[] = [
   resumeBenchmarkTool,
   getJudgePromptsTool,
   saveJudgePromptsTool,
+  exportBenchmarkTool,
 ];

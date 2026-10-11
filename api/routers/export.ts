@@ -18,6 +18,7 @@ import {
 import {
   isProtectedRun, projectRunDetail, redactProtectedAgentRun,
 } from "../services/runAccess";
+import { exportBenchmarkArchive } from "../services/benchmark/benchmarkExport";
 
 export const PROTECTED_EXPORT_NOTE =
   "Protected marketplace run: the workflow definition belongs to the seller, so step prompts are stored as lengths only and intermediate step outputs are not part of the buyer's export.";
@@ -103,6 +104,14 @@ export const exportRouter = createRouter({
         agentResponses: detail.responses,
       };
     }),
+
+  // Export one private evaluation as an exact local archive: the frozen plan, the
+  // judging prompts in full, every case input and candidate output, every
+  // judgment, and the cost ledger rows. `exportRun` covers a run; a benchmark is
+  // where a research program's real work lives, and it had no way out.
+  exportBenchmark: authedQuery
+    .input(z.object({ benchmarkId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => exportBenchmarkArchive({ userId: ctx.user.id, benchmarkId: input.benchmarkId })),
 
   // Export all pipeline templates for the current user
   exportTemplates: authedQuery.query(async ({ ctx }) => {

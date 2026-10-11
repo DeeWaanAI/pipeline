@@ -100,10 +100,10 @@ describe("MCP tool registry", () => {
 
 describe("private evaluation MCP surface (D9 workbench)", () => {
   it("exposes the full journey and gates all of it on v2Benchmarks", () => {
-    expect(BENCHMARK_TOOLS).toHaveLength(12);
+    expect(BENCHMARK_TOOLS).toHaveLength(13);
     for (const t of BENCHMARK_TOOLS) {
       expect(t.featureFlag).toBe("v2Benchmarks");
-      expect(t.annotations.readOnlyHint).toBe(["quote_benchmark", "benchmark_status", "list_benchmarks", "get_judge_prompts"].includes(t.name));
+      expect(t.annotations.readOnlyHint).toBe(["quote_benchmark", "benchmark_status", "list_benchmarks", "get_judge_prompts", "export_benchmark"].includes(t.name));
       expect(t.requiredScopes.length).toBeGreaterThan(0);
       expect(TOOLS).toContain(t); // registered, not just defined
     }
@@ -111,6 +111,7 @@ describe("private evaluation MCP surface (D9 workbench)", () => {
       "create_benchmark", "prepare_benchmark_rubric", "prepare_benchmark_cases", "quote_benchmark",
       "approve_benchmark_spend", "start_benchmark", "benchmark_status", "list_benchmarks",
       "cancel_benchmark", "resume_benchmark", "get_judge_prompts", "save_judge_prompts",
+      "export_benchmark",
     ]);
   });
 
