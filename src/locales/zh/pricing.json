@@ -1,7 +1,8 @@
 {
   "title": "价格方案",
   "subtitle": "一个平台管理你的流水线——既在工作室中，也在你日常使用的 AI 应用里。",
-  "flatMonthly": "每个账户统一的月度费用",
+  "flatMonthly": "每账户，每月",
+  "betaFree": "内测期间免费，不绑定任何支付方式。",
   "checkoutDisabled": "支付开通后即可结算",
   "billingNote": "支付网关尚未接入，本页面目前无法收款：不会产生任何扣费，也不会创建订阅。",
   "model": {

@@ -20,6 +20,10 @@ export interface Plan {
   name: string;
   interval: "month";
   priceId: string; // Stripe price id from env ("" when unconfigured)
+  /** Display price in USD. The Stripe `priceId` is what is actually charged,
+   *  so this number is a promise until billing is configured: change it in the
+   *  Stripe dashboard AND here, or the two drift apart. */
+  priceUsd: string;
 }
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -28,6 +32,7 @@ export const PLANS: Record<PlanId, Plan> = {
     name: "DeeWaanAI",
     interval: "month",
     priceId: env.stripePriceSolo,
+    priceUsd: "9.99",
   },
 };
 
@@ -37,6 +42,7 @@ export function listPublicPlans(): Array<Omit<Plan, "priceId"> & { available: bo
     id: p.id,
     name: p.name,
     interval: p.interval,
+    priceUsd: p.priceUsd,
     available: p.priceId.length > 0,
   }));
 }

@@ -1,7 +1,8 @@
 {
   "title": "Pricing",
   "subtitle": "One platform for your pipelines — in the studio and inside the AI apps you already use.",
-  "flatMonthly": "One flat monthly fee per account",
+  "flatMonthly": "per account, per month",
+  "betaFree": "Free during beta — no card is taken. The price starts at paid launch.",
   "checkoutDisabled": "Checkout opens when billing goes live",
   "billingNote": "The payment gateway is not connected yet, so this page cannot take payment. Nothing is charged and no subscription is created today.",
   "model": {

@@ -84,44 +84,26 @@
       }
     },
     "capabilities": {
-      "title": "What you can build",
-      "intro": "Three levels of pipeline design power. Upgrade as your needs grow.",
-      "tiers": [
-        {
-          "name": "Artist",
-          "badge": "Free during beta",
-          "description": "Build sequential pipelines",
-          "features": [
-            "Fixed steps that run in order",
-            "Human-in-the-Loop approval gates",
-            "1 LLM provider per pipeline",
-            "Browse and run certified marketplace pipelines"
-          ]
-        },
-        {
-          "name": "Master",
-          "badge": "Paid tier",
-          "description": "Design custom workflows",
-          "features": [
-            "Everything in Artist",
-            "IF/WHILE loops — auto-retry until output passes",
-            "Quality gates — route or loop based on output scoring",
-            "Up to 3 LLM providers per pipeline",
-            "Publish pipelines to the marketplace"
-          ]
-        },
-        {
-          "name": "Sage",
-          "badge": "Paid tier",
-          "description": "AI builds for you",
-          "features": [
-            "Everything in Master",
-            "AI Auto-Designer — describe your goal, platform builds the optimal pipeline",
-            "Best for rapid prototyping and complex multi-agent chains"
-          ]
-        }
-      ],
-      "smallPrint": "Free during beta. Pioneer members lock in lifetime best terms for paid launch.",
+      "title": "One plan. One price.",
+      "intro": "No tiers to upgrade out of, no seats to count, no metering per run. The subscription is the whole product.",
+      "plan": {
+        "name": "DeeWaanAI",
+        "price": "$9.99",
+        "cadence": "per account, per month",
+        "badge": "Free during beta",
+        "description": "Everything included — create, run, certify, sell.",
+        "features": [
+          "Custom pipeline designer with IF/WHILE loops and quality gates",
+          "AI Auto-Designer — describe the goal, get a built pipeline",
+          "Up to 3 of your own LLM providers in one pipeline",
+          "Human-in-the-Loop approval gates",
+          "Publish and sell certified pipelines on the marketplace",
+          "Run it all from Claude, ChatGPT, Kimi, Cursor or any MCP client",
+          "Bring your own keys: your provider bills you, we never charge per run"
+        ],
+        "betaNote": "During beta the full product is free and no card is taken. $9.99 a month starts at paid launch."
+      },
+      "smallPrint": "Free during beta. Pioneer members keep the best terms we will ever offer at launch.",
       "cta": "Join the Pioneer 100 →"
     },
     "betaFeatures": {
@@ -157,7 +139,7 @@
       "title": "Be one of the first 100.",
       "perks": [
         "Pioneer badge on your profile — permanent",
-        "Free Pro during beta and beyond",
+        "Everything in the product during beta, at no cost",
         "Lifetime discounted commission as a creator",
         "3 invites to bring people you trust",
         "Direct line to the founder — your feedback ships"
@@ -210,11 +192,11 @@
         },
         {
           "q": "What does beta cost?",
-          "a": "Nothing. During beta everything is free, and marketplace listings are in free preview. Pioneer members lock in the best terms we'll ever offer for when paid launch comes."
+          "a": "Nothing. During beta everything is free and marketplace listings are in free preview. At launch it is one flat $9.99 monthly subscription per account — no tiers, no seats, no per-run metering — and Pioneers keep the best terms we will ever offer."
         },
         {
           "q": "What is the Pioneer 100?",
-          "a": "Our first 100 beta members. Pioneers get a permanent badge, free Pro, a lifetime discounted creator commission, and 3 invites each. Spots are limited by our human-review capacity — the scarcity is real, not marketing."
+          "a": "Our first 100 beta members. Pioneers get a permanent badge, free access to the full product during beta, a lifetime discounted creator commission, and 3 invites each. Spots are limited by our human-review capacity — the scarcity is real, not marketing."
         },
         {
           "q": "Can I share a pipeline with someone who uses a different AI app?",
@@ -225,16 +207,16 @@
           "a": "Research Mode adds batch runs (up to 100 inputs in parallel) and pipeline chaining (feed one pipeline's output into another). It's available now behind a feature flag — request early access."
         },
         {
-          "q": "What can I do on the free plan?",
-          "a": "The Artist tier (free during beta) lets you build sequential pipelines with fixed steps, Human-in-the-Loop approval gates, and 1 LLM provider. You can also browse and run any certified marketplace pipeline."
+          "q": "What can I do without paying?",
+          "a": "Everything. Beta is the complete product at no cost: the custom pipeline designer with IF/WHILE loops and quality gates, Human-in-the-Loop approval gates, the AI Auto-Designer, up to 3 of your own LLM providers in one pipeline, and publishing to the marketplace. There is no trimmed tier to grow out of."
         },
         {
           "q": "What are IF/WHILE loops?",
-          "a": "IF/WHILE loops are a Master tier feature that let you build conditional and repeating workflow logic. A quality gate can check an agent's output and automatically loop back until it passes — or route to a different step based on the result."
+          "a": "IF/WHILE loops let you build conditional and repeating workflow logic — included in the one subscription, not a paid extra. A quality gate can check an agent's output and automatically loop back until it passes — or route to a different step based on the result."
         },
         {
           "q": "What is the AI Auto-Designer?",
-          "a": "The AI Auto-Designer (Sage tier) lets you describe your goal in plain language — for example, 'turn a product idea into a launch plan' — and the platform automatically generates the optimal pipeline with agents, prompts, quality gates, and approvals."
+          "a": "The AI Auto-Designer lets you describe your goal in plain language — for example, 'turn a product idea into a launch plan' — and the platform automatically generates the optimal pipeline with agents, prompts, quality gates, and approvals. It is included in the one subscription."
         }
       ]
     }
@@ -388,7 +370,7 @@
           "h": "2. Beta terms",
           "paragraphs": [
             "The Service is currently in beta. During the beta period the Service is provided free of charge, and marketplace listings are in free preview. Features, limits, and certification criteria may change at any time.",
-            "Beta perks — including Pioneer badges, free Pro access, discounted commission rates, and invite allocations — are promotional benefits only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
+            "Beta perks — including Pioneer badges, free full-product access during beta, discounted commission rates, and invite allocations — are promotional benefits only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
           ]
         },
         {

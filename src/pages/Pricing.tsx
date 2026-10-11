@@ -56,7 +56,13 @@ export default function PricingPage() {
             <div className="flex flex-col rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6">
               <h2 className="text-xl font-semibold">{plan?.name ?? t("plans.solo.name")}</h2>
               <p className="mt-1 text-sm text-neutral-500">{t("plans.solo.tagline")}</p>
-              <p className="mt-4 text-sm font-medium text-neutral-200">{t("flatMonthly")}</p>
+              <p className="mt-4 flex items-baseline gap-2">
+                {plan?.priceUsd && (
+                  <span className="text-2xl font-semibold text-neutral-100">${plan.priceUsd}</span>
+                )}
+                <span className="text-sm font-medium text-neutral-200">{t("flatMonthly")}</span>
+              </p>
+              <p className="mt-1 text-xs text-neutral-500">{t("betaFree")}</p>
 
               <ul className="mt-5 flex-1 space-y-2.5">
                 {FEATURE_KEYS.map((key) => (

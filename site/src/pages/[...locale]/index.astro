@@ -32,9 +32,9 @@ const jsonLd = [
     operatingSystem: "Any (MCP-compatible chat client)",
     url: `${origin}${p}/`,
     description: l.hero.subline,
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free during beta" },
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free during beta; one flat $9.99 monthly subscription at launch" },
     featureList: [
-      ...l.capabilities.tiers.flatMap((t) => t.features),
+      ...l.capabilities.plan.features,
       ...l.betaFeatures.items.map((f) => f.title),
     ],
   },
@@ -162,31 +162,34 @@ const jsonLd = [
     </div>
   </section>
 
-  {/* ── Capabilities (tier ladder) ── */}
+  {/* ── Capabilities (one flat plan — no tier ladder) ── */}
   <section id="capabilities" aria-labelledby="capabilities-title" class="border-t border-ink-800 py-20">
     <div class="container-page">
       <h2 id="capabilities-title" class="text-center text-3xl font-bold text-white">{l.capabilities.title}</h2>
       <p class="mx-auto mt-4 max-w-xl text-center text-neutral-400">{l.capabilities.intro}</p>
-      <div class="mt-12 grid gap-6 md:grid-cols-3">
-        {l.capabilities.tiers.map((tier) => (
-          <article class="card relative">
-            <div class="flex items-center justify-between gap-3">
-              <h3 class="text-lg font-semibold text-white">{tier.name}</h3>
-              <span class="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">{tier.badge}</span>
-            </div>
-            <p class="mt-1 text-sm font-medium text-neutral-300">{tier.description}</p>
-            <ul class="mt-4 space-y-2">
-              {tier.features.map((f) => (
-                <li class="flex items-start gap-2 text-sm text-neutral-400">
-                  <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-soft" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </article>
-        ))}
+      <div class="mx-auto mt-12 max-w-2xl">
+        <article class="card relative">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-lg font-semibold text-white">{l.capabilities.plan.name}</h3>
+            <span class="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">{l.capabilities.plan.badge}</span>
+          </div>
+          <p class="mt-4 flex flex-wrap items-baseline gap-2">
+            <span class="text-4xl font-bold text-white">{l.capabilities.plan.price}</span>
+            <span class="text-sm text-neutral-400">{l.capabilities.plan.cadence}</span>
+          </p>
+          <p class="mt-1 text-sm font-medium text-neutral-300">{l.capabilities.plan.description}</p>
+          <ul class="mt-5 grid gap-2 sm:grid-cols-2">
+            {l.capabilities.plan.features.map((f) => (
+              <li class="flex items-start gap-2 text-sm text-neutral-400">
+                <svg class="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-soft" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                {f}
+              </li>
+            ))}
+          </ul>
+          <p class="mt-5 border-t border-ink-800 pt-4 text-xs text-neutral-500">{l.capabilities.plan.betaNote}</p>
+        </article>
       </div>
       <p class="mx-auto mt-6 max-w-xl text-center text-xs text-neutral-500">{l.capabilities.smallPrint}</p>
       <p class="mt-8 text-center">
