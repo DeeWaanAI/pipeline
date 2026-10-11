@@ -336,6 +336,27 @@ evidence status (spec §6.2: a score difference is never an automatic penalty). 
 public UGC surface, so it needs moderation, a hide action, and a privacy line before launch — say the
 word and I will build it; I have not started.
 
+## The measurement (#72 read-only half, `storageInventory.ts`)
+First number, so the size argument is not a feeling. Account 354 on the LOCAL dev stack
+(24 runs, 8 benchmarks, 1 published manifest, 52 ledger rows):
+
+| group | bytes | what it is |
+|---|---|---|
+| live work | 292,926 | 27 KB of briefs + **146 KB of step intermediates** + 119 KB of answers |
+| research | 66,467 | plans 31 KB, judgments 26 KB, cases 10 KB |
+| hosted for others | 42,667 | the published manifest 41 KB + the cost ledger |
+
+~79% of the bytes are the user's own weight, and the single biggest carrier is the **step
+intermediates** — exactly what the owner said must survive for Human-in-the-Loop but not live
+here. Per-run it is ~12 KB of live work (292,926 / 24), so a research program of 100,000 runs
+is ~1.2 GB in the tables alone, before the daily mysqldump × 7-day retention multiplies it.
+CAVEAT, state it when quoting these numbers: dev-stack prompts are small and few; the ratios are
+the useful part, the absolute GB is production's to measure (`admin.storageHoldings({userId})`,
+or the same SQL read-only).
+
+Inventory groups by the REASON the bytes are here, and the per-row `note` says whether a sweep
+may touch it — that is what makes it a decision tool instead of a `du`.
+
 ## Owner decision: the user's folder is the archive (2026-10-11, tasks #69–#72)
 Purpose, in the owner's words: **own the data, and never lose it** — prompts, pipelines, results,
 intermediates, human-in-the-loop state, and the judging prompts kept on the user's own machine — plus

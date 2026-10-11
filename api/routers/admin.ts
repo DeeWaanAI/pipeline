@@ -19,6 +19,7 @@ import {
   createPromotion,
   setPromotionActive,
 } from "../services/promotionService";
+import { accountHoldings } from "../services/storageInventory";
 import { adminAuditLog } from "@db/schema";
 import {
   PROTECTED_EGRESS_POLICY_VERSION, normalizeEndpointUrl, resolvedAdapterKind,
@@ -599,6 +600,14 @@ export const adminRouter = createRouter({
       });
       return { success: true };
     }),
+
+  // ─── Storage inventory (local-archive decision, step 0) ───────────
+  // Bytes per account by the REASON they are held, so "how much of this is the
+  // user's own weight" is a number and not an estimate. Read-only: it changes
+  // nothing, and a sweep decision is made elsewhere.
+  storageHoldings: adminQuery
+    .input(z.object({ userId: z.number().int().positive() }))
+    .query(async ({ input }) => accountHoldings(input.userId)),
 
   // ─── Promotions: admin-defined free days (ticket #62) ─────────────
   // A promotion grants free days on the one flat subscription; it is a Stripe
