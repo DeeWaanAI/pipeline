@@ -423,6 +423,15 @@ describe("evidence publication (DB-backed)", () => {
     expect(after.listing.status).toBe("unpublished");
     expect(after.v2?.currentEvidencePublicationId).toBeNull();
     expect(await ev.getPublicEvidenceForListing(listingId)).toBeNull();
+    // The shop front's publication list asks for both kinds and does NOT hide
+    // withdrawals: a reader handed a link deserves to learn the record was
+    // pulled, rather than that it apparently never existed.
+    const asTheListingPageSeesIt = await ev.listPublicEvidenceForListing(listingId, { includeWithdrawn: true, limit: 50 });
+    expect(asTheListingPageSeesIt).toHaveLength(1);
+    expect(asTheListingPageSeesIt[0]).toMatchObject({ publicationKind: "seller", state: "withdrawn" });
+    expect(asTheListingPageSeesIt[0].withdrawnAt).not.toBeNull();
+    // …while the default read still shows nothing published.
+    expect(await ev.listPublicEvidenceForListing(listingId, {})).toHaveLength(0);
     // The withdrawn row is still addressable by hash — history is not deleted.
     const db = await connection();
     const [row] = await db.select().from(schema.evidencePublications).where(eq(schema.evidencePublications.id, published.publicationId)).limit(1);

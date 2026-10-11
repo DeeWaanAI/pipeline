@@ -16,7 +16,7 @@ You get matching listings with their certification status and grade.
 
 ## What the Certified badge guarantees
 
-A Certified listing has passed all three trust layers: a deterministic security scan of its prompts, an AI quality triage, and blind human review of its real outputs by multiple independent reviewers. Every certified listing has a public certification report showing how it scored. Listings still in certification are visible but cannot be bought yet.
+A listing you can buy has been published with its evidence: a completed test recorded by the platform, scored by three judges from three different model developers with none of them a model that generated the answers, a scan of the disclosed material for secrets, and the seller's own consent to the exact preview that went public. Read the record on the listing's evidence page — the inputs, the outputs, the full judging prompts, every score, and every failure. The checks are structural: they prove the evidence is complete and honestly sourced, not that anyone rated it excellent, and a listing whose evidence falls short simply never becomes buyable.
 
 ## Acquire a pipeline
 

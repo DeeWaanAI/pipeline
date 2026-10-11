@@ -1,6 +1,6 @@
 ---
 title: "Selling on the marketplace"
-description: "List a pipeline, understand certification (security scan, AI triage, blind human review), and what happens on approval or rejection."
+description: "List a pipeline, understand the evidence gate (completed recorded test, vendor-disjoint judging panel, secret scan, your consent to the exact preview), and what happens on publication or refusal."
 order: 6
 ---
 
@@ -14,15 +14,23 @@ Any pipeline you build can become a marketplace listing — after it earns certi
 
 You'll set a title and description. During beta, listings are in free preview.
 
-## What certification involves
+## What publication involves
 
-1. **Security scan** — deterministic code checks your prompts for injection patterns, hidden Unicode tricks, exfiltration attempts, embedded secrets, and PII. Failures come back with specific findings so you can fix and resubmit.
-2. **AI triage** — a platform-controlled model runs your pipeline on generated test inputs and scores quality. It advises you with concrete feedback; it can only stop listings whose quality is too low to waste reviewers' time. It can never approve a listing.
-3. **Blind human review** — independent reviewers score your pipeline's real outputs without knowing who built it. Human consensus — a minimum average score plus a minimum pass ratio — makes the listing buyable.
+1. **The evidence gate** — you run a frozen plan of approved test inputs and the results are scored by a judging panel you generate: three judges from three different model developers, under three prompt framings, with no judge sharing a developer with a model that generated the answers. Self-grading is refused by the gate itself, and so is an incomplete plan.
+2. **A scan of what you are about to disclose** — deterministic code reads the published material (test inputs, outputs, judge rationales) for embedded secrets, API keys and personal data. Anything found refuses the publication and names the finding, so a leak is stopped rather than apologised for later.
+3. **Your consent, to an exact preview** — the page you approve is hashed; if anything in the evidence changes after you looked at it, the publication is refused and you preview it again. Nothing auto-publishes when a run finishes.
 
-## What reviewers can and cannot see
+Separately, a listing that goes through the legacy submission path also passes a
+deterministic scan of its step prompts for injection patterns, hidden Unicode
+tricks and exfiltration attempts. That scan is the legacy gate: publishing a v2
+listing checks the evidence, the panel and the disclosed text, and the site does
+not claim more than that.
 
-Reviewers see test inputs and the outputs your pipeline produced. They never see your prompts, your identity, your listing description, or other reviewers' scores. Your secret prompts stay encrypted and are never disclosed — buyers get usage rights, not your source.
+## What the judges can and cannot see
+
+The judges receive the published test inputs and the outputs your pipeline produced. They never see your step prompts, your identity, or your listing description, and your hidden seller instructions are excluded from the judging call by rule, not by convention. Your secret prompts stay encrypted and are never disclosed — buyers get usage rights, not your source.
+
+What DOES go public is the record: the inputs, the outputs, the exact text of every judging prompt, every score with its rationale, every judgment that failed to parse, and what the run cost — including the costs that are still unknown. That is the point: a reader can check your evidence instead of trusting a badge.
 
 ## Approval and rejection
 
