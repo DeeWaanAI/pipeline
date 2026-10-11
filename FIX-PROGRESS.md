@@ -183,8 +183,9 @@ Six tickets were marked complete in an earlier turn from this file's notes rathe
 evidence, and have now been reopened: **#23** (`trusted_provider_endpoints` is still 0 rows, so no
 protected run has ever crossed the egress gate), **#29** (no payment integration exists), **#30** and
 **#57** and **#59** (server code and tests are green, but no real chat client has ever run the
-deliver-to-folder or publish journeys), and **#42** (verified: the `team:sync` writer is still in
-`api/services/billingService.ts` — `TEAM_SYNC_CAPABILITY` at line 238, granted at ~375). Rule for the
+deliver-to-folder or publish journeys), and **#42** (verified at the time: the `team:sync` writer was
+still in `api/services/billingService.ts` — `TEAM_SYNC_CAPABILITY` at line 238, granted at ~375;
+closed 2026-10-11, see the section above). Rule for the
 next agent: a suite passing is not proof a user-facing journey ran. Re-check the claim against the
 live code and data before marking anything closed.
 Also cosmetic and not fixable without a force-push: commit `e301bad` carries a copied subject line
@@ -231,6 +232,24 @@ backup cron is the only copy outside Railway; admin → Waitlist is where to rea
 Still open and NOT doable from here: confirming the live site actually renders the form and that
 `waitlist_entries` exists in the production DB — both need a production read, which is not
 authorised. The two lines to check are in DEPLOY.md.
+
+## #61 input surface + a security fix found on the way (2026-10-11)
+- `0b74baa` — Settings → "Model prices you declare" (`src/pages/Settings.tsx`, en/zh bundles). Driven in a
+  real browser as a signed-in throwaway local user against the local stack: negative rate refused with no
+  row written; `0/0` stored and rendered as `0 / 0` (a real zero, which is the local-model case); saving the
+  same (provider, model) again updated the row instead of stacking a second; delete returned the section to
+  its empty state. `npm run check` + `i18n:check` green, 452 unit tests green. Test rows (user 469, provider
+  3, declared prices) were deleted afterwards — local `swarm` is back to `users=2`.
+- `7aa5b29` — found while reading that page's own network response: `localAuth.me` ran a bare `select()` and
+  returned the whole `users` row, so every SPA load carried `passwordHash` to the browser. Now an explicit
+  four-column list (`id, username, name, role` — the shape login/signup already returned; grep of `src` shows
+  only name/role/id are read). `api/routers/localAuth.test.ts` pins the projection, and the fake driver
+  applies the column list so a regression to bare `select()` cannot pass blind. Confirmed on the live local
+  endpoint: response body contains no `passwordHash` and no `$2b$`.
+- **#61 is NOT finished.** Still open: (1) declaring a price from chat — no MCP tool exists, so the chat-first
+  journey cannot set a price without leaving the platform; (2) aggregate run-level ledger rows still cannot use
+  a declaration because they record no `provider_ref_id` (only per-step rows do); (3) the `wikiDump`/MCP-tools
+  wiki has not been regenerated for anything added this session.
 
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
