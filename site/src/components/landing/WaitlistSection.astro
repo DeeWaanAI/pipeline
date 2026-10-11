@@ -1,8 +1,9 @@
 ---
 // Pioneer 100 waitlist (SPEC §4.7 + §6): scarcity counter, email+role form,
 // referral capture (?ref= → hidden field, persisted to localStorage), success
-// state with share links. Graceful degradation: no API URL → disabled form +
-// fallback email; count fetch fails → "Limited to 100 spots" (never an error).
+// state with share links. Graceful degradation: count fetch fails → "Limited
+// to 100 spots" (never an error); a signup the server refuses to take shows a
+// prefilled mail fallback, because a lost address is worse than an ugly link.
 import type { UiStrings } from "../../i18n/ui";
 import { WAITLIST_API_URL, SITE } from "../../config";
 
@@ -26,33 +27,31 @@ const w = s.landing.waitlist;
         ))}
       </ul>
 
-      {WAITLIST_API_URL ? (
-        <form id="wl-form" class="mx-auto mt-8 max-w-md space-y-3" novalidate>
-          <input type="hidden" name="ref" id="wl-ref" value="" />
-          <div>
-            <label for="wl-email" class="sr-only">{w.emailLabel}</label>
-            <input id="wl-email" name="email" type="email" required autocomplete="email"
-              placeholder={w.emailPlaceholder}
-              class="w-full rounded-lg border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-accent focus:outline-none" />
-          </div>
-          <div>
-            <label for="wl-role" class="sr-only">{w.roleLabel}</label>
-            <select id="wl-role" name="role" required
-              class="w-full rounded-lg border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-neutral-300 focus:border-accent focus:outline-none">
-              <option value="" disabled selected>{w.roleLabel}</option>
-              <option value="creator">{w.roleCreator}</option>
-              <option value="user">{w.roleUser}</option>
-              <option value="both">{w.roleBoth}</option>
-            </select>
-          </div>
-          <button type="submit" id="wl-submit" class="btn-accent w-full justify-center">{w.submit}</button>
-          <p id="wl-error" class="hidden text-xs text-red-400" role="alert"></p>
-        </form>
-      ) : (
-        <p class="mt-8 text-sm text-neutral-400">
-          {w.disabledTemplate.replace("{email}", SITE.fallbackEmail)}
+      <form id="wl-form" class="mx-auto mt-8 max-w-md space-y-3" novalidate>
+        <input type="hidden" name="ref" id="wl-ref" value="" />
+        <div>
+          <label for="wl-email" class="sr-only">{w.emailLabel}</label>
+          <input id="wl-email" name="email" type="email" required autocomplete="email"
+            placeholder={w.emailPlaceholder}
+            class="w-full rounded-lg border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-white placeholder:text-neutral-400 focus:border-accent focus:outline-none" />
+        </div>
+        <div>
+          <label for="wl-role" class="sr-only">{w.roleLabel}</label>
+          <select id="wl-role" name="role" required
+            class="w-full rounded-lg border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-neutral-300 focus:border-accent focus:outline-none">
+            <option value="" disabled selected>{w.roleLabel}</option>
+            <option value="creator">{w.roleCreator}</option>
+            <option value="user">{w.roleUser}</option>
+            <option value="both">{w.roleBoth}</option>
+          </select>
+        </div>
+        <button type="submit" id="wl-submit" class="btn-accent w-full justify-center">{w.submit}</button>
+        <p id="wl-error" class="hidden text-xs text-red-400" role="alert"></p>
+        <p id="wl-manual" class="hidden text-xs text-neutral-400">
+          {w.manualPrefix}{" "}
+          <a id="wl-manual-link" class="break-all text-accent underline" href="#">{SITE.fallbackEmail}</a>
         </p>
-      )}
+      </form>
 
       <div id="wl-success" class="mx-auto mt-8 hidden max-w-md">
         <p id="wl-position" class="text-lg font-semibold text-white"></p>
@@ -72,9 +71,9 @@ const w = s.landing.waitlist;
   </div>
 </section>
 
-{WAITLIST_API_URL && (
 <script define:vars={{
   apiUrl: WAITLIST_API_URL,
+  manualEmail: SITE.fallbackEmail,
   i18n: {
     counterTemplate: w.counterTemplate,
     successTemplate: w.successTemplate,
@@ -83,6 +82,8 @@ const w = s.landing.waitlist;
     copyButton: w.copyButton,
     submitting: w.submitting,
     shareTextTemplate: w.shareTextTemplate,
+    manualSubject: w.manualSubject,
+    manualBodyTemplate: w.manualBodyTemplate,
   },
 }}>
   // ── Scarcity counter (sessionStorage cache, 10 min) ──────────────
@@ -119,6 +120,7 @@ const w = s.landing.waitlist;
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     errorEl.classList.add("hidden");
+    document.getElementById("wl-manual")?.classList.add("hidden");
     submitBtn.disabled = true;
     submitBtn.textContent = i18n.submitting;
     try {
@@ -150,6 +152,22 @@ const w = s.landing.waitlist;
       errorEl.classList.remove("hidden");
       submitBtn.disabled = false;
       submitBtn.textContent = submitBtn.dataset.label ?? "Request my spot";
+
+      // The server did not take the address. Offer the typed address back as a
+      // mail link rather than letting the signup evaporate — textContent only,
+      // never innerHTML, so whatever was typed cannot become markup.
+      const typedEmail = String(document.getElementById("wl-email")?.value || "");
+      const typedRole = String(document.getElementById("wl-role")?.value || "");
+      const manualLink = document.getElementById("wl-manual-link");
+      if (manualLink) {
+        manualLink.textContent = manualEmail;
+        manualLink.href = `mailto:${manualEmail}`
+          + `?subject=${encodeURIComponent(i18n.manualSubject)}`
+          + `&body=${encodeURIComponent(
+              i18n.manualBodyTemplate.replace("{email}", typedEmail).replace("{role}", typedRole)
+            )}`;
+        document.getElementById("wl-manual")?.classList.remove("hidden");
+      }
     }
   });
 
@@ -164,4 +182,3 @@ const w = s.landing.waitlist;
     } catch { /* clipboard unavailable — URL remains visible for manual copy */ }
   });
 </script>
-)}

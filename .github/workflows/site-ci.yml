@@ -40,3 +40,14 @@ jobs:
             echo "::error::site-domain placeholder missing from build output"
             exit 1
           }
+
+      - name: Waitlist client smoke against the mock Wave W contract
+        env:
+          PUBLIC_WAITLIST_API_URL: http://127.0.0.1:8787/api/waitlist
+        run: |
+          # Beta signups are the one thing the marketing site must not lose. This
+          # rebuilds with a mock API origin and runs the REAL built inline script
+          # against a mock of api/waitlist-route.ts (201 / 409 / 500, referral
+          # capture, counter cache, mail fallback). Zero external dependencies.
+          npm run build
+          node scripts/smoke-waitlist-client.mjs

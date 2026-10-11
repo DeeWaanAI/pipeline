@@ -14,9 +14,20 @@ export const SITE = {
 /** MCP server URL shown on /connect and in docs. */
 export const MCP_URL = `https://${SITE.appDomain}/mcp`;
 
-/** Waitlist API base (Wave W backend). Build-time public env; when missing,
- *  the form renders its disabled state with the fallback email. */
-export const WAITLIST_API_URL: string | undefined = import.meta.env.PUBLIC_WAITLIST_API_URL;
+/** Waitlist API base (Wave W backend).
+ *
+ *  `PUBLIC_WAITLIST_API_URL` overrides it. When that build variable is absent
+ *  the form used to render a disabled "join by email" paragraph — so a Railway
+ *  rebuild that forgot the variable silently stopped writing signup rows to
+ *  `waitlist_entries` and left the addresses in a mailbox nobody had been
+ *  told to check. The app origin the /connect page and the docs already
+ *  advertise is a better default: a wrong default still shows the visitor a
+ *  working mail fallback (see WaitlistSection), while a missing form shows
+ *  them nothing.
+ */
+const configuredWaitlistApi = String(import.meta.env.PUBLIC_WAITLIST_API_URL ?? "").trim();
+export const WAITLIST_API_URL: string =
+  configuredWaitlistApi || `https://${SITE.appDomain}`;
 
 /** DeeWaanAI™ legal line shared by footer + legal pages. */
 export const TRADEMARK_LINE =

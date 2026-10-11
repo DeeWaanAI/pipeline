@@ -208,6 +208,30 @@ insert into subscriptions", so the passing runs are not a deaf harness. `npm run
 green across billing/token/entitlement/MCP-scope suites. NOT verified: no real Stripe test event was
 delivered to a running server (that needs live keys — #23/#29 still open).
 
+## Beta signups cannot be lost by a rebuild (2026-10-11)
+Asked: "make sure when people register for the beta testing, we do not loose their info in case
+we update the app." Finding: rows go to MySQL `waitlist_entries` on the **MySQL service**, which a
+site/app redeploy does not touch — so the update itself was never the risk. The risk was silent:
+`site/src/config.ts` read `PUBLIC_WAITLIST_API_URL` **at build time**, and when it is absent the
+landing page rendered a *disabled* form ("join via email"), so a rebuild that forgot the variable —
+which is exactly what Site CI does, it builds with no such env — stops writing signup rows while
+still looking like a working page. Proof: the local build with no variable produced a dist with
+zero occurrences of `wl-form`.
+
+Fix: the form always renders (missing variable → posts to `SITE.appDomain`), and a signup the
+server refuses now reveals the typed address as a prefilled `mailto:` link (textContent only, never
+innerHTML). Verified on the rendered surface, not the declarations: `smoke-waitlist-client.mjs`
+executes the real built script against a mock of the Wave W contract — **32/32**, including five new
+500-path mail-fallback checks; a negative control (no-op the reveal) turned exactly one check red;
+`astro preview` + a real browser DOM confirmed the form, the hidden fallback and no TeamSync text.
+That smoke is now a **Site CI step**, so this cannot regress on a site push. DEPLOY.md gained
+"Beta signups: what survives a redeploy" (table must be migrated by hand — `016`/`017`; the S3
+backup cron is the only copy outside Railway; admin → Waitlist is where to read them).
+
+Still open and NOT doable from here: confirming the live site actually renders the form and that
+`waitlist_entries` exists in the production DB — both need a production read, which is not
+authorised. The two lines to check are in DEPLOY.md.
+
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
 

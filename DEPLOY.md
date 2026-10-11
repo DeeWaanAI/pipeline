@@ -131,6 +131,30 @@ Marketplace trust flow (see `DeeWaanAI-Next/MARKETPLACE-TRUST-SPEC.md`): submiss
 - **If the app crashes:** app service → "Deployments" → click the deployment → "View Logs". The `/api/health` check will show `degraded` if the database is unreachable.
 - **Going live with real payments:** flip Stripe to live mode keys (same three variables) and buy a real domain (Railway Settings → Networking → Custom Domain, ~$12/yr at any registrar). The full go-live acceptance checklist (Stripe card swipe, live SSO, on-prem relay, read replica) is in `DeeWaanAI-Next/ACCEPTANCE.md`.
 
+## Beta signups: what survives a redeploy
+
+Waitlist addresses go to the MySQL table `waitlist_entries` (migration `016_waitlist.sql`,
+plus `017_waitlist_invited_at.sql`), on the **MySQL service** — a separate Railway service
+with its own volume. Redeploying or restarting the **app** does not touch it, and neither
+does rebuilding the site. Three ways people do still get lost, and what covers each:
+
+1. **The form stops collecting.** Since 2026-10-11 the landing page always renders the email
+   form: if `PUBLIC_WAITLIST_API_URL` is missing at build time it posts to `SITE.appDomain`,
+   and a signup the server refuses shows the typed address as a prefilled `mailto:` link.
+   Check it on the live site: open the waitlist section and confirm there is an email field,
+   not a sentence telling people to write to us.
+2. **The table is not in the production database.** Migrations are applied by hand here —
+   nothing runs `db:push` or `db:migrate` at boot. If the app was ever rebuilt onto a fresh
+   MySQL instance, re-apply `016` and `017` before promoting the site; a missing table makes
+   every join 500 (which now at least hands the visitor the mail link).
+3. **The database itself goes.** That is the backup question, not the redeploy question.
+   Turn on the daily mysqldump → S3 cron described above (`BACKUP_TOKEN` + the five `S3_*`
+   variables) **before** you start sending traffic to the site; Railway's own volume
+   snapshots are not a recovery plan.
+
+Read the list at any time: sign in as admin → **Waitlist** tab (search, queue position,
+referral counts, mark-invited).
+
 ## Optional: dedicated worker service (before heavy traffic)
 
 By default the pipeline worker runs **inside** the web process (`START_WORKER` unset). Long pipeline runs then share CPU/heap with HTTP serving. To split them:

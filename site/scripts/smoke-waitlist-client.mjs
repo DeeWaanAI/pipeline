@@ -12,6 +12,15 @@
 //  Usage:
 //    PUBLIC_WAITLIST_API_URL=http://127.0.0.1:8787/api/waitlist npm run build
 //    node scripts/smoke-waitlist-client.mjs
+//
+//  The build variable only redirects the form. Without it the page still
+//  renders the form and posts to the app origin (src/config.ts) — which is
+//  what the first check here proves, since a build that forgot the variable
+//  used to ship a disabled form and quietly stop collecting signup rows.
+//
+//  The build variable only points the client at this mock. Without it the form
+//  still renders (posting to the app origin) — `id="wl-form"` in dist is
+//  asserted so a future config change cannot silently delete the form again.
 // ═══════════════════════════════════════════════════════════════════
 import http from "node:http";
 import fs from "node:fs";
@@ -77,10 +86,10 @@ function makeEl(id, hidden = false) {
 
 const IDS = ["wl-counter", "wl-ref", "wl-form", "wl-error", "wl-submit",
   "wl-email", "wl-role", "wl-position", "wl-ref-url", "wl-share-x",
-  "wl-share-li", "wl-success", "wl-copy"];
+  "wl-share-li", "wl-success", "wl-copy", "wl-manual", "wl-manual-link"];
 
 function makePage({ search = "", storage }) {
-  const els = Object.fromEntries(IDS.map((id) => [id, makeEl(id, ["wl-error", "wl-success"].includes(id))]));
+  const els = Object.fromEntries(IDS.map((id) => [id, makeEl(id, ["wl-error", "wl-success", "wl-manual"].includes(id))]));
   const page = {
     els,
     copied: null,
@@ -126,8 +135,9 @@ const wlScript = scripts.find((s) => s.includes("wl-form"));
 
 console.log("\nWaitlist client smoke (real built script vs mock contract)\n");
 
-check("waitlist script present in dist (build had PUBLIC_WAITLIST_API_URL set)", !!wlScript);
-if (!wlScript) { console.log("\nRebuild with: PUBLIC_WAITLIST_API_URL=http://127.0.0.1:8787/api/waitlist npm run build"); process.exit(1); }
+check("form markup in dist (renders without any build variable)", html.includes('id="wl-form"'));
+check("waitlist script present in dist", !!wlScript);
+if (!wlScript) { console.log("\nBuild emits no client script — check WaitlistSection.astro"); process.exit(1); }
 check("script points at the mock API", wlScript.includes(`const apiUrl = "${API}"`));
 
 await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
@@ -195,6 +205,16 @@ countHits = 0;
   check("500 → generic error shown (never raw)", err && page4.els["wl-error"].textContent.length > 0);
   check("submit button re-enabled after failure", page4.els["wl-submit"].disabled === false);
   check("success panel NOT shown on failure", page4.els["wl-success"].classList.contains("hidden"));
+  // The address must not evaporate with the failed request.
+  check("500 → mail fallback revealed", !page4.els["wl-manual"].classList.contains("hidden"));
+  const mailHref = page4.els["wl-manual-link"].href;
+  check("mail fallback is a mailto:", mailHref.startsWith("mailto:"), mailHref.slice(0, 40));
+  check("mail fallback carries the typed address",
+    mailHref.includes(encodeURIComponent("unlucky@t.dev")), mailHref.slice(0, 120));
+  check("mail fallback carries the typed role",
+    mailHref.includes(encodeURIComponent("user")));
+  check("fallback link text is plain text, not markup",
+    page4.els["wl-manual-link"].textContent.includes("@"), page4.els["wl-manual-link"].textContent);
 
   // ── Scenario F: copy referral link ──
   await page2.dispatch("wl-copy", "click");

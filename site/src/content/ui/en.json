@@ -181,7 +181,9 @@
       "shareOnLinkedIn": "Share on LinkedIn",
       "smallPrint": "Free during beta. Beta perks are promotional benefits and do not constitute equity or ownership.",
       "errorGeneric": "Something went wrong — please try again in a moment.",
-      "disabledTemplate": "Join via email: {email}"
+      "manualPrefix": "Or send it to us directly:",
+      "manualSubject": "DeeWaanAI Pioneer 100 — join the waitlist",
+      "manualBodyTemplate": "Email: {email}\nRole: {role}\n\n(The page could not submit this for me.)"
     },
     "faq": {
       "title": "Frequently asked questions",

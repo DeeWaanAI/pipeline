@@ -64,7 +64,7 @@ Then verify (allow ~1–2 min for Railway):
 
 | Variable | When | Purpose |
 |---|---|---|
-| `PUBLIC_WAITLIST_API_URL` | build arg | Waitlist backend base (`https://<app-domain>/api/waitlist`) |
+| `PUBLIC_WAITLIST_API_URL` | build arg | Waitlist backend base (`https://<app-domain>/api/waitlist`). Optional since 2026-10-11: unset, the form still renders and posts to `SITE.appDomain`, and a signup the API refuses shows a prefilled mail link instead of disappearing |
 | `PUBLIC_SITE_DOMAIN` | build arg | Canonical origin for OG/sitemap/canonical |
 | `SITE_DOMAIN` | runtime | Substituted into `robots.txt` at container start |
 | `APP_DOMAIN` | runtime | Substituted into built HTML (docs code blocks) at container start |
@@ -85,7 +85,7 @@ literally in the output. Railway substitutes them when the container starts. The
 | Pushed, but nothing changed anywhere | Railway auto-deploy may be disabled, or the push didn't reach `main`. Check Railway service → Settings → auto-deploy; check `git log origin/main -1`. |
 | Custom domain doesn't resolve at all | Porkbun DNS. Must be: **ALIAS** (apex `deewaanai.com`) + **CNAME** (`www`) → the Railway custom-domain target; **no URL forwarding**; wait for Railway to issue the TLS cert. (This was previously mis-set to Porkbun parking — now fixed.) |
 | Site CI fails: "site-domain placeholder missing" | Something baked a real domain into the build. Ensure `PUBLIC_SITE_DOMAIN` is **not** set in the CI environment. |
-| Waitlist form shows disabled/fallback | `PUBLIC_WAITLIST_API_URL` build arg missing on the Railway service. |
+| Waitlist form posts to the wrong origin | `PUBLIC_WAITLIST_API_URL` is missing from the build, so `src/config.ts` fell back to `https://APP_DOMAIN`. Set the build arg to the real app origin (`https://<app-service-domain>/api/waitlist`) — or check the fallback mail link is reaching `hello@deewaanai.com`. |
 
 ---
 
