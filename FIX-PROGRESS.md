@@ -251,6 +251,41 @@ authorised. The two lines to check are in DEPLOY.md.
   a declaration because they record no `provider_ref_id` (only per-step rows do); (3) the `wikiDump`/MCP-tools
   wiki has not been regenerated for anything added this session.
 
+## One flat $9.99 + admin promotions (2026-10-11, owner decision restated)
+Owner: "one tier only at 9.99 USD — no more 3 tiers", plus "let the admin make promotions such as
+7 days free for newcomers", plus "I'll add the Stripe keys to .env later".
+- `cbf49e1` — the marketing site still sold Artist / Master / Sage with "Paid tier" badges and three
+  FAQs that gated IF/WHILE, quality gates and the Auto-Designer behind tiers. Those features are open
+  to every account in code, so the copy invented a paywall that does not exist (and claimed a 1-provider
+  free tier when `api/routers/pipeline.ts:147` allows 3 for everyone). One plan card at $9.99 now; the
+  app's /pricing reads the number from `PLANS.solo.priceUsd` (single source, `api/config/plans.ts`) and
+  the comment there says the Stripe price object is what actually charges, so dashboard + constant move
+  together. Browser-verified: /pricing renders "$9.99 / per account, per month", checkout still disabled.
+- `d426cb9` + `7a59d01` — promotions. `promotions` + `promotion_redemptions` (additive migration **035**,
+  applied by hand to local `swarm`, DESCRIBE-checked). A promotion grants N free days as a Stripe
+  **trial** (`subscription_data.trial_period_days`) — it never changes the price, so there is no second
+  price path. `vouchers` could not be reused: its NOT NULL `tier` enum only accepts the retired ladder
+  values. Redemption rows COPY `days` (deactivating cannot rewrite a past grant) and the cap is a COUNT
+  over those rows. Eligibility is a pure read-only function; the write happens on
+  `checkout.session.completed`, so an abandoned checkout costs nobody a slot.
+  Verified: 20 pure-rule tests + 10 integration tests on a throwaway schema, 5 billing tests on the
+  checkout payload (trial present when a grant resolves, key ABSENT when it does not), and the admin
+  screen driven in a browser through the real login form (create newcomer + capped code promo, bad code
+  refused with the validation toast and no row, days=0 refused, switch-off flips status, all four actions
+  in `admin_audit_log`). 480 unit tests + typecheck + i18n parity green. Test users/promotions deleted;
+  the audit rows were deliberately LEFT, because removing an action from an audit log falsifies it.
+
+### Needs the owner's decision (found this session, not changed)
+1. `src/locales/*/pricing.json` states "7-day trial from signup" as a standing policy while the newcomer
+   promotion is now admin-defined. Two sources for the same promise — pick one: keep the standing 7 days
+   and use promotions for exceptions, or make the promotion the only trial and delete the copy.
+2. The landing page still promises Pioneer "lifetime discounted creator commission" and "best terms", and
+   `ReviewerPortal` advertises "5 reviews = 1 day" with **no code behind it anywhere**. Either build the
+   reward or take the line down before promoting the site.
+3. The price is display-only until Stripe is configured: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+   `STRIPE_PRICE_SOLO` (a `price_…` created for the flat monthly plan). No publishable key is needed —
+   checkout is Stripe-hosted. Until then billing routes answer 503 and /pricing says so on the page.
+
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
 
