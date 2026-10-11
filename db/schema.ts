@@ -2297,3 +2297,57 @@ export const trustedProviderEndpoints = mysqlTable("trusted_provider_endpoints",
 
 export type TrustedProviderEndpoint = typeof trustedProviderEndpoints.$inferSelect;
 export type InsertTrustedProviderEndpoint = typeof trustedProviderEndpoints.$inferInsert;
+
+// ─── PROMOTIONS (migration 035) ────────────────────────────────────
+// Admin-defined free-days grants — "7 days free for newcomers" — so a launch
+// promotion is data, not a code change. Nothing here discounts the price:
+// Stripe carries the grant as a subscription trial
+// (`subscription_data.trial_period_days` at checkout), so the account is billed
+// the standard price once the days run out and there is no second price path to
+// reconcile. The retired `vouchers` table cannot be reused for this: its NOT
+// NULL `tier` enum only accepts the plan-ladder values deleted with the ladder,
+// and inventing a fake tier there would be a lie in the data.
+export const promotions = mysqlTable("promotions", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  name: varchar("name", { length: 80 }).notNull(),
+  days: int("days").notNull(),
+  // 'new_signups' is granted automatically to accounts that sign up inside the
+  // window and have never subscribed; 'code' is only given on redemption.
+  audience: mysqlEnum("audience", ["new_signups", "code"]).notNull(),
+  // Required for 'code', NULL for 'new_signups'. MySQL treats NULLs as distinct
+  // in a UNIQUE index, so several automatic promotions coexist while codes stay
+  // one-per-promotion.
+  code: varchar("code", { length: 32 }),
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
+  // NULL = unlimited. Counted from redemption rows rather than a mutable
+  // counter column, so a redemption cannot be lost or double-counted.
+  maxRedemptions: int("max_redemptions"),
+  active: boolean("active").default(true).notNull(),
+  note: varchar("note", { length: 200 }),
+  createdBy: int("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  codeUq: uniqueIndex("uq_promotions_code").on(table.code),
+  audienceActiveIdx: index("idx_promotions_audience_active").on(table.audience, table.active),
+}));
+
+// The grant as it was given. `days` is copied from the promotion so editing or
+// deactivating one cannot rewrite what people already received, and
+// (user_id, promotion_id) is unique so the same grant cannot be claimed twice.
+export const promotionRedemptions = mysqlTable("promotion_redemptions", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  userId: int("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  promotionId: int("promotion_id").references(() => promotions.id, { onDelete: "cascade" }).notNull(),
+  days: int("days").notNull(),
+  source: mysqlEnum("source", ["signup", "code"]).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userPromotionUq: uniqueIndex("uq_promotion_redemption_user_promo").on(table.userId, table.promotionId),
+  promotionIdx: index("idx_promotion_redemption_promo").on(table.promotionId),
+}));
+
+export type Promotion = typeof promotions.$inferSelect;
+export type InsertPromotion = typeof promotions.$inferInsert;
+export type PromotionRedemption = typeof promotionRedemptions.$inferSelect;
