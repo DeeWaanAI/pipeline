@@ -31,7 +31,7 @@
     },
     "worksWith": {
       "label": "Connects to the tools you already use",
-      "caption": "DeeWaanAI runs as an MCP server. One URL, pasted once — per teammate, in any app.",
+      "caption": "DeeWaanAI runs as an MCP server. One URL, pasted once — per person, in any app.",
       "badges": ["Claude", "ChatGPT", "Kimi", "Cursor", "Any MCP client"]
     },
     "problem": {
@@ -48,7 +48,7 @@
         },
         {
           "title": "Locked into one chat app",
-          "body": "Force you to abandon the tools you already use and learn a new interface. Your team can't collaborate unless everyone switches to the same app."
+          "body": "Force you to abandon the tools you already use and learn a new interface. Handing a colleague a working pipeline means everyone switching to the same app first."
         }
       ]
     },
@@ -79,7 +79,7 @@
           "Every purchase is human-certified through 3 independent layers",
           "Runs with your own API keys — your data goes to your providers, not ours",
           "One-line setup in any MCP client — Claude, ChatGPT, Kimi, Cursor",
-          "Collaborate with your team on shared pipelines (TeamSync beta)"
+          "Share a pipeline with one colleague — they run it on their own keys, your prompts stay yours"
         ]
       }
     },
@@ -137,8 +137,8 @@
           "body": "Feed one pipeline's output straight into another. Generation → evaluation → review becomes a single submission, with depth and cycle guards so chains never run away."
         },
         {
-          "title": "TeamSync",
-          "body": "Share pipelines, context, and skills with your team. Each member works in their own LLM desktop app — Kimi, Claude, Cursor, anything MCP-compatible — on the same shared workspace."
+          "title": "Pipeline sharing",
+          "body": "Lend one pipeline to one named account, from your chat. By default they can run it and keep the answer but never read your prompts — and their run bills to their own keys. Revoke it any time; a queued run stops before its first provider call."
         }
       ]
     },
@@ -215,8 +215,8 @@
           "a": "Our first 100 beta members. Pioneers get a permanent badge, free Pro, a lifetime discounted creator commission, and 3 invites each. Spots are limited by our human-review capacity — the scarcity is real, not marketing."
         },
         {
-          "q": "Can my team use different AI apps?",
-          "a": "Yes. DeeWaanAI is an MCP server, so each teammate connects their own client — Kimi, Claude, Cursor, or any MCP-compatible app — and collaborates on the same shared pipelines and context."
+          "q": "Can I share a pipeline with someone who uses a different AI app?",
+          "a": "Yes. DeeWaanAI is an MCP server, so you each connect your own client — Kimi, Claude, Cursor, or any MCP-compatible app. You lend the pipeline to that one account: by default they can run it and keep the answer without ever reading your prompts, and their run uses their own API keys. Publishing stays with whoever created the work, whatever privilege the share carries."
         },
         {
           "q": "What is Research Mode?",
@@ -350,7 +350,7 @@
     "quickstart": "Quickstart",
     "pipelines": "Creating & running pipelines",
     "researchMode": "Research Mode: batch & chaining",
-    "teams": "Teams (TeamSync)",
+    "sharing": "Sharing pipelines",
     "providers": "Models & API keys",
     "selling": "Selling on the marketplace",
     "buying": "Discovering & buying",
