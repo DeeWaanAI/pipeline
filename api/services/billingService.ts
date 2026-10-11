@@ -13,6 +13,7 @@ import { logger } from "../lib/logger";
 import { PLANS, type PlanId } from "../config/plans";
 import * as entitlementService from "./entitlements";
 import { fulfillMarketplacePurchase, revokeMarketplacePurchase } from "./entitlementSync";
+import { recordPromotionRedemption } from "./promotionService";
 
 let stripe: Stripe | null = null;
 
@@ -43,6 +44,12 @@ export async function createCheckoutSession(opts: {
   plan: PlanId;
   successUrl: string;
   cancelUrl: string;
+  /** Free days from an admin-defined promotion (see promotionService). The
+   *  price is untouched — this is a trial, so billing continues on the same
+   *  price id and there is no discounted amount to reconcile. */
+  trialPeriodDays?: number;
+  promotionId?: number;
+  promotionSource?: "signup" | "code";
 }): Promise<{ url: string }> {
   const client = getStripe();
   if (!client) throw new BillingNotConfiguredError();
@@ -52,26 +59,40 @@ export async function createCheckoutSession(opts: {
     throw new Error(`Plan "${opts.plan}" is not available`);
   }
 
+  const trial = opts.trialPeriodDays && opts.trialPeriodDays > 0 ? opts.trialPeriodDays : undefined;
+  // Carried on the session so the webhook records exactly the grant that was
+  // offered. If the promotion is edited while this session is open, the buyer
+  // still gets what the session said — so that is what the ledger records.
+  const metadata: Record<string, string> = {
+    userId: String(opts.userId),
+    plan: plan.id,
+  };
+  if (opts.promotionId) {
+    metadata.promotionId = String(opts.promotionId);
+    metadata.promotionDays = String(trial ?? 0);
+    metadata.promotionSource = opts.promotionSource ?? "code";
+  }
+
   const session = await client.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: plan.priceId, quantity: 1 }],
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
     client_reference_id: String(opts.userId),
-    metadata: {
-      userId: String(opts.userId),
-      plan: plan.id,
-    },
+    metadata,
     subscription_data: {
-      metadata: {
-        userId: String(opts.userId),
-        plan: plan.id,
-      },
+      metadata,
+      ...(trial ? { trial_period_days: trial } : {}),
     },
   });
 
   if (!session.url) throw new Error("Stripe did not return a checkout URL");
-  logger.info("Checkout session created", { userId: opts.userId, plan: plan.id });
+  logger.info("Checkout session created", {
+    userId: opts.userId,
+    plan: plan.id,
+    trialPeriodDays: trial ?? 0,
+    promotionId: opts.promotionId ?? null,
+  });
   return { url: session.url };
 }
 
@@ -316,6 +337,28 @@ export async function handleStripeEvent(rawBody: string, signature: string): Pro
         currentPeriodEnd: null, // filled in by subscription.updated
       });
       await syncSubscriptionEntitlements({ userId, plan, status: "active", sourceRef: stripeSubscriptionId });
+
+      // Record the free-days grant ONLY now that a subscription exists. A
+      // Checkout Session the buyer abandons must not take a place in a capped
+      // promotion, which is why eligibility is read-only and the write lives
+      // here. `claimEvent` already dedupes the delivery, and
+      // recordPromotionRedemption is idempotent per (user, promotion) on top of
+      // that — a retried event cannot double-count.
+      const promotionId = parseInt(session.metadata?.promotionId ?? "", 10);
+      const promotionDays = parseInt(session.metadata?.promotionDays ?? "", 10);
+      if (promotionId > 0 && promotionDays > 0) {
+        await recordPromotionRedemption({
+          userId,
+          promotionId,
+          days: promotionDays,
+          source: session.metadata?.promotionSource === "signup" ? "signup" : "code",
+        });
+      } else if (session.metadata?.promotionId) {
+        logger.warn("checkout.session.completed carried an unreadable promotion id", {
+          eventId: event.id,
+          promotionId: session.metadata.promotionId,
+        });
+      }
       break;
     }
 

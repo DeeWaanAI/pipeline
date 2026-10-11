@@ -14,6 +14,11 @@ import { encryptClientSecret, maskSecret, normalizeDomain } from "../services/ss
 import { logAdminAction } from "../services/adminAudit";
 import { adminDemotionError } from "../lib/adminGuards";
 import { setLegacyListingStatus } from "../services/marketplacePublication";
+import {
+  listPromotions,
+  createPromotion,
+  setPromotionActive,
+} from "../services/promotionService";
 import { adminAuditLog } from "@db/schema";
 import {
   PROTECTED_EGRESS_POLICY_VERSION, normalizeEndpointUrl, resolvedAdapterKind,
@@ -591,6 +596,60 @@ export const adminRouter = createRouter({
         adminUserId: ctx.user.id, action: "waitlist.invite",
         targetType: "waitlist_entry", targetId: input.entryId,
         detail: { email: entry.email }, ip: ctx.remoteIp,
+      });
+      return { success: true };
+    }),
+
+  // ─── Promotions: admin-defined free days (ticket #62) ─────────────
+  // A promotion grants free days on the one flat subscription; it is a Stripe
+  // trial, not a discount, so nothing here touches the price. The rules live in
+  // api/services/promotionService.ts — these procedures only gate and audit.
+  listPromotions: adminQuery.query(async () => {
+    return { promotions: await listPromotions() };
+  }),
+
+  createPromotion: adminQuery
+    .input(z.object({
+      name: z.string().min(1).max(80),
+      days: z.number().int().min(1).max(365),
+      audience: z.enum(["new_signups", "code"]),
+      code: z.string().max(32).nullish(),
+      startsAt: z.coerce.date().nullish(),
+      endsAt: z.coerce.date().nullish(),
+      maxRedemptions: z.number().int().min(1).nullish(),
+      note: z.string().max(200).nullish(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const promo = await createPromotion({
+        name: input.name,
+        days: input.days,
+        audience: input.audience,
+        code: input.code ?? null,
+        startsAt: input.startsAt ?? null,
+        endsAt: input.endsAt ?? null,
+        maxRedemptions: input.maxRedemptions ?? null,
+        note: input.note ?? null,
+      }, ctx.user.id);
+      await logAdminAction({
+        adminUserId: ctx.user.id, action: "promotion.create",
+        targetType: "promotion", targetId: promo.id,
+        detail: { days: promo.days, audience: promo.audience, code: promo.code, maxRedemptions: promo.maxRedemptions },
+        ip: ctx.remoteIp,
+      });
+      return promo;
+    }),
+
+  // Deactivation stops FUTURE grants. Rows already granted live in
+  // promotion_redemptions with their own copy of the days, so this cannot take
+  // back anything somebody already received.
+  setPromotionActive: adminQuery
+    .input(z.object({ id: z.number().int().positive(), active: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      await setPromotionActive(input.id, input.active, ctx.user.id);
+      await logAdminAction({
+        adminUserId: ctx.user.id, action: input.active ? "promotion.reactivate" : "promotion.deactivate",
+        targetType: "promotion", targetId: input.id,
+        detail: { active: input.active }, ip: ctx.remoteIp,
       });
       return { success: true };
     }),

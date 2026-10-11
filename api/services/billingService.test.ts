@@ -8,9 +8,11 @@
 // covers the real grant/revoke against a database.
 
 import { describe, expect, it, vi } from "vitest";
-import { idempotencyKeys, subscriptions, teamSeats, teams } from "@db/schema";
+import { idempotencyKeys, promotionRedemptions, subscriptions, teamSeats, teams } from "@db/schema";
 
 const ops: { op: string; table: unknown }[] = [];
+/** Every payload the fake Stripe SDK was asked to send. */
+const checkoutPayloads: any[] = [];
 
 function chainable(present: unknown[] = []) {
   const node: any = () => node;
@@ -33,10 +35,11 @@ vi.mock("../queries/connection", () => ({
 
 // constructEvent verifies a real HMAC we cannot produce without the account's
 // signing secret, so the stub trusts the body — this file tests the branch the
-// event takes, not Stripe's signature check.
+// event takes and the payload the SDK is handed, not Stripe's signature check.
 vi.mock("stripe", () => ({
   default: class FakeStripe {
     webhooks = { constructEvent: (raw: string) => JSON.parse(raw) };
+    checkout = { sessions: { create: async (payload: any) => { checkoutPayloads.push(payload); return { url: "https://checkout.stripe.test/session" }; } } };
   },
 }));
 
@@ -52,17 +55,36 @@ vi.mock("./entitlementSync", () => ({
   revokeMarketplacePurchase: vi.fn(),
 }));
 
-vi.mock("../lib/env", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/env")>();
-  return { ...actual, env: { ...actual.env, stripeSecretKey: "sk_test_pinned", stripeWebhookSecret: "whsec_pinned" } };
+// The grant is written by promotionService against real tables; that path is
+// covered in promotionService.integration.test.ts. Here the question is only
+// whether the webhook calls it, with what, and when it must not.
+const recordPromotionRedemption = vi.fn(async () => {});
+vi.mock("./promotionService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./promotionService")>();
+  return { ...actual, recordPromotionRedemption };
 });
 
-const { handleStripeEvent } = await import("./billingService");
+vi.mock("../lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/env")>();
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      stripeSecretKey: "sk_test_pinned",
+      stripeWebhookSecret: "whsec_pinned",
+      stripePriceSolo: "price_test_pinned",
+    },
+  };
+});
+
+const { handleStripeEvent, createCheckoutSession } = await import("./billingService");
 
 async function deliver(event: Record<string, unknown>) {
   ops.length = 0;
+  checkoutPayloads.length = 0;
   grant.mockClear();
   revoke.mockClear();
+  recordPromotionRedemption.mockClear();
   await handleStripeEvent(JSON.stringify(event), "signature-not-checked-in-this-stub");
 }
 
@@ -119,5 +141,86 @@ describe("the retired team-seat product", () => {
     expect(ops.some((o) => o.table === subscriptions)).toBe(true);
     expect(revoke).toHaveBeenCalledTimes(1);
     expect(grant).not.toHaveBeenCalled(); // an active plan grants nothing; a lapse only revokes
+  });
+});
+
+// A promotion is a TRIAL, not a discount: the price id stays the single flat
+// price and Stripe stops billing until the days run out. These pin that the
+// grant reaches the API call, and that the redemption is booked only when a
+// subscription actually exists.
+describe("a free-days promotion at checkout", () => {
+  const promotionSession = {
+    id: "evt_promo_checkout",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: "cs_test_promo",
+        object: "checkout.session",
+        mode: "subscription",
+        customer: "cus_promo",
+        subscription: "sub_promo",
+        metadata: { userId: "42", plan: "solo", promotionId: "7", promotionDays: "7", promotionSource: "signup" },
+      },
+    },
+  };
+
+  it("sends the trial days and carries the grant through to the webhook", async () => {
+    await createCheckoutSession({
+      userId: 42,
+      plan: "solo",
+      successUrl: "https://app.test/settings?checkout=success",
+      cancelUrl: "https://app.test/settings?checkout=cancel",
+      trialPeriodDays: 7,
+      promotionId: 7,
+      promotionSource: "signup",
+    });
+
+    const payload = checkoutPayloads.at(-1);
+    expect(payload.mode).toBe("subscription");
+    expect(payload.line_items).toEqual([{ price: "price_test_pinned", quantity: 1 }]);
+    expect(payload.subscription_data.trial_period_days).toBe(7);
+    expect(payload.metadata).toMatchObject({ promotionId: "7", promotionDays: "7", promotionSource: "signup" });
+    expect(payload.subscription_data.metadata).toMatchObject({ promotionId: "7" });
+  });
+
+  it("sends no trial at all when the account has no grant", async () => {
+    await createCheckoutSession({
+      userId: 43,
+      plan: "solo",
+      successUrl: "https://app.test/ok",
+      cancelUrl: "https://app.test/no",
+    });
+
+    const payload = checkoutPayloads.at(-1);
+    expect("trial_period_days" in payload.subscription_data).toBe(false);
+    expect(payload.metadata.promotionId).toBeUndefined();
+  });
+
+  it("books the redemption when the subscription actually completes", async () => {
+    await deliver(promotionSession);
+
+    expect(recordPromotionRedemption).toHaveBeenCalledTimes(1);
+    expect(recordPromotionRedemption).toHaveBeenCalledWith({
+      userId: 42, promotionId: 7, days: 7, source: "signup",
+    });
+  });
+
+  it("books nothing for an ordinary signup, or for metadata it cannot read", async () => {
+    await deliver({
+      id: "evt_plain_checkout",
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_plain", metadata: { userId: "44", plan: "solo" }, subscription: "sub_plain", customer: "cus_plain" } },
+    });
+    expect(recordPromotionRedemption).not.toHaveBeenCalled();
+
+    // A promotion id that is not a number must not become a silent grant of
+    // zero days, and must not break the rest of the webhook either.
+    await deliver({
+      id: "evt_bad_promo_meta",
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_bad", metadata: { userId: "45", plan: "solo", promotionId: "seven" }, subscription: "sub_bad", customer: "cus_bad" } },
+    });
+    expect(recordPromotionRedemption).not.toHaveBeenCalled();
+    expect(ops.some((o) => o.table === subscriptions)).toBe(true);
   });
 });

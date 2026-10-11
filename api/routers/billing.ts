@@ -6,6 +6,7 @@ import { subscriptions } from "@db/schema";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { listPublicPlans } from "../config/plans";
 import { createCheckoutSession, isBillingConfigured, BillingNotConfiguredError } from "../services/billingService";
+import { resolveTrialForCheckout } from "../services/promotionService";
 import { getActiveEntitlements, resolveCapabilities } from "../services/entitlements";
 
 function billingUnavailable(): never {
@@ -42,18 +43,31 @@ export const billingRouter = createRouter({
   createCheckout: authedQuery
     .input(z.object({
       planId: z.enum(["solo"]),
+      /** Optional promotion code. A newcomer offer needs no code — it is applied
+       *  by the account's signup date. */
+      promoCode: z.string().max(32).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       if (!isBillingConfigured()) billingUnavailable();
       const origin = requestOrigin(ctx.req);
+      // Read-only: eligibility never consumes a slot, because a session the buyer
+      // abandons must not take a place in a capped promotion. The redemption row
+      // is written by the webhook once the subscription exists.
+      const trial = await resolveTrialForCheckout({
+        userId: ctx.user.id,
+        requestedCode: input.promoCode ?? null,
+      });
       try {
         const { url } = await createCheckoutSession({
           userId: ctx.user.id,
           plan: input.planId,
           successUrl: `${origin}/settings?checkout=success`,
           cancelUrl: `${origin}/settings?checkout=cancel`,
+          trialPeriodDays: trial?.days,
+          promotionId: trial?.promotionId,
+          promotionSource: trial?.source,
         });
-        return { url };
+        return { url, freeTrialDays: trial?.days ?? 0, promotionId: trial?.promotionId ?? null };
       } catch (err) {
         if (err instanceof BillingNotConfiguredError) billingUnavailable();
         throw err;
