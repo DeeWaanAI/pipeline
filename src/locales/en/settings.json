@@ -104,5 +104,27 @@
       "applied": "Pipeline applied",
       "savedToMyPipelines": "Saved to My Pipelines"
     }
+  },
+  "modelPrices": {
+    "title": "Model prices you declare",
+    "description": "When neither a provider's published list nor a configured price vector knows a model, the platform records its cost as unknown. State the rate yourself here so that part of your spend stops being a blank.",
+    "provider": "Provider",
+    "model": "Model id",
+    "input": "Input $/1M",
+    "output": "Output $/1M",
+    "save": "Save price",
+    "saved": "Declared price saved",
+    "deleted": "Declaration removed",
+    "delete": "Delete",
+    "required": "Pick a provider and enter a model id.",
+    "invalidNumber": "Both rates must be numbers of 0 or more.",
+    "zeroHint": "0 is a real zero, not a blank: use it for a model you run locally, and its calls are recorded as costing nothing.",
+    "priorityHint": "Your number is used last. A provider's published price or a configured price vector always wins, and if two of your own credentials disagree about one model id the cost stays unknown rather than guessed.",
+    "colProvider": "Provider",
+    "colModel": "Model",
+    "colInput": "In $/1M",
+    "colOutput": "Out $/1M",
+    "unit": "US dollars per 1 million tokens.",
+    "empty": "No declared prices yet."
   }
 }

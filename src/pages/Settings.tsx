@@ -23,6 +23,7 @@ import {
   FolderOpen,
   Unlink,
   HardDrive,
+  Calculator,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -452,6 +453,185 @@ function ProviderCard({ provider }: { provider: { id: number; name: string; slug
         )}
       </CardHeader>
     </Card>
+  );
+}
+
+// ─── Declared model prices ───
+// The third pricing route, and deliberately the LAST one tried: live provider
+// list, then the configured price vector, then this. A declared 0 is a real
+// zero, not an unknown — that is how a locally-run model is recorded as free
+// instead of unpriced.
+function DeclaredPricesSection() {
+  const { t } = useTranslation(["settings", "common", "pages"]);
+  const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const { data: providers } = trpc.llm.listProviders.useQuery(undefined, { enabled: !!user });
+  const { data: rows } = trpc.llm.listDeclaredPrices.useQuery(undefined, { enabled: !!user });
+
+  const [providerId, setProviderId] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [inputPrice, setInputPrice] = useState("");
+  const [outputPrice, setOutputPrice] = useState("");
+
+  const reset = () => {
+    setModelId("");
+    setInputPrice("");
+    setOutputPrice("");
+  };
+
+  const invalidate = () => utils.llm.listDeclaredPrices.invalidate();
+
+  const setPrice = trpc.llm.setDeclaredPrice.useMutation({
+    onSuccess: () => {
+      invalidate();
+      reset();
+      toast.success(t("settings:modelPrices.saved"));
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const removePrice = trpc.llm.deleteDeclaredPrice.useMutation({
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("settings:modelPrices.deleted"));
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const inNum = Number(inputPrice);
+    const outNum = Number(outputPrice);
+    if (!providerId || !modelId.trim()) {
+      toast.error(t("settings:modelPrices.required"));
+      return;
+    }
+    if (![inNum, outNum].every((n) => Number.isFinite(n) && n >= 0)) {
+      toast.error(t("settings:modelPrices.invalidNumber"));
+      return;
+    }
+    setPrice.mutate({
+      providerId: Number(providerId),
+      modelId: modelId.trim(),
+      inputUsdPerMillion: inNum,
+      outputUsdPerMillion: outNum,
+    });
+  };
+
+  const money = (value: string | number) =>
+    Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 });
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-neutral-200 flex items-center gap-2 mb-2">
+        <Calculator className="w-5 h-5 text-blue-400" />
+        {t("settings:modelPrices.title")}
+      </h2>
+      <p className="text-sm text-neutral-500 mb-4">{t("settings:modelPrices.description")}</p>
+
+      <Card className="bg-neutral-900 border-neutral-800 mb-4">
+        <CardContent className="py-4">
+          <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[1.2fr_1.4fr_0.8fr_0.8fr_auto] items-end">
+            <label className="block">
+              <span className="text-xs text-neutral-500">{t("settings:modelPrices.provider")}</span>
+              <select
+                value={providerId}
+                onChange={(e) => setProviderId(e.target.value)}
+                className="mt-1 w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-blue-500"
+              >
+                <option value="">—</option>
+                {(providers ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-neutral-500">{t("settings:modelPrices.model")}</span>
+              <Input
+                value={modelId}
+                onChange={(e) => setModelId(e.target.value)}
+                placeholder="qwen3-32b"
+                className="mt-1 bg-neutral-800 border-neutral-700 text-xs"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-neutral-500">{t("settings:modelPrices.input")}</span>
+              <Input
+                type="number" min="0" step="any" inputMode="decimal"
+                value={inputPrice}
+                onChange={(e) => setInputPrice(e.target.value)}
+                placeholder="0.10"
+                className="mt-1 bg-neutral-800 border-neutral-700 text-xs"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-neutral-500">{t("settings:modelPrices.output")}</span>
+              <Input
+                type="number" min="0" step="any" inputMode="decimal"
+                value={outputPrice}
+                onChange={(e) => setOutputPrice(e.target.value)}
+                placeholder="0.30"
+                className="mt-1 bg-neutral-800 border-neutral-700 text-xs"
+              />
+            </label>
+            <Button
+              type="submit" size="sm"
+              disabled={setPrice.isPending}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {setPrice.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+              {t("settings:modelPrices.save")}
+            </Button>
+          </form>
+
+          <div className="mt-3 space-y-1">
+            <p className="text-xs text-neutral-500 flex items-start gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
+              {t("settings:modelPrices.zeroHint")}
+            </p>
+            <p className="text-xs text-neutral-500 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+              {t("settings:modelPrices.priorityHint")}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {rows && rows.length > 0 ? (
+        <Card className="bg-neutral-900 border-neutral-800">
+          <CardContent className="py-3">
+            <div className="grid gap-1 text-xs">
+              <div className="grid grid-cols-[1.2fr_1.6fr_0.8fr_0.8fr_auto] gap-3 text-neutral-500 border-b border-neutral-800 pb-2">
+                <span>{t("settings:modelPrices.colProvider")}</span>
+                <span>{t("settings:modelPrices.colModel")}</span>
+                <span className="text-right">{t("settings:modelPrices.colInput")}</span>
+                <span className="text-right">{t("settings:modelPrices.colOutput")}</span>
+                <span />
+              </div>
+              {rows.map((r) => (
+                <div key={r.id} className="grid grid-cols-[1.2fr_1.6fr_0.8fr_0.8fr_auto] gap-3 items-center py-1.5 text-neutral-300">
+                  <span className="truncate">{r.providerName}</span>
+                  <span className="truncate font-mono">{r.modelId}</span>
+                  <span className="text-right">{money(r.inputUsdPerMillion)}</span>
+                  <span className="text-right">{money(r.outputUsdPerMillion)}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePrice.mutate({ id: r.id })}
+                    className="text-neutral-600 hover:text-red-400 flex items-center gap-1"
+                    aria-label={`${t("settings:modelPrices.delete")} ${r.providerName} ${r.modelId}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-neutral-600 mt-2">{t("settings:modelPrices.unit")}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <p className="text-xs text-neutral-600">{t("settings:modelPrices.empty")}</p>
+      )}
+    </div>
   );
 }
 
@@ -967,6 +1147,8 @@ export default function SettingsPage() {
           )}
         </div>
 
+        <Separator className="bg-neutral-800 my-6" />
+        <DeclaredPricesSection />
         <Separator className="bg-neutral-800 my-6" />
         <GiteeTokenSection />
         <div className="mt-4">
