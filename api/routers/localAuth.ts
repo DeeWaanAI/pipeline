@@ -57,6 +57,33 @@ export async function verifyLocalToken(token: string): Promise<{ userId: number;
 // honors TRUSTED_PROXY (env.ts) and falls back to the direct socket address
 // (ctx.remoteIp) when no trusted edge proxy is in front of the app.
 
+/** The only `users` columns that may cross to the browser: the SPA reads id,
+ *  name and role (plus username, which login and signup already hand back).
+ *  Anything added here is published to every logged-in client, so a secret
+ *  column — `passwordHash` above all — must never be listed. */
+export const PUBLIC_USER_COLUMNS = {
+  id: users.id,
+  username: users.username,
+  name: users.name,
+  role: users.role,
+} as const;
+
+export async function readSessionUser(
+  token: string | null,
+): Promise<{ id: number; username: string | null; name: string | null; role: string | null } | null> {
+  if (!token) return null;
+  const claim = await verifyLocalToken(token);
+  if (!claim) return null;
+  try {
+    const [user] = await getDb()
+      .select(PUBLIC_USER_COLUMNS)
+      .from(users)
+      .where(eq(users.id, claim.userId))
+      .limit(1);
+    return user ?? null;
+  } catch { return null; }
+}
+
 export const localAuthRouter = createRouter({
   signup: publicQuery
     .input(z.object({
@@ -158,14 +185,9 @@ export const localAuthRouter = createRouter({
     }),
 
   me: publicQuery.query(async ({ ctx }) => {
-    const token = ctx.req.headers.get("x-local-auth-token");
-    if (!token) return null;
-    const claim = await verifyLocalToken(token);
-    if (!claim) return null;
-    try {
-      const [user] = await getDb().select().from(users).where(eq(users.id, claim.userId)).limit(1);
-      return user ?? null;
-    } catch { return null; }
+    // A bare `select()` here returned the whole `users` row — bcrypt hash and
+    // all — to whoever held the token. readSessionUser() lists the columns.
+    return readSessionUser(ctx.req.headers.get("x-local-auth-token"));
   }),
 
   // `setTier` and `devTierSwitch` were removed with the tier ladder (owner
