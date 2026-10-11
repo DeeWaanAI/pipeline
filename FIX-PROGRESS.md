@@ -336,6 +336,38 @@ evidence status (spec §6.2: a score difference is never an automatic penalty). 
 public UGC surface, so it needs moderation, a hide action, and a privacy line before launch — say the
 word and I will build it; I have not started.
 
+## Owner decision: the user's folder is the archive (2026-10-11, tasks #69–#72)
+Purpose, in the owner's words: **own the data, and never lose it** — prompts, pipelines, results,
+intermediates, human-in-the-loop state, and the judging prompts kept on the user's own machine — plus
+**cost**: a research-scale seller generates GBs the platform must not pay to keep. NOT about hiding
+data from LLM providers; my earlier framing there was wrong. Two carve-outs the owner stated: anything
+another person depends on (a shared or published pipeline, and its evidence) lives on us because a
+third party relies on it, and a run or edit is **uploaded to us on demand**.
+
+The four steps, in order, with the reason for the order:
+1. **#69 Prove the export with one real chat client.** `export_run` already hands the client every file
+   (path, content, bytes, sha256) with write instructions; no live client has been shown to write and
+   read them back. Until that passes, a deletion is not cleanup, it is loss. Also closes #30/#57/#59.
+   Needs the owner's machine — it is the one step that cannot be done from here.
+2. **#70 Hash + manifest on us, content with the user.** Bulk text is currently embedded in records that
+   must survive: the sweep notice at `api/services/dataDelivery.ts:81` states that frozen plans and
+   spend-approval snapshots retain case inputs, expected outputs and baseline prompts. Keep identity
+   (hash, counts, provenance, cost) and deliver the body. Blocked by #69 on purpose.
+3. **#71 Hydrate on demand.** Accept an upload only when its hash matches the quoted and approved plan;
+   the server copy is a TTL cache, never the source.
+4. **#72 A per-account "what is on us" view** — cache vs retained-because-relied-on, sizes, one sweep.
+   Its read-only half is worth doing FIRST: nobody has measured where the GBs actually are, and that
+   answer sizes step #70.
+
+Consequences the owner should hear before we build, not after: a Human-in-the-Loop gate needs the
+intermediates to outlive a pause, so either the buffer is held while the gate is open (what #71
+proposes, with the folder always getting a copy) or pausing overnight across devices stops working; we
+cannot restore what we chose not to store, so the ToS must say the platform does not archive private
+work and the user's folder IS the backup; and cross-run search becomes a local-only feature.
+
+Nothing here is built yet and **no deletion has been enabled**. Stripe (#29) stays last by the owner's
+instruction.
+
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
 
