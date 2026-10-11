@@ -286,6 +286,56 @@ Owner: "one tier only at 9.99 USD — no more 3 tiers", plus "let the admin make
    `STRIPE_PRICE_SOLO` (a `price_…` created for the flat monthly plan). No publishable key is needed —
    checkout is Stripe-hosted. Until then billing routes answer 503 and /pricing says so on the page.
 
+## Trust model: published evidence, not human review (2026-10-11)
+Owner: "there are no more human reviewers — the author generates a judging team for the pipeline and
+conducts a test", + "once the seller publishes, the data INCLUDING the judge prompts must be publicly
+inspectable". Spec support: D2, D9 ("the public evidence page for a listing", "evidence needs a
+canonical public URL"), D12 (3 vendors x 3 framings, generator-disjoint), §7.3 (exact judging prompts
+are a required manifest field).
+
+- `23d2771` — **the disclosure already existed and nobody could see it.** `evidenceService` already
+  writes `judging.judgePrompts` (full text per variant), every judgment, parse failures, validators,
+  costs, and `getEvidenceByHash` is a `publicQuery`. No screen in `src/` called any of it, so
+  `/marketplace/:id` showed only the legacy grade/kappa/reviewCount. Added `/evidence/<manifestHash>`
+  (renders the whole record; a hash that resolves to nothing says "not published" rather than 404, so a
+  withdrawal is legible), a `listListingEvidence` public read that does NOT hide withdrawals, and a
+  "Published evidence" panel on the listing.
+  Verified live: an unauthenticated fetch (no `x-local-auth-token` at all) returned the manifest; walking
+  all 136 keys found no step prompt, no credential, no seller instruction — only
+  `judgePrompts[].promptText`, with `includesPrivateDefinition=false` and
+  `hiddenSellerInstructionsIncluded=false`; the page rendered 10 sections and the prompt opened to its
+  full 1,570 chars. 480 unit tests, `npm run check`, `i18n:check` (en+zh) and the site build pass.
+- `cc2b34e` — the site and the app's pricing page still SOLD blind human review as the gate ("Only
+  human consensus makes a listing buyable", "every purchase is graded by at least 5 independent
+  reviewers"). Rewritten to what the code enforces. The blog post is annotated as historical, not
+  rewritten. `reviewing.md` stays and now opens by saying the path is retired for new listings.
+
+### Two things this surfaced that are NOT fixed
+1. **A v2 listing's private step prompts are never scanned.** `scanListingSecurity` (injection
+   patterns, hidden Unicode, exfiltration, embedded secrets) is called only from the LEGACY submit path
+   (`api/routers/marketplace.ts:1179`); `publishVersion` runs `scanForSecrets` over the DISCLOSED
+   material only (`api/services/evidenceService.ts:491`). So nothing checks the definition a BUYER will
+   execute before the listing is buyable. I wrote the scan into `selling.md`, caught it against the
+   code, and corrected the doc rather than the product — deciding this is the owner's: calling the
+   existing scanner inside the publication gate is small and fail-closed, but it can newly REFUSE work
+   that is listed today.
+2. **The reviewer surfaces are still live** (`/reviewer/portal`, `/reviewer/review/:listingId`, the
+   admin Certification tab, `certification.report`, the `certifying` status path, and
+   `evidenceReports` — a table the schema defines and NO code reads or writes). Retiring them is a
+   product decision with real blast radius (legacy listings' reports reference them), not a copy fix.
+
+### Buyer opinions / questions under a purchased listing — my recommendation
+`evidenceReports` is the closest existing shape (reporter, listing, reason, `sellerReply`, assessment
+status) but it is specced as a CHALLENGE to evidence, and mixing "I disagree with this score" with
+"does this handle Arabic diacritics?" loses both. Recommend a separate, smaller thing: one
+`listing_notes` table (author, listing, kind question|opinion, body, `purchase_attested`, one-level
+seller reply, `hidden` for moderation). Gate authorship on a real `marketplacePurchases` row and show
+"verified purchaser" from THAT row rather than from anything the author types — the attestation is the
+only reason the comment carries weight. Public read for everyone, no effect on price, eligibility or
+evidence status (spec §6.2: a score difference is never an automatic penalty). The honest cost: it is a
+public UGC surface, so it needs moderation, a hide action, and a privacy line before launch — say the
+word and I will build it; I have not started.
+
 ## User journey increments (2026-09-24)
 Work in small verified increments; choose sensible defaults rather than asking about routine design options.
 
