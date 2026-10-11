@@ -1697,6 +1697,21 @@ export const marketplaceRouter = createRouter({
       includeWithdrawn: input.includeWithdrawn, limit: input.limit,
     })),
 
+  /** Every publication attached to a listing — the shop front's "who inspected
+   *  what" list. Seller evidence included, and withdrawals stay VISIBLE as
+   *  withdrawn: a reader who followed an old link deserves to learn the record
+   *  was pulled, not that it never existed. Manifest DTOs only. */
+  listListingEvidence: publicQuery
+    .input(z.object({
+      listingId: z.number().int().positive(),
+      workflowVersionId: z.number().int().positive().optional(),
+    }))
+    .query(async ({ input }) => listPublicEvidenceForListing(input.listingId, {
+      workflowVersionId: input.workflowVersionId,
+      includeWithdrawn: true,
+      limit: 50,
+    })),
+
   /** A manifest addressed by the hash a reader was given (§6.2 canonical URL). */
   getEvidenceByHash: publicQuery
     .input(z.object({ manifestHash: z.string().length(64) }))

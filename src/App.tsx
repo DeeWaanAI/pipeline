@@ -26,6 +26,7 @@ const TestFixtures = lazy(() => import("./pages/TestFixtures"));
 const Connect = lazy(() => import("./pages/Connect"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const CertificationReport = lazy(() => import("./pages/CertificationReport"));
+const PublicEvidence = lazy(() => import("./pages/PublicEvidence"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 
 export default function App() {
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/connect" element={<Connect />} />
           <Route path="/oauth/consent" element={<OAuthConsent />} />
           <Route path="/certification/:id" element={<CertificationReport />} />
+          <Route path="/evidence/:manifestHash" element={<PublicEvidence />} />
           <Route path="/pricing" element={<Pricing />} />
           {/* /login renders Dashboard, which shows the auth form when unauthenticated (OAuth return path via ?next=) */}
           <Route path="/login" element={<Dashboard />} />

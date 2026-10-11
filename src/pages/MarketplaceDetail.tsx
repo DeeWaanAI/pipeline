@@ -82,7 +82,12 @@ export default function MarketplaceDetail() {
 
   const isOwner = user?.id === listing.creatorId;
   const hasPurchased = purchaseCheck?.purchased;
-  // Spec 0.4: certifying listings are visible but not buyable.
+  // Published evidence anyone can inspect — seller records first (the list is
+  // newest-first, and a seller publication always precedes its comments).
+  const { data: publications } = trpc.marketplace.listListingEvidence.useQuery(
+    { listingId: Number(listingId ?? 0) },
+    { enabled: !!listingId },
+  );
   const isCertifying = listing.status === "certifying";
 
   return (
@@ -142,9 +147,52 @@ export default function MarketplaceDetail() {
             </div>
 
             {/* Quality Stats */}
+            {/* Published evidence — what anyone can inspect before buying. */}
+            {(publications?.length ?? 0) > 0 && (
+              <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5">
+                <h3 className="text-sm font-medium text-neutral-300 mb-1">{t("pages:marketplace.detail.evidenceTitle")}</h3>
+                <p className="mb-3 text-xs text-neutral-500">{t("pages:marketplace.detail.evidenceNote")}</p>
+                <ul className="space-y-2">
+                  {publications!.map((p) => (
+                    <li key={p.publicationId} className="rounded-lg border border-neutral-800 bg-neutral-800/30 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-neutral-300">
+                          {p.publicationKind === "seller"
+                            ? t("pages:marketplace.detail.evidenceSeller")
+                            : t("pages:marketplace.detail.evidenceCommunity")}
+                          {" · v"}{p.workflowVersionNumber}
+                          {" · "}{p.caseCount}{t("pages:marketplace.detail.evidenceCases")}
+                        </span>
+                        {p.state === "withdrawn" ? (
+                          <span className="text-[11px] text-amber-400">{t("pages:marketplace.detail.evidenceWithdrawn")}</span>
+                        ) : (
+                          <Link to={`/evidence/${p.manifestHash}`} className="text-xs text-blue-400 hover:text-blue-300 underline">
+                            {t("pages:marketplace.detail.evidenceOpen")}
+                          </Link>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-neutral-600">
+                        {p.provenance === "platform_recorded"
+                          ? t("pages:marketplace.detail.evidencePlatformRecorded")
+                          : t("pages:marketplace.detail.evidenceUserReported")}
+                        {" · "}{new Date(p.testedAt).toLocaleDateString()}
+                        {p.disclosureClass === "limited" && ` · ${t("pages:marketplace.detail.evidenceLimited")}`}
+                        {p.testedModels.length > 0 && ` · ${p.testedModels.join(", ")}`}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Legacy certification numbers. `grade`, `reviewCount` and `kappaScore`
+                are the retired five-human-reviewers pipeline's output; a v2 listing
+                is published on its evidence record instead, so this block only ever
+                describes old work and says so. */}
             {(listing.grade || listing.kappaScore) && (
               <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5">
-                <h3 className="text-sm font-medium text-neutral-300 mb-4">{t("pages:marketplace.detail.qualityVerification")}</h3>
+                <h3 className="text-sm font-medium text-neutral-300 mb-1">{t("pages:marketplace.detail.qualityVerification")}</h3>
+                <p className="mb-4 text-[11px] text-neutral-500">{t("pages:marketplace.detail.legacyCertificationNote")}</p>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-3 bg-neutral-800/50 rounded-lg">
                     <Star className="w-5 h-5 text-amber-400 mx-auto mb-1" />
