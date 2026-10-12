@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Hexagon,
   ShieldCheck,
@@ -34,6 +35,9 @@ export default function OAuthConsentPage() {
     typeof localStorage !== "undefined"
       ? localStorage.getItem("local_auth_token")
       : null;
+  // Presence is not validity: the local token expires in an hour, and offering
+  // Allow against a dead session only produces a 401 the visitor never sees.
+  const { isAuthenticated, isLoading, refresh } = useAuth();
 
   const decide = async (decision: "allow" | "deny") => {
     setSubmitting(decision);
@@ -62,6 +66,9 @@ export default function OAuthConsentPage() {
         return;
       }
       toast.error(data.error_description || t("consent.error"));
+      // A session that died between the page load and the click must not leave
+      // the Allow/Deny buttons on screen.
+      if (res.status === 401) void refresh();
       setSubmitting(null);
     } catch {
       toast.error(t("consent.error"));
@@ -86,7 +93,11 @@ export default function OAuthConsentPage() {
             <h1 className="mt-3 text-lg font-semibold">{t("consent.invalidTitle")}</h1>
             <p className="mt-2 text-sm text-neutral-400">{t("consent.invalidDesc")}</p>
           </div>
-        ) : !token ? (
+        ) : isLoading ? (
+          <div className="mt-8 flex justify-center py-6">
+            <Loader2 className="h-6 w-6 animate-spin text-neutral-500" />
+          </div>
+        ) : !isAuthenticated ? (
           /* ─── Login required ─── */
           <div className="mt-6 text-center">
             <h1 className="text-lg font-semibold">{t("consent.loginTitle")}</h1>

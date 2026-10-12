@@ -403,6 +403,35 @@ Work in small verified increments; choose sensible defaults rather than asking a
 - #59 NOT DONE, and the earlier "DONE" wording was wrong. The publish and sharing RULES are covered by suites (own-key/own-model runs, per-object grants, revoke, clone, lineage-gated publishing) and the admin/attachment surfaces had their browser pass in #52/#53 — but no external chat client has ever run the full beta publish journey end to end, and that is what this ticket actually asks for. Do not close it from suite green alone.
 - #61 IN PROGRESS — backend done, no UI yet: accounts can declare a per-model price for a credential they own (`declared_model_prices`, additive migration 034, applied to local `swarm`; entered per 1M as provider consoles show, converted to the ledger's per-1k unit). Resolution order is now live provider list → platform price vector → **declaration** → UNKNOWN, in BOTH the quote path (`resolveModelPricing`) and the actual path (`rateForAttempt`), so an approved hash still binds the numbers that get billed. Declared is LAST on purpose: it can end an UNKNOWN but never overwrite a published number — a negative control that let a declaration beat the vector turned the new test red (`expected 'declared' to be 'price_vector'`). A declared `0/0` is a real zero for a locally served model: the ledger row reads `cost_basis='declared'`, `cost_completeness='complete'`, `estimated_cost_usd=0`, and the evidence disclosure gained its own label instead of borrowing "published list". Two of the same owner's credentials disagreeing about one model id → back to UNKNOWN rather than a guess. A failed declared lookup degrades to UNKNOWN and cannot fail a quote (the cache-suite mock proved this path threw before the guard was added). NOT DONE: the Settings UI form (procedures `listDeclaredPrices`/`setDeclaredPrice`/`deleteDeclaredPrice` exist and are ownership-checked, non-leaky), no MCP tool, and aggregate run-level rows still cannot use a declaration because they carry no `provider_ref_id`. Verified: typecheck, 40 unit + 10 DB integration tests green, `git diff --check` clean.
 
+## MCP authorize dead-end (2026-10-12)
+
+The owner clicked Allow on the consent screen and nothing happened. Three independent reads agreed:
+
+- `swarm.oauth_auth_codes` has no row newer than 2026-09-21 (max id 14), while Qoder's OAuth attempts
+  ran 2026-10-12 10:34 and 10:39 and both stopped at `stage=browser_opened` (`expired`, then
+  `cancelled`) — so the browser never produced a code.
+- `/oauth/authorize` GET succeeded for the same request, and it validates client_id, the loopback
+  redirect (port-insensitive since `8b7f0fd`) and PKCE. The only check the confirm POST adds beyond
+  those is `resolveSessionUser`.
+- The in-app browser's `localStorage.local_auth_token` decodes to `sub: 354` (p3-tester), issued
+  501 hours earlier, `exp` long past, and `/api/trpc/localAuth.me` with that header answers
+  `200 {"result":{"data":{"json":null}}}` — no session. The confirm POST therefore can only have been
+  answered 401 "Authentication required" (not observed directly: `npm run dev` logs to the owner's
+  terminal, and `/oauth/authorize/confirm`'s 401 path logs nothing).
+
+The page branched on the token's **presence**, so a dead session still rendered Allow/Deny, and the
+401 surfaced only as a toast the owner never saw: "nothing happens". `OAuthConsent.tsx` now branches
+on `useAuth()` (the same `localAuth.me` lookup the rest of the app uses), shows a spinner while it is
+in flight, offers the existing "Sign in to continue" CTA when there is no session, and calls
+`refresh()` when a confirm comes back 401 so the buttons cannot outlive the session that justified
+them. No new copy, so no i18n parity work.
+
+Verified: `npm run check` and `eslint` on the file clean; the real page in the real stale-token state
+(now that the token is genuinely stale in that browser profile) renders "Sign in to continue" with
+only `Log in` / `Feedback` buttons — the pre-fix branch would have rendered Allow there.
+NOT verified: a successful end-to-end authorize, which needs the owner to sign in again first; no
+code row has been issued locally since 2026-09-21, and #69 still waits on that.
+
 ## Next agent — what is left
 1. The 18 aggregate ledger rows stay UNKNOWN by design (see the last section). Clearing them needs
    either a rebuild of each run's per-model breakdown from its step rows — where `providerUsed` is a
