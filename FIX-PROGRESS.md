@@ -7,8 +7,10 @@ Updated: 2026-09-24 (browser pass over #21/#22 done; items 52/53 fixed in `3b4f5
 - Tests use their own throwaway databases on localhost:3307; never sweep real user data.
 - Preserve financial/history records and snapshots; additive migrations only.
 - Push freely: the owner's standing instruction (2026-09-24) is to push each verified increment without waiting. Keep the staged-secret scan before every commit and a fast-forward check before pushing (`behind=0`, intended remote). Force-push, remote branch deletion and deploys still need an explicit ask.
-- The working tree is otherwise clean: only the two inherited ` 2.ts` duplicates remain untracked and they stay that way.
-- Preserve inherited UI edits and untracked `api/services/autoDesignService 2.ts` / `db/schema 2.ts`.
+- The working tree is clean. The two inherited ` 2.ts` files were moved aside on 2026-10-12 by owner
+  decision (never deleted) to `~/Documents/app25_v2-inherited/`, same names, byte-identical to the
+  blobs in `2e7be2d` / `3042b16`. Nothing imported them. Full entry in V2-CHECKPOINT.md §Watchdog status.
+- Preserve inherited UI edits.
 - `npm run check` passes. The full suite is 55 files; `api/services/designJobService.integration.test.ts` can fail the parallel run with `spawnSync npx ETIMEDOUT` inside its `pushSchema()` helper (a 150s drizzle-kit timeout under contention, worst right after a container restart). It passes 8/8 alone — rerun it in isolation before treating it as a real failure.
 
 ## Fix queue

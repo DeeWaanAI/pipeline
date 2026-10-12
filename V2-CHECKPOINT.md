@@ -403,6 +403,14 @@ baseline (`db/schema 2.ts`, `api/services/autoDesignService 2.ts`, `.git/refs/he
 `dist/public/assets/* 2.js`): unreferenced junk that predates P0, but do not delete without an owner
 decision — move aside instead.
 
+**Resolved 2026-10-12 by owner decision (move aside, not delete).** `db/schema 2.ts` and
+`api/services/autoDesignService 2.ts` now live in `~/Documents/app25_v2-inherited/` under the same
+names; both are byte-identical to the blobs in `2e7be2d` and `3042b16`, so they are also recoverable
+from git. Nothing referenced them and `npm run check` is unaffected. `.git/refs/heads/main 2` is
+already gone. Still in place and inert: 11 `dist/public/**` `" 2"` assets (the next `npm run build`
+regenerates `dist`) and `.git/hooks/* 2.sample` (git never runs a suffixed hook). FIX-PROGRESS.md's
+"preserve in place" rule is retired by this entry.
+
 
 ---
 
