@@ -28,7 +28,7 @@ import { oauthClients, oauthAuthCodes, users } from "@db/schema";
 import { Session } from "@contracts/constants";
 import { verifyLocalToken } from "../routers/localAuth";
 import { issueAccessToken, issueRefreshToken, rotateRefreshToken } from "../services/tokenService";
-import { isAllowedRedirectUri } from "./redirectUri";
+import { isAllowedRedirectUri, redirectUriMatchesRegistration } from "./redirectUri";
 import { logger } from "../lib/logger";
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ export function registerOAuthRoutes(app: OAuthApp) {
     if (!client) return fail400("Unknown client_id");
 
     const registered = (client.redirectUris as string[] | null) ?? [];
-    if (!redirect_uri || !registered.includes(redirect_uri)) {
+    if (!redirect_uri || !redirectUriMatchesRegistration(redirect_uri, registered)) {
       // Must NOT redirect to an unvalidated URI — hard 400.
       return fail400("redirect_uri does not match registered URIs");
     }
@@ -294,7 +294,7 @@ export function registerOAuthRoutes(app: OAuthApp) {
     if (!client) return oauthError(c, "invalid_request", "Unknown client_id");
 
     const registered = (client.redirectUris as string[] | null) ?? [];
-    if (!redirect_uri || !registered.includes(redirect_uri)) {
+    if (!redirect_uri || !redirectUriMatchesRegistration(redirect_uri, registered)) {
       return oauthError(c, "invalid_request", "redirect_uri does not match registered URIs");
     }
 
