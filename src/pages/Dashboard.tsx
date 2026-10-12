@@ -178,7 +178,7 @@ function AuthForm() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <Hexagon className="w-8 h-8 text-blue-500" />
-          <h1 className="text-xl font-bold text-neutral-100">{t("appName")}</h1>
+          <h1 className="text-xl font-bold text-neutral-100">{t("common:appName")}</h1>
         </div>
 
         <Card className="bg-neutral-900 border-neutral-800">
