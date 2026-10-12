@@ -27,6 +27,7 @@ import {
   benchmarks, callAttempts,
 } from "@db/schema";
 import type { BenchmarkCallPlan } from "./benchmarkTypes";
+import { benchmarkLedgerTotals, costDisclosure } from "./benchmarkLedger";
 import { logger } from "../../lib/logger";
 import { previewJudgePrompts } from "./judgeService";
 
@@ -46,6 +47,13 @@ export interface BenchmarkArchiveInput {
   runs: Array<Record<string, unknown>>;
   judgments: Array<Record<string, unknown>>;
   attempts: Array<Record<string, unknown>>;
+  /** The cost disclosure, reduced from the ledger rows AT EXPORT TIME. Required,
+   *  because the row's cached `summary` column is frozen at finalisation: an
+   *  archive whose only cost figure is `totalObservedCost` reads as "$0.00 spent"
+   *  for a benchmark whose operations were never priced. Every benchmark that
+   *  finalised before `display:` existed carries exactly that misleading row, so
+   *  the disclosure cannot be trusted out of the row — it is rebuilt here. */
+  cost: ReturnType<typeof costDisclosure>;
   exportedAt: string;
 }
 
@@ -178,6 +186,9 @@ export function buildBenchmarkArchive(input: BenchmarkArchiveInput) {
     // Declared before the client writes anything: a gap the user learns about
     // afterwards is not a disclosure.
     incomplete: missing,
+    // The cost sentence travels with the archive, in the file a verifier reads.
+    cost: input.cost,
+    costBasis: "reduced from this archive's own ledger.json rows at export time; the `totalObservedCost` column in benchmark.json is a cached figure frozen when the benchmark finalised",
     files: files.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })),
   });
 
@@ -188,7 +199,7 @@ export function buildBenchmarkArchive(input: BenchmarkArchiveInput) {
     incomplete: missing,
     files,
     instructions:
-      "Use the client's filesystem tools to create this directory inside the user's selected folder. Write each content string exactly as UTF-8, without an added newline. Never overwrite an existing file silently — report the collision and ask. Read back each file's byte count and SHA-256 and compare them to manifest.json before reporting success. Report every entry in `incomplete` to the user: those are bodies the server no longer holds, and they cannot be recovered here. If the client cannot write files, say so plainly. This archive does not delete any server-side data; a sweep is a separate, explicit action.",
+      "Use the client's filesystem tools to create this directory inside the user's selected folder. Write each content string exactly as UTF-8, without an added newline. Never overwrite an existing file silently — report the collision and ask. Read back each file's byte count and SHA-256 and compare them to manifest.json before reporting success. Report every entry in `incomplete` to the user: those are bodies the server no longer holds, and they cannot be recovered here. Read `manifest.cost.display` out to the user as written — a dollar figure whose operations are unpriced is a FLOOR, not the total owed, and the bare number in benchmark.json does not say so. If the client cannot write files, say so plainly. This archive does not delete any server-side data; a sweep is a separate, explicit action.",
   };
 }
 
@@ -234,6 +245,12 @@ export async function loadBenchmarkForExport(opts: { userId: number; benchmarkId
   // Runs may reference linked pipeline runs. Their step-by-step intermediates are
   // NOT copied here — `export_run` is the one projection that knows what a
   // caller may see about a run, so the archive names the ids and stops there.
+  //
+  // The cost disclosure is reduced from the ledger rows the same way
+  // `getBenchmarkProgress` does it, never read off the cached `summary`: that
+  // column froze at finalisation and predates the FLOOR wording for older
+  // benchmarks, so a stale row would ship `$0.00` with no caveat attached.
+  const cost = costDisclosure(await benchmarkLedgerTotals(bench.id));
   return {
     benchmark: bench as unknown as Record<string, unknown> & { id: number },
     plan,
@@ -243,6 +260,7 @@ export async function loadBenchmarkForExport(opts: { userId: number; benchmarkId
     runs: runs as unknown as Array<Record<string, unknown>>,
     judgments: judgments as unknown as Array<Record<string, unknown>>,
     attempts: attempts as unknown as Array<Record<string, unknown>>,
+    cost,
     exportedAt: new Date().toISOString(),
   };
 }

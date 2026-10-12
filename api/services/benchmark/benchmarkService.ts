@@ -1286,6 +1286,33 @@ async function iccDisclosure(
   };
 }
 
+/**
+ * The planned-call counts of a stored plan, or null with the reason.
+ *
+ * `counts` is attached when the plan is FROZEN at start — quoting is read-only
+ * (proved by "quote is read-only" in the integration drill), so a benchmark that
+ * never started stores a plan with no `counts` block at all. That is the normal
+ * shape of a draft, and of one cancelled before it ever ran. The row is typed
+ * `BenchmarkCallPlan`, which declares `counts` required, so every reader of
+ * `plan.counts` inherited a claim the data does not keep: `benchmark_status` on a
+ * cancelled pre-start benchmark threw "Cannot read properties of undefined
+ * (reading 'generationCalls')". Degenerate designs produce null with the
+ * condition named, never a number — the rule the ICC disclosure above follows.
+ */
+export function plannedCallsOf(
+  plan: BenchmarkCallPlan,
+): { generation: number; judging: number } | { generation: null; judging: null; reason: string } {
+  const counts = (plan as { counts?: CallCounts }).counts;
+  if (!counts) {
+    return {
+      generation: null,
+      judging: null,
+      reason: "this benchmark's plan was never frozen, so no call counts exist — counts are attached when it starts",
+    };
+  }
+  return { generation: counts.generationCalls, judging: counts.judgingCalls };
+}
+
 export async function computeSummary(benchmarkId: number): Promise<Record<string, unknown>> {
   const db = getDb();
   const [b] = await db.select().from(benchmarks).where(eq(benchmarks.id, benchmarkId)).limit(1);
@@ -1375,7 +1402,7 @@ export async function computeSummary(benchmarkId: number): Promise<Record<string
       // Different UNITS, stated rather than left for a reader to assume (§9:
       // uncertainty is disclosed, never hidden).
       observedOperations: { generation: totals.generationOperations, judgment: totals.judgmentOperations },
-      plannedCalls: { generation: plan.counts.generationCalls, judging: plan.counts.judgingCalls },
+      plannedCalls: plannedCallsOf(plan),
       unitNote: "plannedCalls counts provider LLM calls; observedOperations counts logical operations, each carrying the summed usage of every call it made. They are not one-to-one comparable.",
     },
     scopeStatement: "These numbers describe ONLY the tested cases, models, judges and repeats recorded in this benchmark. They are not a percentage of objective quality, not inferential statistics, and not a certification.",
@@ -1499,7 +1526,7 @@ export async function getBenchmarkProgress(opts: {
       generationRepeats: plan.generationRepeats,
       judges: plan.judges.map((j) => ({ slot: j.slot, model: j.model, ...(j.variant ? { variant: j.variant } : {}) })),
       rubric: plan.rubric.versionRef,
-      plannedCalls: { generation: plan.counts.generationCalls, judging: plan.counts.judgingCalls },
+      plannedCalls: plannedCallsOf(plan),
     } : null,
     planHash: b.planHash,
     cost: costDisclosure(totals),

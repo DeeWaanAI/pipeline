@@ -28,6 +28,8 @@ Updated: 2026-09-24 (browser pass over #21/#22 done; items 52/53 fixed in `3b4f5
 | 10 | COMMITTED `3b4f55a` | Admin pagination printed the literal `\u2014` (an escape in JSX text is not a character). |
 | 11 | COMMITTED `3b4f55a` | Attachment picker labels must be unique: two runs of one brief were identical, and consent is per item. |
 | 12 | IMPLEMENTED `4432229` | Unpriced ledger rows can be re-priced by an admin: NULLs filled, priced figures never restated, one audited action. See "Item 54 implemented". |
+| 13 | FIXED this increment | `benchmark_status` threw on a plan never frozen (no `counts` block). Now null-with-reason via `plannedCallsOf()`. See "The two v2 fixes". |
+| 14 | FIXED this increment | The cost FLOOR sentence did not travel inside an exported archive (cached summary predates `1a8a40f`). Disclosure now reduced from the ledger at export time and written into `manifest.json`. |
 
 ## Usage provenance (item 5, commits `d016da3` + `245f798`)
 - `api/lib/providers/base.ts` `normalizeTokenUsage(prompt, completion, total?)` sets
@@ -431,6 +433,45 @@ Verified: `npm run check` and `eslint` on the file clean; the real page in the r
 only `Log in` / `Feedback` buttons — the pre-fix branch would have rendered Allow there.
 NOT verified: a successful end-to-end authorize, which needs the owner to sign in again first; no
 code row has been issued locally since 2026-09-21, and #69 still waits on that.
+
+## The two v2 fixes that had to land before v3 (2026-10-12)
+
+The owner ruled that v2 stops being a product once v3 exists, so only what v3 would inherit as a
+defect got fixed. Both came out of the local-archive test pass in the other chat, and both were
+verified against the real data before being called bugs.
+
+**1. `benchmark_status` crashed on a benchmark whose plan was never frozen.** Reported as
+`Cannot read properties of undefined (reading 'generationCalls')` on benchmark 7. Confirmed cause,
+not correlation: that benchmark's stored plan has top-level keys `schemaVersion, executionMode,
+cases, candidates, judges, rubric, validators, generationRepeats, judgmentKind, limits` — no
+`counts` block — while `BenchmarkCallPlan` declares `counts` **required**, so both readers of
+`plan.counts` inherited a claim the data does not keep. A mid-write correction here matters: the
+other chat guessed "cancelled before quoting", but quoting is read-only (already proved by the
+existing "quote is read-only" drill), so counts only exist on a plan frozen at **start**. Two
+unguarded reads fixed (`getBenchmarkProgress` planRef, `computeSummary` costObserved — the same
+expression on the same column, so not a speculative guard) behind one exported `plannedCallsOf()`
+that answers `{generation: null, judging: null, reason}` — the null-with-the-condition-named rule the
+ICC disclosure already follows, never a fabricated zero.
+
+**2. The cost floor now travels inside the export.** The test found no `FLOOR` string anywhere in
+benchmark 1's archive. That is NOT because `costDisclosure()` lacks the sentence — it has had one
+since `1a8a40f` (2026-09-22). The archive's `summary`/`total_observed_cost` were written at
+finalisation on **2026-09-21**, one day before that wording existed, and cached columns never
+recompute. So every benchmark that finalised before 2026-09-22 ships a bare `0.00000000` marked
+`partial` with nothing saying it is a floor. Fixed by reducing the disclosure **at export time**
+from the archive's own ledger rows — the same principle `getBenchmarkProgress` already uses ("cost
+comes from the ledger, not the cached column") — written into `manifest.json` as `cost` plus a
+`costBasis` line, and named in both the tool description and the client's write instructions so the
+sentence gets read out rather than left in a field.
+
+Verified: `npm run check` and `eslint` clean; 34 tests green across
+`benchmarkService.integration.test.ts` (12, incl. 3 new — the crash shape, real counts after freeze,
+and the loader→builder wiring on a live row), `benchmarkExport.test.ts` (11, incl. 4 new covering
+floor / fully-priced / zero-call archives), `benchmarkLedger.test.ts` (11, unchanged); the whole
+`api/mcp` suite 116 passed / 1 skipped, because the tool description changed.
+NOT verified live: `benchmark_status(7)` and `export_benchmark(1)` against the running dev server —
+an OAuth bearer is needed and credentials stay out of agent context. The dev server is healthy
+(401 on `/mcp`) and hot-reloads `api/*`, so the retest is two calls in an authenticated chat.
 
 ## Next agent — what is left
 1. The 18 aggregate ledger rows stay UNKNOWN by design (see the last section). Clearing them needs

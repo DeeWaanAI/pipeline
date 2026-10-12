@@ -277,3 +277,58 @@ describe("private evaluation golden path (DB-backed)", () => {
     expect((await benchmarkRow(benchmarkId)).state).toBe("draft");
   });
 });
+
+// `counts` is attached when a plan is FROZEN at start, and quoting is read-only,
+// so a benchmark that never started has no `counts` block at all — the normal
+// shape of a draft and of one cancelled before it ran. The stored row is typed
+// `BenchmarkCallPlan`, which declares `counts` required, and `benchmark_status`
+// read it straight: it threw "Cannot read properties of undefined (reading
+// 'generationCalls')" against exactly such a benchmark (reproduced live on id 7).
+describe("polling a benchmark whose plan was never frozen (DB-backed)", () => {
+  it("names the missing counts instead of throwing or inventing a number", async () => {
+    const f = await seedFixture();
+    const benchmarkId = await svc.createBenchmarkDraft(createInput(f, 1));
+    const draft = JSON.parse(String((await benchmarkRow(benchmarkId)).plan));
+    expect(draft.counts).toBeUndefined();                      // the shape that crashed
+
+    expect((await svc.cancelBenchmark({ userId: f.userId, benchmarkId })).state).toBe("cancelled");
+    const progress = await svc.getBenchmarkProgress({ userId: f.userId, benchmarkId });
+    expect(progress).not.toBeNull();
+    expect(progress!.planRef!.plannedCalls).toEqual({
+      generation: null,
+      judging: null,
+      reason: expect.stringContaining("never frozen"),
+    });
+    // The rest of the status line a user reads still answers.
+    expect(progress!.runs.total).toBe(0);
+    expect(progress!.cost.display).toMatch(/nothing has been spent/i);
+  });
+
+  it("still reports the real counts once the plan is frozen at start", async () => {
+    const f = await seedFixture();
+    const benchmarkId = await svc.createBenchmarkDraft(createInput(f, 2));
+    const opts = { userId: f.userId, benchmarkId };
+    const quote = await svc.quoteBenchmark(opts);
+    expect(String((await benchmarkRow(benchmarkId)).plan)).not.toContain("generationCalls");
+
+    const approval = await svc.approveBenchmarkSpend({ ...opts, planHash: quote.planHash });
+    expect((await svc.startBenchmark({ ...opts, planHash: quote.planHash, spendApprovalId: approval })).ok).toBe(true);
+    const progress = await svc.getBenchmarkProgress(opts);
+    expect(progress!.planRef!.plannedCalls).toEqual({
+      generation: quote.counts.generationCalls, judging: quote.counts.judgingCalls,
+    });
+  });
+
+  // The loader, not just the builder: a real row must come out of
+  // `loadBenchmarkForExport` with a cost reduced from its own ledger, since the
+  // cached columns it used to rely on are frozen at finalisation.
+  it("derives the cost disclosure from the ledger when exporting it", async () => {
+    const f = await seedFixture();
+    const benchmarkId = await svc.createBenchmarkDraft(createInput(f, 1));
+    const { exportBenchmarkArchive } = await import("./benchmarkExport");
+    const { archive } = await exportBenchmarkArchive({ userId: f.userId, benchmarkId });
+    const manifest = JSON.parse(archive.files.find((file: { path: string }) => file.path === "manifest.json")!.content);
+    expect(manifest.cost.display).toMatch(/nothing has been spent/i);
+    expect(manifest.costBasis).toMatch(/ledger\.json/);
+  });
+});
