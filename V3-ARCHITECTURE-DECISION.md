@@ -103,7 +103,7 @@ The buyer receives the graph and runs it with their own keys. Delivery is the pr
 |---|---|---|---|
 | Version-bound export: emit `definition` + `definitionHash` + `workflowVersionId` + `listingId` instead of raw rows | changed | S–M | `export.ts:50-67` |
 | Strip internal FKs from the payload (`providerId` names the seller's credential row) | changed, **and a fix regardless of fork** | XS | `export.ts:61-64` |
-| `definition → projects + pipeline_steps` materializer, verifying `definitionHash` on write | **new** | M–L | no such path exists: only `designJobService.ts:452` and `pipelineSharing.ts:427` write steps, both DB→DB |
+| `definition → projects + pipeline_steps` materializer, verifying `definitionHash` on write | **new** | M–L | ~~no such path exists~~ → **BUILT 2026-10-13**: `api/services/pipelineDelivery.ts`, shipped in `d34f680` |
 | Asymmetric signature over the manifest hash, payload `{listingId, sellerId, workflowVersionId, definitionHash, manifestHash, issuedAt}` | **new** | M | reuse `canonicalJson`/`keyId`; `versionIdentity` already carries 4 of 6 fields |
 | Key management: algorithm, platform-vs-per-seller keys, public-key distribution, rotation, revocation | **policy decision** | M | nothing exists to inherit |
 | `verify_evidence` tool/route so a buyer can check without our server | **new** | S–M | zero verification code today |
@@ -240,7 +240,7 @@ Each is one small verified increment and none requires §7 answered.
 
 | Question | Your answer |
 |---|---|
-| Fork | Class A ☐  Class B ☐  Split ☐  (If Split: is `delivery_class` per-listing or per-seller?) |
+| Fork | **CLASS A — sold as a copy. Chosen by the owner on 2026-10-13.** Class B and the declared split are off the table for now, so `delivery_class` is not built: every listing is a copy. |
 | Commission | Flat 30% ☐  Per-seller column ☐  Lower at launch, then rise ☐ |
 | Gateway ordering | Accept that P3/payout is now launch-critical, i.e. first ☐  Keep it last, and sell nothing until it's built ☐ |
 | Triage cost | Platform keeps paying it ☐  Seller-funded ☐  Disabled until paid ☐ |
@@ -261,3 +261,35 @@ Each is one small verified increment and none requires §7 answered.
 - Whether the handoff's 4 `providerThrottle` failures exist in an integration file (§1), and whether
   `rateLimiter.test.ts` is really flaky: it passed inside the 495-test batch run, which is one observation,
   not a refutation of a flake.
+
+---
+
+## 9. Status after the decision (2026-10-13)
+
+**Class A chosen.** Two increments shipped and verified:
+
+| What | Commit | Proof |
+|---|---|---|
+| `api/services/pipelineDelivery.ts` — the materializer. Entitlement through `resolveProtectedExecutionRight` (the same authority a protected run consults), the certified definition written as a project the buyer owns plus steps, template and a first immutable version, the seller's `providerId`/`agentId` deliberately dropped, and `definitionHash` recomputed over what is about to be written and refused on mismatch | `d34f680` | 7 DB-backed cases in its own throwaway schema; **mutation-tested** — nulling the provider guard and bypassing the hash check each fail exactly the case that covers them, while all four entitlement refusals still pass |
+| `deliver_purchased_copy` (MCP) + `marketplace.deliverCopy` (tRPC) | `b35c253` | presence verified against the live `TOOLS` array at runtime, not against the source file; `tsc -b` clean; unit suite unchanged at 495 passed / 0 failed |
+
+**No migration was needed**, so §4A's migration row is dead: `marketplace_purchases.workflow_version_id`
+(migration 029) plus the immutable `pipeline_versions.definitionHash` already record what a buyer is entitled
+to and which hash that names. A column would copy a fact that cannot change.
+
+**One behavior deserves your eye.** A purchase receipted *before* migration 029 names no version, so delivery
+resolves to the listing's **current** version — possibly a build newer than the one money changed hands for.
+It is allowed (stranding pre-migration buyers is worse than telling the truth about it) and it is disclosed in
+`versionBinding: "legacy_current"` plus the `meaning` string the buyer keeps, with a test that proves the
+disclosure happens. Refusing instead is a one-line change if you prefer strictness.
+
+**Still open, untouched by this increment:** the other five rows of §7 — commission shape, gateway ordering,
+triage funding, the reviewer "subscription days" promise (`src/locales/en/pages.json:727`, and its MCP mirror
+at `api/mcp/tools/helpContent.ts:284`, along with `my_purchases` still offering "subscription status" at
+`:274`), the Pioneer claim. Plus the two §6 items: signing the manifest, and
+the archive `costObserved` residual.
+
+**Deliberately not done, needs your call:** `export_pipeline` still emits raw rows including `providerId` and
+`userId` (§2 C2). Nothing in `src/` consumes that payload and the app's own importer never accepted steps, so
+reshaping it breaks no code — but it changes the format of files users have already saved and repositories
+that already hold them. Recommended: strip the internal identifiers and bump `version: 1 → 2`.
