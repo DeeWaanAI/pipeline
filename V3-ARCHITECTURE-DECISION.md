@@ -49,7 +49,7 @@ exists and works." It exists; it cannot approve what Class B needs it to approve
 | # | Handoff says | Actual | Why it matters |
 |---|---|---|---|
 | C1 | item 7: `purchaseLicenses` / watermark tables "exist unwired" | **Neither exists.** Zero matches repo-wide. What exists: `marketplace_purchases` (`db/schema.ts:782`), `execution_grants` (`:2042`), `trial_grants` (`:2064`) | Copy-protection is at zero, not scaffolded. Any plan built on "wire the existing tables" builds on nothing. |
-| C2 | item 7: `export_pipeline` emits plain JSON "for the caller's own pipelines" | Worse: it emits **raw database rows** — `db.select().from(pipelineSteps)` plus the full `customAgents` row per step, including internal FKs (`id`, `projectId`, `userId`, `providerId`) at `api/routers/export.ts:50-67`. `version: 1` is a **format tag**, not a workflow version. And its output is not accepted by this app's own importer, which writes only `customAgents` and `pipelineTemplates` (`export.ts:276+`) | Two defects in one: a credential-reference leak (`providerId` points at the seller's key rows), and no round-trip. Class A's real cost is here, not in Docker. |
+| C2 | item 7: `export_pipeline` emits plain JSON "for the caller's own pipelines" | It emitted **raw database rows** — `db.select().from(pipelineSteps)` plus the full `customAgents` row per step, including `id`, `projectId`, `userId`, `providerId` (`api/routers/export.ts:50-67`). `version: 1` was a **format tag**, not a workflow version. And its output was never accepted by this app's own importer, which writes only `customAgents` and `pipelineTemplates` (`export.ts:276+`). **Correction to my own first read:** I called `providerId` a credential leak against the seller. It is not — the export is ownership-checked (`export.ts:45-47`) and execution always re-resolves the credential from whoever runs it (`swarmService.ts:479-480`) | So the defect was portability and honesty of the format, not confidentiality: row ids in a shared file invite an import that can never work. Both fixed in §9; the missing round-trip and the missing version binding are what actually cost Class A work, not Docker weight. |
 | C3 | item 3: a local install needs "MySQL + Redis + the in-process worker — that weight … is the adoption barrier" | **Redis is optional** — `api/infra/queue.ts:56` returns `"memory"` when unset, and falls back on connection failure (`:71`). **The worker is flag-gated** (`START_WORKER`). The blocker is elsewhere: the executor is DB-bound — `swarmService.ts` loads steps from `pipeline_steps WHERE project_id = ?`. Nothing anywhere executes a `pipeline_versions.definition` as a standalone artifact | Self-hosting is lighter than believed. What's missing is a definition→runnable-pipeline materializer. That changes Class A's cost estimate. |
 | C4 | item 4: protected execution is false "until an operator approves an endpoint" | Approval exists (`api/routers/admin.ts:743-814`) — and it calls the **same** `normalizeEndpointUrl` (`admin.ts:766`) that structurally refuses loopback and private ranges, throwing `endpoint_refused` (`:768`); adapter mismatch is refused too (`:758-763`). `trusted_provider_endpoints` (`db/schema.ts:2282`) has **no column for network scope or trust path** | A seller's own-network model endpoint is **unapprovable by design**, not unconfigured. Class B needs a schema change or a policy reversal — this is the single most expensive line in §4B. |
 | C5 | item 1: "nobody can be paid" | True, and more final: nobody can **buy** either. Purchase requires `store_relaunch` (`api/routers/marketplace.ts:2136`), which is absent from `seedDefaultFlags` (`api/plugins/featureFlags.ts:100-118`), and a missing flag evaluates false (`api/plugins/featureFlags.ts:76`). `settlement_entries`/`payout_attempts` have zero writers | The commission model is currently realized in **zero reachable lines**. Relevant to §5's gateway question. |
@@ -102,7 +102,7 @@ The buyer receives the graph and runs it with their own keys. Delivery is the pr
 | Work | Kind | Size | Evidence |
 |---|---|---|---|
 | Version-bound export: emit `definition` + `definitionHash` + `workflowVersionId` + `listingId` instead of raw rows | changed | S–M | `export.ts:50-67` |
-| Strip internal FKs from the payload (`providerId` names the seller's credential row) | changed, **and a fix regardless of fork** | XS | `export.ts:61-64` |
+| Strip internal row ids from the export payload | **DONE** (see §9) | XS | reshaped in `api/routers/export.ts`, proven by a delivery-then-export test |
 | `definition → projects + pipeline_steps` materializer, verifying `definitionHash` on write | **new** | M–L | ~~no such path exists~~ → **BUILT 2026-10-13**: `api/services/pipelineDelivery.ts`, shipped in `d34f680` |
 | Asymmetric signature over the manifest hash, payload `{listingId, sellerId, workflowVersionId, definitionHash, manifestHash, issuedAt}` | **new** | M | reuse `canonicalJson`/`keyId`; `versionIdentity` already carries 4 of 6 fields |
 | Key management: algorithm, platform-vs-per-seller keys, public-key distribution, rotation, revocation | **policy decision** | M | nothing exists to inherit |
@@ -227,7 +227,8 @@ Each is one small verified increment and none requires §7 answered.
 2. **Archive residual (handoff item 6).** Decide: drop cached `costObserved` from `benchmark.json`, or mark it
    stale in place with a pointer to `manifest.cost.display`. Testing means reading the emitted archive bytes,
    not the declarations.
-3. **Strip internal identifiers from `export_pipeline` output.** A leak today, independent of any fork (C2).
+3. ~~Strip internal identifiers from `export_pipeline` output~~ **DONE 2026-10-13** — and it was never the
+   leak I called it (C2, §9).
 4. **Correct claims the commercial decision already broke:** `revenueSplit` (2 locales), the reviewer
    "subscription days" promise, `$9.99` at `site/src/content/ui/en.json:91,104,195`, and the Pioneer commission
    lines. Removing the plan is copy-and-surface work — but the revoke arm at `billingService.ts:206-211` stays,
@@ -289,7 +290,15 @@ at `api/mcp/tools/helpContent.ts:284`, along with `my_purchases` still offering 
 `:274`), the Pioneer claim. Plus the two §6 items: signing the manifest, and
 the archive `costObserved` residual.
 
-**Deliberately not done, needs your call:** `export_pipeline` still emits raw rows including `providerId` and
-`userId` (§2 C2). Nothing in `src/` consumes that payload and the app's own importer never accepted steps, so
-reshaping it breaks no code — but it changes the format of files users have already saved and repositories
-that already hold them. Recommended: strip the internal identifiers and bump `version: 1 → 2`.
+**Export payload reshaped (was §6 item 3), and my earlier characterization was wrong.** I wrote that
+`export_pipeline` leaked `providerId` "pointing at the seller's key rows". It does not: ownership is enforced
+on the export itself (`export.ts:45-47`, and `DeeWaanAI-Next/PROGRESS.md:174` records that a *missing*
+ownership check there was fixed before the MCP tools shipped), and execution re-resolves every credential from
+the account that runs it (`api/services/swarmService.ts:479-480`), so a foreign id could never be honoured.
+The real defect was that a portable file carried database row ids which mean nothing outside the exporter's
+own account, and a `version: 1` tag that read like a workflow version when it was a format marker. Now:
+`format: 2`, no `id`/`projectId`/`userId`/`agentId`/`providerId`, and a `note` saying plainly that this is a
+live snapshot and not a certified version. Proven by a test that delivers a copy and exports it, asserting the
+prompts are present and every one of those keys is absent. The seller-leakage battery
+(`a12Leakage.integration.test.ts`) still passes 10/10. Round-trip is still not claimed — the app's importer
+accepts agents and templates, never steps.

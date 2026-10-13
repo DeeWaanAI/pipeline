@@ -39,7 +39,7 @@ const ExportPipelineSchema = z.object({
 export const exportPipeline: McpTool = {
   name: "export_pipeline",
   description:
-    "Export one of your pipelines as portable JSON (ordered steps + full agent configs, including prompts). Ownership is verified. Hand the returned JSON to your client's filesystem tools to save it anywhere — your data is always exportable.",
+    "Export one of your pipelines as portable JSON (ordered steps + full agent configs, including prompts). Ownership is verified. The payload carries the work, not the wiring: no database row ids and no provider references — a step's credential is resolved from whoever RUNS it, so an id in a shared file would be a trap, not a shortcut. It is a live snapshot, not a certified workflow version. Hand the returned JSON to your client's filesystem tools to save it anywhere — your data is always exportable.",
   inputSchema: ExportPipelineSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true, destructiveHint: false },

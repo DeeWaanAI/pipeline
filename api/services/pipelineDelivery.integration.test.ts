@@ -280,4 +280,31 @@ describe("Class A marketplace delivery (DB-backed)", () => {
     expect(copy.meaning).toContain("predates version receipting");
     expect(copy.meaning).toContain(newer.definitionHash);
   });
+
+  it("delivers a copy that exports as the work itself, with none of the wiring", async () => {
+    const f = await seed();
+    const copy = await delivery.deliverPurchasedCopy(f.buyerId, { listingId: f.listingId });
+
+    const d = await db();
+    const [buyerUser] = await d.select().from(schema.users).where(eq(schema.users.id, f.buyerId)).limit(1);
+    const { appRouter } = await import("../router");
+    const caller = appRouter.createCaller({
+      req: new Request("http://internal/test"),
+      resHeaders: new Headers(),
+      user: buyerUser,
+      requestId: "delivery-export-probe",
+    });
+    const exported = await caller.export.exportPipeline({ projectId: copy.projectId });
+    const text = JSON.stringify(exported);
+
+    expect(exported.format).toBe(2);
+    // The graph is genuinely in the file — for Class A that IS the product.
+    expect(text.includes("SELLER SECRET SYSTEM PROMPT")).toBe(true);
+    // None of the database wiring is. A row id in a shared artifact cannot be
+    // honoured by anyone (execution re-resolves the credential from the runner's
+    // own account), so shipping one would only invite a broken import.
+    for (const forbidden of ["providerId", "agentId", "projectId", "userId", '"id":']) {
+      expect(text.includes(forbidden), `export payload carries ${forbidden}`).toBe(false);
+    }
+  });
 });

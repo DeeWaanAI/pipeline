@@ -42,7 +42,8 @@ export const exportRouter = createRouter({
 
       // Ownership check — steps embed agent system prompts, so exporting
       // someone else's project must be impossible (also reachable via MCP).
-      const [project] = await db.select({ id: projects.id }).from(projects)
+      const [project] = await db.select({ id: projects.id, name: projects.name, description: projects.description })
+        .from(projects)
         .where(and(eq(projects.id, input.projectId), eq(projects.userId, ctx.user.id)))
         .limit(1);
       if (!project) throw new Error("Project not found");
@@ -58,13 +59,51 @@ export const exportRouter = createRouter({
         : [];
       
       const agentMap = new Map(agents.map(a => [a.id, a]));
-      const enrichedSteps = steps.map(step => ({
-        ...step,
-        agent: step.agentId ? agentMap.get(step.agentId) ?? null : null,
-      }));
+      // A portable artifact carries the WORK, not the wiring. Row ids
+      // (`id`, `projectId`, `userId`, `agentId`, `providerId`) mean nothing
+      // outside this account, and putting them in a file people share is worse
+      // than pointless: a reader would reasonably think `providerId` travels
+      // with the pipeline, when execution resolves the credential from the
+      // RUNNER's own account every time (api/services/swarmService.ts:479-480)
+      // and a foreign id can never be honoured. `format: 2` replaces the old
+      // `version: 1`, which read like a workflow version and was a format tag.
+      const enrichedSteps = steps.map(step => {
+        const agent = step.agentId ? agentMap.get(step.agentId) ?? null : null;
+        return {
+          stepOrder: step.stepOrder,
+          name: step.name,
+          role: step.role,
+          systemPrompt: step.systemPrompt,
+          stepType: step.stepType,
+          model: step.model ?? null,
+          temperature: step.temperature ?? null,
+          maxTokens: step.maxTokens ?? null,
+          ifConfig: step.ifConfig ?? null,
+          whileConfig: step.whileConfig ?? null,
+          isEnabled: step.isEnabled,
+          agent: agent
+            ? {
+                name: agent.name,
+                slug: agent.slug,
+                role: agent.role,
+                description: agent.description ?? null,
+                systemPrompt: agent.systemPrompt,
+                defaultModel: agent.defaultModel ?? null,
+                temperature: agent.temperature ?? null,
+                maxTokens: agent.maxTokens ?? null,
+              }
+            : null,
+        };
+      });
 
       logger.info("Pipeline exported", { userId: ctx.user.id, projectId: input.projectId });
-      return { version: 1, exportedAt: new Date().toISOString(), steps: enrichedSteps };
+      return {
+        format: 2,
+        exportedAt: new Date().toISOString(),
+        pipeline: { name: project.name, description: project.description ?? null },
+        note: "A live snapshot of this pipeline as it stands now — not a certified workflow version. A marketplace listing's evidence describes an immutable version and its definition hash; this file describes neither.",
+        steps: enrichedSteps,
+      };
     }),
 
   // Export full execution history for a swarm run
