@@ -188,7 +188,10 @@ export async function createVersionRow(v: NewVersion): Promise<{ versionId: numb
   throw lastError ?? new Error("Could not allocate a workflow version number");
 }
 
-function stableJson(value: unknown): string {
+/** Canonical form: keys sorted at every depth, so the same definition always
+ *  hashes to the same hex string. Exported because delivery recomputes the hash
+ *  of what it is about to write and must use the identical canonical form. */
+export function stableJson(value: unknown): string {
   const sortDeep = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(sortDeep);
     if (v && typeof v === "object") {
