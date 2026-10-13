@@ -18,6 +18,7 @@ import {
 } from "@db/schema";
 import { encryptPipelineSteps } from "../../lib/marketplaceCrypto";
 import { assertOriginalCreatorMayList } from "../../services/workflowLineage";
+import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema } from "../../services/pipelineDelivery";
 import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { appRouter } from "../../router";
@@ -367,5 +368,22 @@ export const myPurchases: McpTool = {
         purchasedAt: r.createdAt,
       })),
     };
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 6. deliver_purchased_copy — the Class A handover (v3, 2026-10-13)
+// ═══════════════════════════════════════════════════════════════════
+
+export const deliverPurchasedCopyTool: McpTool = {
+  name: "deliver_purchased_copy",
+  description:
+    "Take delivery of a marketplace listing you have bought. The certified workflow version is written into YOUR project as editable steps, plus a template and a first immutable version, attributed to the account that originally created the work. The seller's provider and agent bindings are deliberately not carried over, so the copy runs and bills on your own keys. Refused without a live purchase or grant for the version delivered, and refused if the published version no longer matches the hash recorded against it — a copy that drifted is not the thing the listing's evidence describes. Read `meaning` and `deliveredDefinitionHash` out to the user: the published evidence describes that exact hash, and editing the copy quietly stops it describing yours.",
+  inputSchema: deliverPurchasedCopyInputSchema,
+  requiredScopes: ["mcp:write"],
+  annotations: { readOnlyHint: false },
+  handler: async (args, ctx) => {
+    const input = deliverPurchasedCopyInputSchema.parse(args);
+    return deliverPurchasedCopy(ctx.userId, input);
   },
 };

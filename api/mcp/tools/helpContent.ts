@@ -275,6 +275,11 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Show my purchased pipelines.\"",
   },
   {
+    name: "deliver_purchased_copy", group: "Marketplace", scopes: ["mcp:write"],
+    summary: "Take a listing you bought into your own account as an editable copy that runs on your keys. You receive the workflow, not a secret: the copy is yours, it can be shared, and its published evidence describes the exact hash delivered — edit it and that evidence quietly stops describing yours.",
+    example: "\"Deliver the contract redliner I bought into my pipelines.\"",
+  },
+  {
     name: "enroll_reviewer", group: "Marketplace", scopes: ["mcp:write"],
     summary: "Join the marketplace reviewer pool. Reviewers evaluate pipeline test outputs and earn points redeemable for subscription days.",
     example: "\"Enroll me as a reviewer.\"",

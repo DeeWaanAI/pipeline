@@ -31,6 +31,7 @@ import {
   getListingStatus,
   myMarketplaceListings,
   myPurchases,
+  deliverPurchasedCopyTool,
 } from "./marketplaceTools";
 import { exportPipeline, exportMyData, syncToGithub } from "./portability";
 import { exportRun } from "./exportRun";
@@ -106,6 +107,10 @@ export const TOOLS: McpTool[] = [
   getListingStatus,
   myMarketplaceListings,
   myPurchases,
+  // v3 Class A (2026-10-13): buying a listing hands over a copy. Entitlement is
+  // the purchase/grant row, so this needs no flag and no payment configuration
+  // to exist — and a refund closes it at the same moment it closes the run door.
+  deliverPurchasedCopyTool,
   // Batch B — data portability (no lock-in, from chat)
   exportPipeline,
   exportMyData,

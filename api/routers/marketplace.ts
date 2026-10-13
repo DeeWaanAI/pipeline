@@ -25,6 +25,7 @@ import { withTimeout } from "../lib/withTimeout";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
 import { assertOriginalCreatorMayList } from "../services/workflowLineage";
+import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema } from "../services/pipelineDelivery";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
   getEvidenceForViewer, getPurchasedEvidenceForListing,
@@ -2123,6 +2124,15 @@ export const marketplaceRouter = createRouter({
 
       return intermediates;
     }),
+
+  // ── Buyer: take delivery of a purchased copy (v3 Class A) ───────
+  // Sold as a copy, decided 2026-10-13: the entitlement IS the purchase/grant
+  // row, resolved by the same authority a protected run consults. So this needs
+  // no flag and no payment configuration to exist — and a refund closes the
+  // delivery door at the exact moment it closes the run door.
+  deliverCopy: authedQuery
+    .input(deliverPurchasedCopyInputSchema)
+    .mutation(async ({ input, ctx }) => deliverPurchasedCopy(ctx.user.id, input)),
 
   // ── Buyer: Purchase listing ────────────────────────────────────
   // ── Buyer: Purchase a listing via Stripe Checkout (Phase 1) ─────
