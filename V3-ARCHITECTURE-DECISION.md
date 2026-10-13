@@ -248,7 +248,7 @@ Each is one small verified increment and none requires §7 answered.
 | Triage cost | Platform keeps paying it ☐  Seller-funded ☐  Disabled until paid ☐ — *still open; it is a real cost against zero revenue* |
 | Reviewer incentive | **Removed.** "we no longer have human reviewers so nothing to offer to anyone (except beta testers, later we decide what do we offer to them)". The reward copy goes; **whether the reviewer pool and the blind-review certification gate themselves should be retired is a separate, much larger question** — it touches `§10` gates and the review assignment flow, so it is not done silently |
 | Pioneer "lifetime best commission" | **Delete the claim** — "the lifetime best commission is not viable for us, we will see what we offer them later". The other Pioneer perks stay until the owner decides |
-| Pricing surface | **No subscription anywhere on the price page** (app locales + MCP help + marketing site). Schema columns and the webhook's revoke arm are untouched: additive-only, and a paid history must not be rewritten |
+| Pricing surface | **App: done** (`b080b2c`) — the pricing page renders free/MCP/BYOK/commission copy in en+zh, and the MCP guide's commercial tip no longer says "subscription" (that test's pin was inverted on purpose). **Marketing site: not done** — `site/src/content/ui/en.json` still carries $9.99 (`:91,104,195`) and the Pioneer commission lines (`:72,106,143,199`). Schema columns and the webhook's revoke arm are untouched: additive-only, and a paid history must not be rewritten |
 | Fork-independent work (§6) | 1 signing ☑ 2 archive cost residual ☐ 3 export identifiers ☑ 4 claim corrections ☑ (copy), pending: the `70%/30%` split claim |
 
 ## 8. What I could not determine from code
