@@ -1,33 +1,33 @@
 {
   "title": "Pricing",
-  "subtitle": "One platform for your pipelines — in the studio and inside the AI apps you already use.",
-  "flatMonthly": "per account, per month",
-  "betaFree": "Free during beta — no card is taken. The price starts at paid launch.",
-  "checkoutDisabled": "Checkout opens when billing goes live",
-  "billingNote": "The payment gateway is not connected yet, so this page cannot take payment. Nothing is charged and no subscription is created today.",
+  "subtitle": "The studio and its companion MCP are free. You bring your own model keys — the marketplace is where money changes hands.",
+  "free": "Free",
+  "freeNote": "No card during beta. The MCP stays free after it: it is offered for adoption, not as a trial to convert.",
+  "checkoutDisabled": "Nothing to buy on this page",
+  "billingNote": "No payment gateway is connected, so nothing here can charge you. When marketplace sales switch on, the platform earns a share of each one — never a fee for using the studio.",
   "model": {
-    "title": "How billing works",
-    "monthly": {
-      "title": "One flat monthly subscription",
-      "body": "A single per-account fee covers every feature — no seat counts and no plan levels."
-    },
-    "trial": {
-      "title": "7-day trial from signup",
-      "body": "Every account starts on a 7-day trial counted from the moment it signs up."
+    "title": "How it works",
+    "mcpFree": {
+      "title": "The MCP is free",
+      "body": "Connect DeeWaanAI from Claude, ChatGPT, Qwen Code or Kimi and run your pipelines from the app you already use. No plan, no seat, no meter."
     },
     "byok": {
       "title": "Bring your own model keys",
-      "body": "Add your own LLM provider keys in Settings and pay those providers directly."
+      "body": "Add your own LLM provider keys in Settings and pay those providers directly. We never hold a wallet on your behalf."
     },
     "noPerRun": {
       "title": "No per-run fees",
-      "body": "We never meter a run: each provider call is billed by your own provider."
+      "body": "We never meter a run: each provider call is billed by your own provider, at their price."
+    },
+    "commission": {
+      "title": "The marketplace earns a commission",
+      "body": "Money moves when a pipeline sells. A share of that sale is the platform's; the rest is the creator's. Your own work is never the thing being billed."
     }
   },
   "plans": {
-    "solo": {
+    "platform": {
       "name": "DeeWaanAI",
-      "tagline": "Everything, for one account",
+      "tagline": "Studio, evaluations and companion MCP — everything, one account",
       "feature1": "Custom pipeline designer",
       "feature2": "Up to 3 LLM providers per pipeline",
       "feature3": "Auto-design pipeline generation",
@@ -35,7 +35,7 @@
     }
   },
   "marketplace": {
-    "title": "Certified pipelines, sold once",
-    "body": "Buy a pipeline on the Marketplace and run it from any connected AI app — every listing is published with its full test record: the exact judging prompts, every score and every failure."
+    "title": "Certified pipelines, sold as a copy",
+    "body": "Buying a marketplace listing hands you the workflow itself — edited into your own account, run on your own keys. Every listing is published with its full test record: the exact judging prompts, every score and every failure, signed so you can check who issued it on your own machine rather than taking our word for it."
   }
 }

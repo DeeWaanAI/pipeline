@@ -5,7 +5,8 @@
 // (scopes + feature flags) and adds situation-aware tips.
 //
 // There is no tier ladder (owner decision 2026-09-22): one flat monthly
-// subscription, 7-day trial from signup, bring your own LLM keys, no per-run
+// v3 commercial model (owner, 2026-10-12/13): no subscription — the studio and the
+// MCP are free, bring your own LLM keys, no per-run
 // fees. So nothing here is gated on a plan, and there is no upsell copy to
 // generate — a tool is shown if the caller's scopes and the enabled feature
 // flags allow it.
@@ -132,7 +133,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "design_pipeline", group: "Author", scopes: ["mcp:write"],
-    summary: "Auto-designer: state the objective in plain language and the platform generates the optimal pipeline (agents, prompts, quality gates, approvals) as a new project plus a reusable template. Included in your subscription — the LLM calls run on your own provider key.",
+    summary: "Auto-designer: state the objective in plain language and the platform generates the optimal pipeline (agents, prompts, quality gates, approvals) as a new project plus a reusable template. Free to use — the LLM calls run on your own provider key.",
     example: "\"Design a pipeline that turns a product idea into a launch plan.\"",
   },
   {
@@ -271,7 +272,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "my_purchases", group: "Marketplace", scopes: ["mcp:read"],
-    summary: "List marketplace pipelines you have purchased. Includes subscription status and end dates.",
+    summary: "List marketplace pipelines you have purchased. Purchase receipts written before the flat plan was retired still carry their legacy subscription fields; nothing on this list is a plan you are billed for.",
     example: "\"Show my purchased pipelines.\"",
   },
   {
@@ -281,7 +282,7 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "enroll_reviewer", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Join the marketplace reviewer pool. Reviewers evaluate pipeline test outputs and earn points redeemable for subscription days.",
+    summary: "Join the marketplace reviewer pool. Reviews are recorded and raise your trust score. Reviewer rewards are PAUSED: points can no longer be traded for subscription days because there is no subscription, and what reviewers should receive has not been decided.",
     example: "\"Enroll me as a reviewer.\"",
   },
   {
@@ -447,7 +448,7 @@ export function buildHelp(input: BuildHelpInput): HelpContent {
   const tips: string[] = [];
 
   tips.push(
-    "One flat monthly subscription covers everything here — every step type, the auto designer and marketplace publishing. Your trial runs 7 days from signup, you bring your own LLM keys, and DeeWaanAI never charges per run: every provider call is billed by your own provider.",
+    "DeeWaanAI is free: the studio, your evaluations and the companion MCP are all on your account — no plan, no seats, nothing to renew. You bring your own LLM keys and every provider call is billed by your own provider, never metered per run by us. The marketplace is where money moves: a pipeline sells as a copy you own, and the platform takes a share of that sale.",
   );
 
   const owned = input.capabilities.filter((c) => c.startsWith("pipeline:run:"));

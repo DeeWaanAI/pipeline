@@ -26,7 +26,12 @@
     "previewTitle": "Preview of current edits",
     "savedPreview": "Saved prompt template",
     "placeholders": "Task and output placeholders are replaced with evaluation data at execution. Reference material is included only when the case provides it.",
-    "variants": { "default": "Original single prompt", "anchored_scale": "Anchored scale", "comment_first": "Comment first", "checklist_first": "Checklist first" }
+    "variants": {
+      "default": "Original single prompt",
+      "anchored_scale": "Anchored scale",
+      "comment_first": "Comment first",
+      "checklist_first": "Checklist first"
+    }
   },
   "myData": {
     "title": "My Data",
@@ -723,8 +728,8 @@
       "backToMarketplace": "Back to Marketplace",
       "enrollAsReviewer": "Enroll as Reviewer",
       "benefits": {
-        "earnSageDays": "Earn Review Days",
-        "earnSageDesc": "Complete quality reviews to earn subscription days. 5 reviews = 1 day.",
+        "earnSageDays": "Build your record",
+        "earnSageDesc": "Quality reviews raise your trust score and appear on the leaderboard. What reviewers receive is being decided: points are still recorded, and nothing is promised on top of them.",
         "buildReputation": "Build Reputation",
         "buildReputationDesc": "Top reviewers appear on the public leaderboard. Build your profile.",
         "shapeQuality": "Shape Quality",
@@ -735,12 +740,12 @@
         "atRisk": "At risk",
         "reviewsDone": "Reviews Done",
         "points": "Points",
-        "subDays": "Sub Days",
+        "subDays": "Days credited",
         "flagged": "Flagged",
         "status": "Status"
       },
       "redemption": {
-        "title": "Redeem Points for Subscription Days",
+        "title": "Reviewer rewards are paused",
         "basicLabel": "Basic Days",
         "basicCost": "72 pts / day",
         "basicValue": "$30/month value",
@@ -753,7 +758,8 @@
         "balance": "Balance:",
         "redeem": "Redeem",
         "redeeming": "Redeeming...",
-        "insufficientPoints": "Need {{count}} more points. Complete reviews to earn points!"
+        "insufficientPoints": "Need {{count}} more points. Complete reviews to earn points!",
+        "paused": "There is no subscription any more, so points cannot be traded for subscription days. Your balance and the redemption mechanism are untouched — what reviewers should receive has not been decided yet."
       },
       "assignments": {
         "title": "Your Assignments",

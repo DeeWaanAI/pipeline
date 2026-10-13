@@ -128,10 +128,15 @@ describe("buildHelp", () => {
     }
   });
 
-  it("states the commercial model in the tips, and never sells a tier", () => {
+  it("states the commercial model in the tips, and sells neither a subscription nor a tier", () => {
     const help = buildHelp(base());
     const tips = help.tips.join(" ");
-    expect(tips).toMatch(/subscription/i);
+    // This pin USED to require the word "subscription". The owner retired the plan
+    // on 2026-10-12, so the assertion is inverted on purpose: the regression this
+    // test now catches is the old model creeping back into the one place every
+    // connected AI client reads.
+    expect(tips).toMatch(/free/i);
+    expect(tips).not.toMatch(/subscription|trial/i);
     expect(tips).not.toMatch(/tier|upgrade_tier|top plan|pro_designer|pro_auto/i);
   });
 

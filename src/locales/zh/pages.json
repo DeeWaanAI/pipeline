@@ -26,7 +26,12 @@
     "previewTitle": "当前修改的预览",
     "savedPreview": "已保存的提示词模板",
     "placeholders": "执行时会用评估数据替换任务和输出占位符。只有案例提供参考材料时才会包含它。",
-    "variants": { "default": "原始单一提示词", "anchored_scale": "评分锚点优先", "comment_first": "评语优先", "checklist_first": "检查清单优先" }
+    "variants": {
+      "default": "原始单一提示词",
+      "anchored_scale": "评分锚点优先",
+      "comment_first": "评语优先",
+      "checklist_first": "检查清单优先"
+    }
   },
   "myData": {
     "title": "我的数据",
@@ -723,8 +728,8 @@
       "backToMarketplace": "返回市场",
       "enrollAsReviewer": "报名成为审核者",
       "benefits": {
-        "earnSageDays": "赚取评审天数",
-        "earnSageDesc": "完成优质评价即可获得订阅天数。5 条评价 = 1 天。",
+        "earnSageDays": "建立你的记录",
+        "earnSageDesc": "高质量的评审会提升你的可信度评分，并显示在排行榜上。评审者将获得什么仍在决定之中：积分依旧记录，但不在此之上承诺任何回报。",
         "buildReputation": "建立声誉",
         "buildReputationDesc": "顶级审核者将出现在公开排行榜上，打造您的个人品牌。",
         "shapeQuality": "塑造质量",
@@ -735,12 +740,12 @@
         "atRisk": "有风险",
         "reviewsDone": "已完成评价",
         "points": "积分",
-        "subDays": "订阅天数",
+        "subDays": "已计入天数",
         "flagged": "已标记",
         "status": "状态"
       },
       "redemption": {
-        "title": "用积分兑换订阅天数",
+        "title": "评审者奖励已暂停",
         "basicLabel": "基础天数",
         "basicCost": "72 积分 / 天",
         "basicValue": "等值 $30/月",
@@ -753,7 +758,8 @@
         "balance": "余额：",
         "redeem": "兑换",
         "redeeming": "兑换中…",
-        "insufficientPoints": "还差 {{count}} 积分。完成评价即可赚取积分！"
+        "insufficientPoints": "还差 {{count}} 积分。完成评价即可赚取积分！",
+        "paused": "订阅制已经取消，因此积分无法再兑换为订阅天数。你的余额与兑换机制都原样保留——评审者应当获得什么，尚未决定。"
       },
       "assignments": {
         "title": "您的任务",

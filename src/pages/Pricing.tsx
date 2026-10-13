@@ -1,20 +1,19 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { trpc } from "@/providers/trpc";
 import { useSeo } from "@/hooks/useSeo";
 import { Button } from "@/components/ui/button";
-import { Hexagon, Check, ArrowLeft, Loader2, Store } from "lucide-react";
+import { Hexagon, Check, ArrowLeft, Store } from "lucide-react";
 
-// One flat per-account subscription (owner decision 2026-09-22): no plan
-// levels and no seats, so `solo` is the only offering.
+// v3 (owner decision 2026-10-12/13): no subscription is sold. The studio and the
+// companion MCP are free, and the platform earns a commission when a marketplace
+// listing sells — so this page states that and offers nothing to buy. `plans` and
+// the billing router still exist underneath (legacy rows must keep reconciling);
+// they are simply not what the page advertises any more.
 const FEATURE_KEYS = ["feature1", "feature2", "feature3", "feature4"] as const;
-const MODEL_KEYS = ["monthly", "trial", "byok", "noPerRun"] as const;
+const MODEL_KEYS = ["mcpFree", "byok", "noPerRun", "commission"] as const;
 
 export default function PricingPage() {
   const { t } = useTranslation("pricing");
-
-  const { data, isLoading } = trpc.billing.listPlans.useQuery();
-  const plan = data?.plans.find((p) => p.id === "solo");
 
   useSeo({
     title: `${t("title")} | AI Swarm Studio`,
@@ -46,29 +45,21 @@ export default function PricingPage() {
           <p className="mx-auto mt-3 max-w-xl text-sm text-neutral-400">{t("subtitle")}</p>
         </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-neutral-500">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : (
-          <div className="mt-10 grid gap-5 lg:grid-cols-2">
-            {/* The single offering */}
+        <div className="mt-10 grid gap-5 lg:grid-cols-2">
+            {/* The single offering: everything, free */}
             <div className="flex flex-col rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6">
-              <h2 className="text-xl font-semibold">{plan?.name ?? t("plans.solo.name")}</h2>
-              <p className="mt-1 text-sm text-neutral-500">{t("plans.solo.tagline")}</p>
+              <h2 className="text-xl font-semibold">{t("plans.platform.name")}</h2>
+              <p className="mt-1 text-sm text-neutral-500">{t("plans.platform.tagline")}</p>
               <p className="mt-4 flex items-baseline gap-2">
-                {plan?.priceUsd && (
-                  <span className="text-2xl font-semibold text-neutral-100">${plan.priceUsd}</span>
-                )}
-                <span className="text-sm font-medium text-neutral-200">{t("flatMonthly")}</span>
+                <span className="text-2xl font-semibold text-neutral-100">{t("free")}</span>
               </p>
-              <p className="mt-1 text-xs text-neutral-500">{t("betaFree")}</p>
+              <p className="mt-1 text-xs text-neutral-500">{t("freeNote")}</p>
 
               <ul className="mt-5 flex-1 space-y-2.5">
                 {FEATURE_KEYS.map((key) => (
                   <li key={key} className="flex items-start gap-2 text-sm text-neutral-300">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
-                    {t(`plans.solo.${key}`)}
+                    {t(`plans.platform.${key}`)}
                   </li>
                 ))}
               </ul>
@@ -96,7 +87,6 @@ export default function PricingPage() {
               </ul>
             </div>
           </div>
-        )}
 
         {/* Marketplace note */}
         <div className="mt-8 flex flex-col items-start gap-4 rounded-2xl border border-neutral-800 bg-neutral-900/30 p-6 sm:flex-row sm:items-center">

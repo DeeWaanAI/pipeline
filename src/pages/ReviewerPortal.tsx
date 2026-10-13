@@ -317,16 +317,22 @@ function PointsRedemption({ profile }: { profile: { pointsBalance: number | null
         </div>
         <button
           onClick={() => redeemMutation.mutate({ tier: rate, days })}
-          disabled={!canAfford || redeemMutation.isPending}
-          className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-            canAfford
-              ? "bg-amber-600 hover:bg-amber-700 text-white"
-              : "bg-neutral-800 text-neutral-500 cursor-not-allowed"
-          }`}
+          // Paused by the owner's 2026-10-13 decision: there is no subscription
+          // left to trade points for, so this button would promise something the
+          // product cannot deliver. The handler, the balance and the ledger rows
+          // are deliberately kept — what reviewers should get is UNDECIDED, and
+          // deleting their history would be a worse answer than stopping the offer.
+          disabled
+          aria-describedby="reviewer-rewards-paused"
+          className="px-4 py-1.5 rounded text-sm font-medium bg-neutral-800 text-neutral-500 cursor-not-allowed"
         >
           {redeemMutation.isPending ? t("pages:reviewer.portal.redemption.redeeming") : t("pages:reviewer.portal.redemption.redeem")}
         </button>
       </div>
+
+      <p id="reviewer-rewards-paused" className="text-xs text-neutral-500 mt-2">
+        {t("pages:reviewer.portal.redemption.paused")}
+      </p>
 
       {!canAfford && (
         <p className="text-xs text-red-400 mt-2">
