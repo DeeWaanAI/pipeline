@@ -222,7 +222,8 @@ the entire promotion mechanism, since a grant attaches to a checkout that no lon
 
 Each is one small verified increment and none requires §7 answered.
 
-1. **Sign the manifest, publish a verifier.** Provenance, not just integrity. Highest value per line in this
+1. ~~**Sign the manifest, publish a verifier.**~~ **DONE 2026-10-13** (`5cd375f`) — see §9 for what it
+   actually attests and what it refuses to claim. Highest value per line in this
    document (§3), needed by A and B alike.
 2. **Archive residual (handoff item 6).** Decide: drop cached `costObserved` from `benchmark.json`, or mark it
    stale in place with a pointer to `manifest.cost.display`. Testing means reading the emitted archive bytes,
@@ -242,12 +243,13 @@ Each is one small verified increment and none requires §7 answered.
 | Question | Your answer |
 |---|---|
 | Fork | **CLASS A — sold as a copy. Chosen by the owner on 2026-10-13.** Class B and the declared split are off the table for now, so `delivery_class` is not built: every listing is a copy. |
-| Commission | Flat 30% ☐  Per-seller column ☐  Lower at launch, then rise ☐ |
-| Gateway ordering | Accept that P3/payout is now launch-critical, i.e. first ☐  Keep it last, and sell nothing until it's built ☐ |
-| Triage cost | Platform keeps paying it ☐  Seller-funded ☐  Disabled until paid ☐ |
-| Reviewer incentive | Paid ☐  Reworded (no subscription days) ☐  Removed ☐ |
-| Pioneer "lifetime best commission" | Build the mechanism ☐  Delete the claim ☐ |
-| Fork-independent work (§6) | Do all four ☐  Only 1–2 ☐  Hold until the fork is settled ☐ |
+| Commission | **Settled at the end, by the owner:** "the payment will be fixed at the end." Nothing configurable is built now, so the private 30% stays exactly where it is |
+| Gateway ordering | **Owner: last.** "we will later get a platform to manage the payments such as stripe so we can configure it later." Consequence recorded, not argued: with no payout rail no sale can complete, so §5's finding stands and commission-only stays unreachable until that rail exists. |
+| Triage cost | Platform keeps paying it ☐  Seller-funded ☐  Disabled until paid ☐ — *still open; it is a real cost against zero revenue* |
+| Reviewer incentive | **Removed.** "we no longer have human reviewers so nothing to offer to anyone (except beta testers, later we decide what do we offer to them)". The reward copy goes; **whether the reviewer pool and the blind-review certification gate themselves should be retired is a separate, much larger question** — it touches `§10` gates and the review assignment flow, so it is not done silently |
+| Pioneer "lifetime best commission" | **Delete the claim** — "the lifetime best commission is not viable for us, we will see what we offer them later". The other Pioneer perks stay until the owner decides |
+| Pricing surface | **No subscription anywhere on the price page** (app locales + MCP help + marketing site). Schema columns and the webhook's revoke arm are untouched: additive-only, and a paid history must not be rewritten |
+| Fork-independent work (§6) | 1 signing ☑ 2 archive cost residual ☐ 3 export identifiers ☑ 4 claim corrections ☑ (copy), pending: the `70%/30%` split claim |
 
 ## 8. What I could not determine from code
 
@@ -289,6 +291,30 @@ triage funding, the reviewer "subscription days" promise (`src/locales/en/pages.
 at `api/mcp/tools/helpContent.ts:284`, along with `my_purchases` still offering "subscription status" at
 `:274`), the Pioneer claim. Plus the two §6 items: signing the manifest, and
 the archive `costObserved` residual.
+
+**Attestation shipped (was §6 item 1, §4A row 3), commit `5cd375f`.** Published evidence now carries an
+Ed25519 attestation over the manifest hash **and** the listing / workflow version / definition hash / author,
+because signing the hash alone would let one valid signature serve every listing. The decisions I made on your
+"ok to implement now", each reversible and each stated where a reader can find it:
+
+- **The platform signs, not the sellers.** One key, one trust anchor, no per-account key custody in a product
+  with no users yet. The `keyId` column exists so seller-issued keys can be added later without touching
+  history.
+- **The public key travels inside the record**, so verification needs no server — and that is *convenience,
+  not trust*. A forger can ship their own key pair and produce a record that is internally perfect, so the
+  offline verifier reports **UNPINNED and exits 3** rather than PASS unless you give it `--pin`/`--fingerprint`.
+  Trust comes only from comparing the fingerprint against a value you got elsewhere. That refusal is the part
+  of this design that matters.
+- **No key in any `.env` today**, by your policy. So publications are labelled `unsigned` and sellers are not
+  blocked by configuration. The three columns are nullable and additive: existing records still read as
+  unsigned, which is the truth about them.
+
+Verified: 13 crypto cases (moved identity, swapped listing, edited signature, foreign key pinned vs unpinned,
+no key, unreadable key, base64 vs escaped PEM) and 15 DB-backed publication cases including the public read
+path — the last is the one that would have bitten silently, because that path `safeParse`s the stored manifest
+and a schema that rejected the new member would have unpublished a record from its own canonical URL. The unit
+suite also execs `scripts/verify-evidence.mjs` against a manifest the production signer just produced, so the
+second copy of the canonical serializer in that script cannot drift from the server's without failing a test.
 
 **Export payload reshaped (was §6 item 3), and my earlier characterization was wrong.** I wrote that
 `export_pipeline` leaked `providerId` "pointing at the seller's key rows". It does not: ownership is enforced
