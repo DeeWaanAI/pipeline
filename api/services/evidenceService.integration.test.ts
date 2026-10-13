@@ -8,6 +8,14 @@
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mysql from "mysql2/promise";
+import { generateKeyPairSync } from "node:crypto";
+
+// A throwaway signing key for the stack. Generated per RUN, never committed, and
+// the private half only ever exists in this process's env — the same rule the
+// service documents for production.
+const TEST_SIGNING = generateKeyPairSync("ed25519");
+const TEST_SIGNING_PUBLIC_PEM = TEST_SIGNING.publicKey.export({ type: "spki", format: "pem" }).toString();
+const TEST_SIGNING_KEY_ID = "test-attestation-key";
 
 const exec = vi.hoisted(() => ({ calls: [] as number[] }));
 
@@ -82,6 +90,11 @@ beforeAll(async () => {
   process.env.APP_SECRET ||= "1".repeat(64);
   process.env.AI_SWARM_MASTER_KEY ||= "2".repeat(64);
   process.env.MARKETPLACE_MASTER_KEY ||= "3".repeat(64);
+  // Must be set BEFORE `evidenceService` is imported: `env` reads process.env at
+  // module load, so a key set after the import would be invisible to the signer.
+  process.env.EVIDENCE_SIGNING_PRIVATE_KEY = TEST_SIGNING.privateKey
+    .export({ type: "pkcs8", format: "pem" }).toString().replace(/\n/g, "\\n");
+  process.env.EVIDENCE_SIGNING_KEY_ID = TEST_SIGNING_KEY_ID;
   await pushSchema();
   svc = await import("./benchmark/benchmarkService");
   ev = await import("./evidenceService");
@@ -315,6 +328,36 @@ describe("evidence publication (DB-backed)", () => {
     const row = await publicationRow(published.publicationId);
     expect(row.state).toBe("published");
     expect(row.manifestHash).toBe(preview.previewHash);
+    // ATTESTATION (v3). The published record carries a signature over the manifest
+    // hash AND the listing/version/definition/author it belongs to; the columns
+    // exist so an operator can query for unsigned evidence. What is proved here is
+    // the part a pure crypto test cannot: the real public read path still parses a
+    // manifest that now has an `attestation` member — safeParse failing would have
+    // returned null and silently unpublished the record from its own canonical URL.
+    const sign = await import("./evidenceSigning");
+    expect(row.signingKeyId).toBe(TEST_SIGNING_KEY_ID);
+    expect(String(row.signature).length).toBeGreaterThan(40);
+    expect(row.signedAt).not.toBeNull();
+
+    const readBack = await ev.getPublishedManifestByHash(preview.previewHash);
+    expect(readBack).not.toBeNull();
+    const att = (readBack as unknown as { attestation: NonNullable<ReturnType<typeof sign.attestEvidenceManifest>> }).attestation;
+    expect(att.publicKeyPem).toBe(TEST_SIGNING_PUBLIC_PEM);
+    expect(att.hashExcludes).toEqual(["attestation"]);
+    const vi0 = readBack!.versionIdentity;
+    const identityOf = {
+      manifestHash: preview.previewHash,
+      listingId: Number(vi0.listingId ?? listingId),
+      workflowVersionId: Number(vi0.workflowVersionId),
+      definitionHash: String(vi0.definitionHash),
+      authorId: f.userId,
+    };
+    expect(sign.verifyEvidenceAttestation(att, identityOf, TEST_SIGNING_PUBLIC_PEM).valid).toBe(true);
+    // And the same record read against a different listing fails — the signature
+    // is not portable between artifacts even though it is perfectly formed.
+    expect(sign.verifyEvidenceAttestation(
+      att, { ...identityOf, listingId: identityOf.listingId + 1 }, TEST_SIGNING_PUBLIC_PEM,
+    ).valid).toBe(false);
     // testedAt is the benchmark's own completion time, not the publish time.
     expect(new Date(row.testedAt).getTime()).toBe(new Date(bench.finishedAt!).getTime());
     expect(new Date(row.publishedAt!).getTime()).toBeGreaterThanOrEqual(new Date(row.testedAt).getTime());

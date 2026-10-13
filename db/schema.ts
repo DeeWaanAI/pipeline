@@ -1961,6 +1961,16 @@ export const evidencePublications = mysqlTable("evidence_publications", {
   provenance: mysqlEnum("provenance", ["platform_recorded", "user_reported", "legacy_import"]).notNull(),
   publicManifest: mediumtext("public_manifest").notNull(),
   manifestHash: varchar("manifest_hash", { length: 64 }).notNull(),
+  // ATTESTATION (v3): who issued this record, not merely that it is unedited.
+  // Nullable on purpose — a pre-signature row and a row published while the
+  // platform has no signing key configured are both real, published evidence, and
+  // NULL says so out loud instead of pretending. The signature itself also lives
+  // inside `publicManifest`; these columns exist so a query can ask "is there any
+  // published evidence NOT signed by the platform key we trust?" without parsing
+  // JSON, which is what a revocation or re-issue sweep needs.
+  signature: text("signature"),
+  signingKeyId: varchar("signing_key_id", { length: 64 }),
+  signedAt: timestamp("signed_at"),
   schemaVersion: int("schema_version").default(1).notNull(),
   consentVersion: varchar("consent_version", { length: 40 }).notNull(),
   state: mysqlEnum("state", ["draft_preview", "published", "withdrawn"]).default("draft_preview").notNull(),

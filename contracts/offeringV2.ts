@@ -1267,6 +1267,38 @@ export const PublicCostDisclosureSchema = z.object({
 export type PublicCostDisclosure = z.infer<typeof PublicCostDisclosureSchema>;
 
 /**
+ * The attestation a reader verifies (v3). ABSENT means UNSIGNED — published before
+ * attestation existed, or published while the platform had no signing key. That is a
+ * real state of the record, not an error, and a reader has to be able to see it.
+ *
+ * `manifestHash` is the hash of the manifest WITHOUT this member (see
+ * `hashExcludes`), because the hash is the identity of the evidence and the
+ * attestation is a statement ABOUT that identity, added after it was fixed.
+ * The public key travels with the record so verification needs no server; that is
+ * convenience, not trust. Trust requires the reader to pin the platform key's
+ * fingerprint and refuse a mismatch.
+ */
+export const PublicEvidenceAttestationSchema = z.object({
+  kind: z.string().min(1),
+  signer: z.enum(["platform"]),
+  algorithm: z.enum(["ed25519"]),
+  keyId: z.string().min(1),
+  issuedAt: z.string().min(1),
+  manifestHash: z.string().length(64),
+  hashExcludes: z.array(z.string()).min(1),
+  identity: z.object({
+    listingId: z.number().int().nullable(),
+    workflowVersionId: z.number().int().nullable(),
+    definitionHash: z.string().nullable(),
+    authorId: z.number().int(),
+  }),
+  signedPayload: z.string().min(1),
+  signature: z.string().min(1),
+  publicKeyPem: z.string().min(1),
+});
+export type PublicEvidenceAttestation = z.infer<typeof PublicEvidenceAttestationSchema>;
+
+/**
  * The complete public manifest (spec §7.3). `disclosureClass` "limited" exists so a
  * report with withheld material can be published as additional, clearly labelled
  * evidence — it cannot satisfy the v2 SELLER-publication gate.
@@ -1279,6 +1311,7 @@ export const PublicEvidenceManifestSchema = z
     disclosureClass: z.enum(["full", "limited"]),
     withheldReason: z.string().min(1).optional(),
     versionIdentity: PublicVersionIdentitySchema,
+    attestation: PublicEvidenceAttestationSchema.optional(),
     cases: z.array(PublicTestCaseSchema).min(1),
     outputs: z.array(PublicTestOutputSchema).min(1),
     judging: PublicJudgingSchema,

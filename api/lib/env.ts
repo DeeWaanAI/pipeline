@@ -43,6 +43,13 @@ export const env = {
   // APP_SECRET means session-secret rotation no longer breaks verification
   // of historical audit exports. Empty = fall back to APP_SECRET (legacy).
   auditExportKey: process.env.AUDIT_EXPORT_KEY ?? "",
+  // Evidence attestation (v3): an Ed25519 key that signs published evidence so a
+  // reader can prove WHO issued it, not merely that it is unedited. Symmetric
+  // secrets cannot do this — anyone able to verify an HMAC can also forge it.
+  // Accepts a PEM with escaped newlines, or base64 of the PEM. Empty = published
+  // evidence is stored and labelled UNSIGNED rather than failing the seller.
+  evidenceSigningPrivateKey: process.env.EVIDENCE_SIGNING_PRIVATE_KEY ?? "",
+  evidenceSigningKeyId: process.env.EVIDENCE_SIGNING_KEY_ID ?? "deewaanai-platform-2026-1",
   // ─── Object storage for uploads (S3-compatible: AWS S3 / R2 / MinIO) ───
   // All three of bucket+key+secret must be set to activate; otherwise uploads
   // stay on local disk (fine for dev/beta, ephemeral on cloud hosts).

@@ -17,6 +17,7 @@
 // - DB rows are never returned publicly; only the manifest DTO is.
 
 import { createHash } from "node:crypto";
+import { attestEvidenceManifest } from "./evidenceSigning";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
   benchmarkCandidates, benchmarkCases, benchmarkJudgments, benchmarkRuns, benchmarks,
@@ -610,7 +611,27 @@ async function publishManifest(a: PublishArgs): Promise<PublishResult> {
   }
 
   const db = getDb();
-  const publicationJson = JSON.stringify(preview.manifest);
+  // ATTESTATION (v3). The signature is made over the manifest hash that was just
+  // confirmed to be what the user was shown, plus the identity it belongs to —
+  // listing, workflow version, definition hash, author. Hash alone would let one
+  // valid signature be pasted onto another listing's evidence and still verify.
+  //
+  // The attestation is attached AFTER `previewHash` is fixed, because that hash is
+  // the identity of the evidence and the attestation is a statement about it. The
+  // rule is written into the signed bytes (`hashExcludes`) rather than left to
+  // whoever verifies. No signing key configured => the record is published and
+  // labelled unsigned, which is true, instead of failing a seller over env.
+  const identity = preview.manifest.versionIdentity;
+  const attestation = attestEvidenceManifest({
+    manifestHash: preview.previewHash,
+    listingId: identity.listingId ?? a.listingId ?? null,
+    workflowVersionId: identity.workflowVersionId ?? null,
+    definitionHash: identity.definitionHash ?? null,
+    authorId: a.userId,
+  });
+  const publicationJson = JSON.stringify(
+    attestation ? { ...preview.manifest, attestation } : preview.manifest,
+  );
   const [existing] = await db.select({ id: evidencePublications.id, hash: evidencePublications.manifestHash })
     .from(evidencePublications)
     .where(and(
@@ -640,6 +661,9 @@ async function publishManifest(a: PublishArgs): Promise<PublishResult> {
       provenance: preview.manifest.provenance,
       publicManifest: publicationJson,
       manifestHash: preview.previewHash,
+      signature: attestation?.signature ?? null,
+      signingKeyId: attestation?.keyId ?? null,
+      signedAt: attestation ? new Date(attestation.issuedAt) : null,
       schemaVersion: preview.manifest.schemaVersion,
       consentVersion: a.consentVersion,
       state: "published",
