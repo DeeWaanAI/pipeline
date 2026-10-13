@@ -28,10 +28,16 @@ no migration-tracking table at all** — applied-by-hand is the actual state mac
 **Server.** `npm run dev` is `vite` alone, serving `:3000` (PID 55696). `POST /mcp` with no credentials →
 `401 application/json`, which is the healthy answer.
 
-**Test baseline.** `api/lib/providerThrottle.test.ts` = **13 passed / 0 failed** run alone. The handoff's
-"baseline failures are 4 pre-existing `providerThrottle` ones" does not reproduce against that file. I did
-not bulk-run the integration suite: each file builds its own throwaway database on `:3307` and they are
-documented to run serially, so running them as a batch to satisfy a curiosity is how real rows get swept.
+**Test baseline.** With the stack up, `npx vitest run --exclude '**/*.integration.test.ts'` →
+**43 files passed, 1 skipped (`wikiDump`), 495 tests passed, 0 failed** in 50s. `providerThrottle.test.ts`
+specifically is 13/13.
+
+The handoff's "baseline failures are 4 pre-existing `providerThrottle` ones" **does not reproduce across the
+non-integration files.** That is the limit of what I can claim: the older project memory records those 4 as
+the expected result of a normal full-suite run, and I deliberately did not bulk-run the integration suite —
+each file builds its own throwaway database on `:3307` and the files are documented to run serially, so
+batch-running them to settle a citation is how real rows get swept. **If the 4 failures exist, they live in an
+integration file, and that stays unverified.**
 
 ---
 
@@ -252,5 +258,6 @@ Each is one small verified increment and none requires §7 answered.
 - Whether any real seller today has a hosted runtime and connector. (None in this repo.)
 - Runtime `feature_flags` rows in any deployed database — I read seeds and the local container only, so
   "`store_relaunch` is off" is proven for *fresh* installs, not for production.
-- The full unit-suite baseline beyond `providerThrottle.test.ts`, and the handoff's "`rateLimiter.test.ts` is
-  independently flaky" claim, which I have not reproduced.
+- Whether the handoff's 4 `providerThrottle` failures exist in an integration file (§1), and whether
+  `rateLimiter.test.ts` is really flaky: it passed inside the 495-test batch run, which is one observation,
+  not a refutation of a flake.
