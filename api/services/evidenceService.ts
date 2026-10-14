@@ -38,7 +38,7 @@ import type { BenchmarkCallPlan, JudgePromptVariant, RubricSpec, SnapshotStep } 
 import { panelVariants } from "./benchmark/benchmarkTypes";
 import { assessBenchmarkPanel } from "./benchmark/judgePanel";
 import { judgePromptVersionFor, previewJudgePrompts, VARIANT_FRAMING } from "./benchmark/judgeService";
-import { ProtectedExecutionError, resolveProtectedExecutionRight } from "./marketplaceExecutionService";
+import { ExecutionRightError, resolveProtectedExecutionRight } from "./executionRight";
 import { assertOriginalCreatorMaySellVersion } from "./workflowLineage";
 
 export const PUBLICATION_POLICY_VERSION = "v2-p3-1";
@@ -1027,7 +1027,7 @@ export async function getEvidenceForViewer(opts: {
         workflowVersionId: row.listingWorkflowVersionId,
       });
     } catch (err) {
-      if (err instanceof ProtectedExecutionError) return null;
+      if (err instanceof ExecutionRightError) return null;
       throw err;
     }
   }
@@ -1047,7 +1047,7 @@ export async function getPurchasedEvidenceForListing(opts: { userId: number; lis
   try {
     right = await resolveProtectedExecutionRight({ buyerId: opts.userId, listingId: opts.listingId, purpose: "buyer_execution" });
   } catch (err) {
-    if (err instanceof ProtectedExecutionError) return null;
+    if (err instanceof ExecutionRightError) return null;
     throw err;
   }
   const db = getDb();

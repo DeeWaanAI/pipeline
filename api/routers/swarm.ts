@@ -15,8 +15,6 @@ import { enqueueSwarmRun } from "../workers/swarmWorker";
 import { assertRunControlAllowed, canAccessRun } from "../services/runAccess";
 import { signStreamPath } from "../lib/streamToken";
 import { runAutoDesign } from "../services/autoDesignService";
-import { createBatch, getBatchStatus, listBatches, cancelBatch, resumeBatch, exportBatchResults } from "../services/batchService";
-import { isFeatureEnabled } from "../plugins/featureFlags";
 import { logger } from "../lib/logger";
 import { checkRateLimitAsync, RATE_LIMITS } from "../lib/rateLimiter";
 
@@ -546,95 +544,6 @@ export const swarmRouter = createRouter({
         tokensUsed: result.usage?.totalTokens ?? 0,
         latencyMs: latency,
       };
-    }),
-
-  // ═══════════════════════════════════════════════════════════════════
-  //  BATCH OPERATIONS (Research Mode)
-  // ═══════════════════════════════════════════════════════════════════
-
-  runBatch: authedQuery
-    .input(
-      z.object({
-        projectId: z.number(),
-        name: z.string().optional(),
-        inputs: z.array(z.string().min(1).max(20000)).min(1).max(100),
-        templateId: z.number().optional(),
-        chain: z.object({
-          targetProjectId: z.number(),
-          inputTemplate: z.string().optional(),
-        }).optional(),
-      })
-    )
-    .mutation(async ({ input, ctx }) => {
-      const batchFlag = await isFeatureEnabled("batch_mode", ctx.user.id);
-      if (!batchFlag) throw new Error("Batch mode is not enabled");
-
-      const rl = await checkRateLimitAsync(`batch:${ctx.user.id}`, RATE_LIMITS.batch);
-      if (!rl.allowed) {
-        throw new Error(`Too many batch submissions. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);
-      }
-
-      const hasAccess = await canAccessProject(ctx.user.id, input.projectId);
-      if (!hasAccess) throw new Error("Project not found");
-
-      return createBatch({
-        projectId: input.projectId,
-        userId: ctx.user.id,
-        name: input.name,
-        inputs: input.inputs,
-        templateId: input.templateId,
-        chain: input.chain,
-      });
-    }),
-
-  getBatchStatus: authedQuery
-    .input(z.object({ batchId: z.number() }))
-    .query(async ({ input, ctx }) => {
-      const batchFlag = await isFeatureEnabled("batch_mode", ctx.user.id);
-      if (!batchFlag) throw new Error("Batch mode is not enabled");
-
-      const status = await getBatchStatus(input.batchId, ctx.user.id);
-      if (!status) throw new Error("Batch not found");
-      return status;
-    }),
-
-  listBatches: authedQuery
-    .input(z.object({ limit: z.number().default(20) }))
-    .query(async ({ input, ctx }) => {
-      const batchFlag = await isFeatureEnabled("batch_mode", ctx.user.id);
-      if (!batchFlag) throw new Error("Batch mode is not enabled");
-
-      return listBatches(ctx.user.id, input.limit);
-    }),
-
-  cancelBatch: authedQuery
-    .input(z.object({ batchId: z.number() }))
-    .mutation(async ({ input, ctx }) => {
-      const batchFlag = await isFeatureEnabled("batch_mode", ctx.user.id);
-      if (!batchFlag) throw new Error("Batch mode is not enabled");
-
-      await cancelBatch(input.batchId, ctx.user.id);
-      return { success: true };
-    }),
-
-  resumeBatch: authedQuery
-    .input(z.object({ batchId: z.number() }))
-    .mutation(async ({ input, ctx }) => {
-      const batchFlag = await isFeatureEnabled("batch_mode", ctx.user.id);
-      if (!batchFlag) throw new Error("Batch mode is not enabled");
-
-      await resumeBatch(input.batchId, ctx.user.id);
-      return { success: true };
-    }),
-
-  exportBatchResults: authedQuery
-    .input(z.object({ batchId: z.number() }))
-    .query(async ({ input, ctx }) => {
-      const batchFlag = await isFeatureEnabled("batch_mode", ctx.user.id);
-      if (!batchFlag) throw new Error("Batch mode is not enabled");
-
-      const csv = await exportBatchResults(input.batchId, ctx.user.id);
-      return { csv };
     }),
 
 });

@@ -1,6 +1,6 @@
 /**
  * Admin Panel
- * System-wide administration: feedback triage, user management, stats, feature flags.
+ * System-wide administration: user management, stats, feature flags.
  * Accessible only to users with role === "admin".
  */
 
@@ -21,10 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  ChevronDown,
-  ChevronUp,
-  Monitor,
-  Globe,
   Cpu,
   XCircle,
   CheckCircle,
@@ -33,7 +29,6 @@ import {
   Rocket,
   Ticket,
   AlertTriangle,
-  Server,
   Boxes,
   FileSearch,
   Coins,
@@ -51,51 +46,16 @@ import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-type FeedbackStatus = "new" | "triaged" | "in_progress" | "resolved" | "verified" | "closed";
-type FeedbackSeverity = "critical" | "major" | "minor" | "cosmetic";
-type FeedbackType = "bug" | "suggestion" | "praise" | "confusion";
 type UserRole = "user" | "admin";
 
 type TabKey =
-  | "feedback" | "users" | "stats" | "flags" | "certification" | "audit" | "beta"
+  | "users" | "stats" | "flags" | "certification" | "audit" | "beta"
   // v2 operations (spec D10)
-  | "endpoints" | "catalog" | "evidence" | "spend"
+  | "catalog" | "evidence" | "spend"
   // admin-defined free-days grants (ticket #62)
   | "promotions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-function statusColor(status: string) {
-  switch (status) {
-    case "new":         return "bg-blue-500/15 text-blue-400 border-blue-500/20";
-    case "triaged":     return "bg-purple-500/15 text-purple-400 border-purple-500/20";
-    case "in_progress": return "bg-amber-500/15 text-amber-400 border-amber-500/20";
-    case "resolved":    return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
-    case "verified":    return "bg-green-500/15 text-green-400 border-green-500/20";
-    case "closed":      return "bg-neutral-500/15 text-neutral-400 border-neutral-500/20";
-    default:            return "bg-neutral-500/15 text-neutral-400 border-neutral-500/20";
-  }
-}
-
-function severityColor(severity: string) {
-  switch (severity) {
-    case "critical": return "bg-red-500/15 text-red-400 border-red-500/20";
-    case "major":    return "bg-orange-500/15 text-orange-400 border-orange-500/20";
-    case "minor":    return "bg-yellow-500/15 text-yellow-400 border-yellow-500/20";
-    case "cosmetic": return "bg-neutral-500/15 text-neutral-400 border-neutral-500/20";
-    default:         return "bg-neutral-500/15 text-neutral-400 border-neutral-500/20";
-  }
-}
-
-function typeColor(type: string) {
-  switch (type) {
-    case "bug":        return "bg-red-500/15 text-red-400 border-red-500/20";
-    case "suggestion": return "bg-blue-500/15 text-blue-400 border-blue-500/20";
-    case "praise":     return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
-    case "confusion":  return "bg-yellow-500/15 text-yellow-400 border-yellow-500/20";
-    default:           return "bg-neutral-500/15 text-neutral-400 border-neutral-500/20";
-  }
-}
 
 function timeAgo(date: Date | string | null | undefined, t: (key: string) => string): string {
   if (!date) return "\u2014";
@@ -216,7 +176,7 @@ function FilterSelect({
 export default function AdminPanel() {
   const { t } = useTranslation("pages");
   const { user, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>("feedback");
+  const [activeTab, setActiveTab] = useState<TabKey>("users");
 
   // Auth guard
   if (authLoading) {
@@ -242,7 +202,6 @@ export default function AdminPanel() {
   }
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-    { key: "feedback", label: t("pages:admin.tabs.feedback"), icon: <MessageSquare className="w-4 h-4" /> },
     { key: "users", label: t("pages:admin.tabs.users"), icon: <Users className="w-4 h-4" /> },
     { key: "stats", label: t("pages:admin.tabs.stats"), icon: <BarChart3 className="w-4 h-4" /> },
     { key: "flags", label: t("pages:admin.tabs.flags"), icon: <ToggleLeft className="w-4 h-4" /> },
@@ -250,7 +209,6 @@ export default function AdminPanel() {
     { key: "audit", label: t("pages:admin.tabs.audit"), icon: <ClipboardList className="w-4 h-4" /> },
     { key: "beta", label: t("pages:admin.tabs.beta"), icon: <Rocket className="w-4 h-4" /> },
     { key: "promotions", label: t("pages:admin.tabs.promotions"), icon: <Ticket className="w-4 h-4" /> },
-    { key: "endpoints", label: t("pages:admin.tabs.endpoints"), icon: <Server className="w-4 h-4" /> },
     { key: "catalog", label: t("pages:admin.tabs.catalog"), icon: <Boxes className="w-4 h-4" /> },
     { key: "evidence", label: t("pages:admin.tabs.evidence"), icon: <FileSearch className="w-4 h-4" /> },
     { key: "spend", label: t("pages:admin.tabs.spend"), icon: <Coins className="w-4 h-4" /> },
@@ -292,7 +250,6 @@ export default function AdminPanel() {
 
         {/* Tab content */}
         <div className="flex-1 min-h-0 overflow-y-auto p-6">
-          {activeTab === "feedback" && <FeedbackTab />}
           {activeTab === "users" && <UsersTab />}
           {activeTab === "stats" && <StatsTab />}
           {activeTab === "flags" && <FeatureFlagsTab />}
@@ -300,385 +257,12 @@ export default function AdminPanel() {
           {activeTab === "audit" && <AuditTab />}
           {activeTab === "beta" && <BetaTab />}
           {activeTab === "promotions" && <PromotionsTab />}
-          {activeTab === "endpoints" && <EndpointsTab />}
           {activeTab === "catalog" && <CatalogTab />}
           {activeTab === "evidence" && <EvidenceTab />}
           {activeTab === "spend" && <SpendTab />}
         </div>
       </div>
     </AppShell>
-  );
-}
-
-// ─── FEEDBACK TAB ─────────────────────────────────────────────────────
-// Screenshot URLs arrive pre-signed from the server (short-lived, file-scoped
-// ?exp&sig params) — plain <img src> works without any token handling here.
-function FeedbackTab() {
-  const { t } = useTranslation("pages");
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState("__all__");
-  const [severity, setSeverity] = useState("__all__");
-  const [feedbackType, setFeedbackType] = useState("__all__");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [expandedScreenshot, setExpandedScreenshot] = useState<string | null>(null);
-  const pageSize = 20;
-
-  const { data, isLoading, error } = trpc.admin.listAllFeedback.useQuery({
-    page,
-    pageSize,
-    status: status !== "__all__" ? (status as FeedbackStatus) : undefined,
-    severity: severity !== "__all__" ? (severity as FeedbackSeverity) : undefined,
-    feedbackType: feedbackType !== "__all__" ? (feedbackType as FeedbackType) : undefined,
-  });
-
-  // Reset page when filters change
-  const handleFilterChange = (setter: (v: string) => void) => (v: string) => {
-    setter(v);
-    setPage(1);
-  };
-
-  const utils = trpc.useUtils();
-  const updateStatus = trpc.admin.updateFeedbackStatus.useMutation({
-    onSuccess: () => {
-      toast.success(t("pages:admin.feedback.statusUpdated"));
-      utils.admin.listAllFeedback.invalidate();
-    },
-    onError: (err) => toast.error(t("pages:admin.feedback.updateFailed", { error: err.message })),
-  });
-
-  // D11: at most one attachment snapshot is open at a time, and it is fetched
-  // by its own admin-only procedure — the list query above deliberately carries
-  // summaries only. One component-level query (not one per row) keeps the hook
-  // order stable, and `enabled` means nothing is read until it is opened.
-  const [openAttachmentId, setOpenAttachmentId] = useState<number | null>(null);
-  const attachmentDetailQuery = trpc.admin.feedbackAttachmentDetail.useQuery(
-    { attachmentId: openAttachmentId ?? 0 },
-    { enabled: openAttachmentId !== null },
-  );
-
-  return (
-    <div className="space-y-4">
-      {/* Filters row */}
-      <div className="flex flex-wrap items-end gap-3 bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
-        <FilterSelect
-          label={t("pages:admin.feedback.status")}
-          value={status}
-          onChange={handleFilterChange(setStatus)}
-          options={[
-            { value: "new", label: t("pages:admin.feedback.statuses.new") },
-            { value: "triaged", label: t("pages:admin.feedback.statuses.triaged") },
-            { value: "in_progress", label: t("pages:admin.feedback.statuses.in_progress") },
-            { value: "resolved", label: t("pages:admin.feedback.statuses.resolved") },
-            { value: "verified", label: t("pages:admin.feedback.statuses.verified") },
-            { value: "closed", label: t("pages:admin.feedback.statuses.closed") },
-          ]}
-        />
-        <FilterSelect
-          label={t("pages:admin.feedback.severity")}
-          value={severity}
-          onChange={handleFilterChange(setSeverity)}
-          options={[
-            { value: "critical", label: t("pages:admin.feedback.severities.critical") },
-            { value: "major", label: t("pages:admin.feedback.severities.major") },
-            { value: "minor", label: t("pages:admin.feedback.severities.minor") },
-            { value: "cosmetic", label: t("pages:admin.feedback.severities.cosmetic") },
-          ]}
-        />
-        <FilterSelect
-          label={t("pages:admin.feedback.type")}
-          value={feedbackType}
-          onChange={handleFilterChange(setFeedbackType)}
-          options={[
-            { value: "bug", label: t("pages:admin.feedback.types.bug") },
-            { value: "suggestion", label: t("pages:admin.feedback.types.suggestion") },
-            { value: "praise", label: t("pages:admin.feedback.types.praise") },
-            { value: "confusion", label: t("pages:admin.feedback.types.confusion") },
-          ]}
-        />
-        <div className="ml-auto text-[11px] text-neutral-500 self-end pb-1">
-          {data ? `${data.total} ${t("pages:admin.feedback.itemsSuffix")}` : ""}
-        </div>
-      </div>
-
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-          <p className="font-medium mb-1">{t("pages:admin.feedback.loadFailed")}</p>
-          <p className="text-xs text-red-400/70">{error.message}</p>
-        </div>
-      )}
-
-      {/* Feedback list */}
-      {data && data.items.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-neutral-600">
-          <MessageSquare className="w-10 h-10 mb-3" />
-          <p className="text-sm">{t("pages:admin.feedback.noResults")}</p>
-        </div>
-      )}
-
-      {data && data.items.length > 0 && (
-        <>
-          <div className="space-y-2">
-            {data.items.map((fb) => {
-              const isExpanded = expandedId === fb.id;
-              const ctx = fb.contextJson as {
-                url?: string;
-                browser?: string;
-                os?: string;
-                screenshotUrl?: string;
-                consoleLogs?: string[];
-                activePipeline?: string;
-                activeStep?: string;
-                modelUsed?: string;
-              } | null;
-              // Only real screenshots may reach the <img> below — ctx.url is
-              // the page the user was on, not an image (audit fix #4).
-              const screenshotUrl = fb.screenshotUrl ?? ctx?.screenshotUrl;
-
-              return (
-                <div
-                  key={fb.id}
-                  className={`bg-neutral-900 border rounded-xl transition-colors ${
-                    isExpanded ? "border-blue-500/30" : "border-neutral-800 hover:border-neutral-700"
-                  }`}
-                >
-                  {/* Collapsed row */}
-                  <button
-                    className="w-full text-left px-4 py-3 flex items-center gap-3"
-                    onClick={() => setExpandedId(isExpanded ? null : fb.id)}
-                  >
-                    {/* Expand chevron */}
-                    <span className="text-neutral-600 shrink-0">
-                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    </span>
-
-                    {/* Username */}
-                    <span className="text-xs font-medium text-neutral-300 w-24 shrink-0 truncate" title={fb.username ?? "\u2014"}>
-                      {fb.username ?? t("pages:admin.feedback.anonymous")}
-                    </span>
-
-                    {/* Badges */}
-                    <Badge className={typeColor(fb.feedbackType)}>{fb.feedbackType}</Badge>
-                    {fb.severity && <Badge className={severityColor(fb.severity)}>{fb.severity}</Badge>}
-                    <Badge className={statusColor(fb.status)}>{fb.status.replace("_", " ")}</Badge>
-
-                    {/* Content preview */}
-                    <span className="flex-1 text-xs text-neutral-400 truncate ml-2">
-                      {fb.content}
-                    </span>
-
-                    {/* Date */}
-                    <span className="text-[10px] text-neutral-600 shrink-0 ml-2">
-                      {timeAgo(fb.createdAt, t)}
-                    </span>
-                  </button>
-
-                  {/* Expanded content */}
-                  {isExpanded && (
-                    <div className="px-4 pb-4 pt-1 border-t border-neutral-800/60 ml-7">
-                      {/* Full content */}
-                      <div className="mb-4">
-                        <p className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1">{t("pages:admin.feedback.content")}</p>
-                        <p className="text-sm text-neutral-200 whitespace-pre-wrap leading-relaxed bg-neutral-800/40 rounded-lg p-3 border border-neutral-800">
-                          {fb.content}
-                        </p>
-                      </div>
-
-                      {/* Context metadata */}
-                      {ctx && (
-                        <div className="mb-4">
-                          <p className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">{t("pages:admin.feedback.context")}</p>
-                          <div className="flex flex-wrap gap-2">
-                            {ctx.url && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                                <Globe className="w-3 h-3" /> {ctx.url}
-                              </span>
-                            )}
-                            {ctx.browser && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                                <Monitor className="w-3 h-3" /> {ctx.browser}
-                              </span>
-                            )}
-                            {ctx.os && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                                <Cpu className="w-3 h-3" /> {ctx.os}
-                              </span>
-                            )}
-                            {ctx.activePipeline && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                                {t("pages:admin.feedback.pipeline")} {ctx.activePipeline}
-                              </span>
-                            )}
-                            {ctx.activeStep && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                                {t("pages:admin.feedback.step")} {ctx.activeStep}
-                              </span>
-                            )}
-                            {ctx.modelUsed && (
-                              <span className="flex items-center gap-1 text-[11px] text-neutral-400 bg-neutral-800 px-2 py-1 rounded border border-neutral-700">
-                                {t("pages:admin.feedback.model")} {ctx.modelUsed}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* D11: the objects the author consented to attach. The
-                          list read carries summaries only; opening one snapshot
-                          is a separate, admin-only, audited call, so an attached
-                          prompt never reaches this screen by accident. A
-                          redacted summary says so before it is opened: a
-                          borrowed run arrives as the redacted view its own
-                          owner sees, and that is a fact about the record the
-                          reviewer must not have to discover by reading it. */}
-                      {fb.attachments.length > 0 && (
-                        <div className="mb-4">
-                          <p className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">
-                            {t("pages:admin.feedback.attachmentsLabel")}
-                          </p>
-                          <div className="space-y-1.5">
-                            {fb.attachments.map((att) => (
-                              <div key={att.id} className="flex flex-wrap items-center gap-2 text-[11px] bg-neutral-800/40 border border-neutral-800 rounded-lg px-2 py-1.5">
-                                <Badge className="bg-neutral-700/60 text-neutral-300 border-neutral-600">{att.kind} {att.refId}</Badge>
-                                <span className="text-neutral-300 min-w-0 break-words">{att.title}</span>
-                                <span className="text-neutral-500">{t("pages:admin.feedback.attachmentConsent", { version: att.consentVersion })}</span>
-                                <span className={att.visibility === "owner_full" ? "text-neutral-500" : "text-amber-400/80"}>
-                                  {att.visibility === "owner_full"
-                                    ? t("pages:admin.feedback.attachmentFull")
-                                    : t("pages:admin.feedback.attachmentRedacted")}
-                                </span>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setOpenAttachmentId(openAttachmentId === att.id ? null : att.id); }}
-                                  className="ml-auto text-blue-400 hover:text-blue-300 underline underline-offset-2"
-                                >
-                                  {openAttachmentId === att.id
-                                    ? t("pages:admin.feedback.closeSnapshot")
-                                    : t("pages:admin.feedback.openSnapshot")}
-                                </button>
-                                {openAttachmentId === att.id && (
-                                  attachmentDetailQuery.isError
-                                    // `{}` here would read as "the author consented
-                                    // to an empty snapshot" — it means the read
-                                    // failed, and support has to know which.
-                                    ? <span className="w-full text-[10px] text-amber-400/90">{t("pages:admin.feedback.snapshotFailed")}</span>
-                                    : attachmentDetailQuery.isLoading
-                                      ? <span className="text-neutral-500">{t("pages:admin.feedback.snapshotLoading")}</span>
-                                      : <pre className="w-full max-h-48 overflow-auto text-[10px] font-mono text-neutral-400 bg-neutral-950 border border-neutral-800 rounded p-2 whitespace-pre-wrap break-all">
-                                        {JSON.stringify(attachmentDetailQuery.data?.snapshot ?? {}, null, 2)}
-                                      </pre>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Console logs */}
-                      {ctx?.consoleLogs && ctx.consoleLogs.length > 0 && (
-                        <div className="mb-4">
-                          <p className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">{t("pages:admin.feedback.consoleLogs")}</p>
-                          <div className="bg-neutral-950 border border-neutral-800 rounded-lg p-3 max-h-32 overflow-y-auto">
-                            {ctx.consoleLogs.map((log, i) => (
-                              <p key={i} className="text-[10px] font-mono text-neutral-500 leading-relaxed">
-                                {log}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Screenshot thumbnail */}
-                      {screenshotUrl && (
-                        <div className="mb-4">
-                          <p className="text-[10px] text-neutral-500 uppercase tracking-wide mb-1.5">{t("pages:admin.feedback.screenshot")}</p>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedScreenshot(screenshotUrl);
-                            }}
-                            className="block"
-                          >
-                            <img
-                              src={screenshotUrl}
-                              alt={t("pages:admin.feedback.screenshotAlt")}
-                              className="max-h-40 rounded-lg border border-neutral-700 hover:border-blue-500/50 transition-colors object-cover shadow-lg"
-                            />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Status change controls */}
-                      <div className="flex items-center gap-3 pt-2 border-t border-neutral-800/60 flex-wrap">
-                        <span className="text-[10px] text-neutral-500 uppercase tracking-wide">{t("pages:admin.feedback.changeStatus")}</span>
-                        {(["new", "triaged", "in_progress", "resolved", "verified", "closed"] as const).map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => updateStatus.mutate({ feedbackId: fb.id, status: s })}
-                            disabled={fb.status === s || updateStatus.isPending}
-                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                              fb.status === s
-                                ? "border-blue-500/40 bg-blue-500/10 text-blue-400 cursor-default"
-                                : "border-neutral-700 text-neutral-500 hover:text-neutral-200 hover:border-neutral-600"
-                            }`}
-                          >
-                            {s.replace("_", " ")}
-                          </button>
-                        ))}
-                        {updateStatus.isPending && (
-                          <Loader2 className="w-3 h-3 animate-spin text-blue-400 ml-1" />
-                        )}
-                      </div>
-
-                      {/* Metadata */}
-                      <div className="flex items-center gap-4 mt-3 text-[10px] text-neutral-600">
-                        <span>{t("pages:admin.meta.id")} {fb.id}</span>
-                        <span>{t("pages:admin.meta.userId")} {fb.userId}</span>
-                        {fb.projectId && <span>{t("pages:admin.meta.projectId")} {fb.projectId}</span>}
-                        <span>{t("pages:admin.meta.created")} {fb.createdAt ? new Date(fb.createdAt).toLocaleString() : "\u2014"}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <Pagination
-            page={data.page}
-            pageSize={data.pageSize}
-            total={data.total}
-            onPageChange={setPage}
-          />
-        </>
-      )}
-
-      {/* Screenshot lightbox */}
-      {expandedScreenshot && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
-          onClick={() => setExpandedScreenshot(null)}
-        >
-          <img
-            src={expandedScreenshot}
-            alt={t("pages:admin.feedback.screenshotFull")}
-            className="max-w-[92vw] max-h-[92vh] rounded-xl border border-neutral-700 shadow-2xl"
-          />
-          <button
-            className="absolute top-6 right-6 text-neutral-400 hover:text-white transition-colors"
-            onClick={() => setExpandedScreenshot(null)}
-          >
-            <XCircle className="w-8 h-8" />
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1634,14 +1218,12 @@ function BetaTab() {
 }
 
 // ═══ V2 OPERATIONS (spec D10) ════════════════════════════════════════
-// Four screens for the operational metadata v2 created and nobody could
-// reach: the approved endpoint list, the reviewed model catalog, evidence
-// publications, and the spend ledger. Nothing here reads or writes a user's
+// Screens for the operational metadata v2 created and nobody could
+// reach: the reviewed model catalog, evidence publications, and the spend
+// ledger. Nothing here reads or writes a user's
 // private work content, and no read on this screen mutates a row.
 
-const EGRESS_POLICY_VERSION = "v2-egress-1";
-
-/** Small form field so the four new sections stay as compact as the tabs
+/** Small form field so the new sections stay as compact as the tabs
  *  above; the label markup is the one used everywhere else in this file. */
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -1655,220 +1237,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 const inputClass =
   "bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-[11px] text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-blue-500";
-
-function endpointStateColor(row: { enabled: boolean; liveForGate: boolean }) {
-  if (!row.enabled) return "bg-neutral-500/15 text-neutral-400 border-neutral-500/20";
-  if (row.liveForGate) return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
-  return "bg-amber-500/15 text-amber-400 border-amber-500/20";
-}
-
-// ─── TRUSTED PROVIDER ENDPOINTS TAB ───────────────────────────────────
-// A protected buyer run may only reach a destination named here, and the
-// disclosure columns are the point of the row, not decoration: the promise is
-// that we name the destination AND record its logging posture before the run.
-function EndpointsTab() {
-  const { t } = useTranslation("pages");
-  const [enabledOnly, setEnabledOnly] = useState(false);
-  const [provider, setProvider] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [endpointClass, setEndpointClass] = useState<"first_party" | "approved_proxy">("first_party");
-  const [loggingDisclosure, setLoggingDisclosure] = useState("");
-  const [protectionClass, setProtectionClass] = useState<"" | "standard" | "reduced">("");
-  const [policyVersion, setPolicyVersion] = useState(EGRESS_POLICY_VERSION);
-
-  const { data, isLoading, error } = trpc.admin.listTrustedEndpoints.useQuery({ enabledOnly });
-  const utils = trpc.useUtils();
-
-  const approve = trpc.admin.approveTrustedEndpoint.useMutation({
-    onSuccess: () => {
-      toast.success(t("pages:admin.endpoints.approved"));
-      utils.admin.listTrustedEndpoints.invalidate();
-      setBaseUrl("");
-      setLoggingDisclosure("");
-    },
-    onError: (err) => toast.error(t("pages:admin.endpoints.approveFailed", { error: err.message })),
-  });
-
-  const setEnabled = trpc.admin.setTrustedEndpointEnabled.useMutation({
-    onSuccess: () => {
-      toast.success(t("pages:admin.endpoints.stateUpdated"));
-      utils.admin.listTrustedEndpoints.invalidate();
-    },
-    onError: (err) => toast.error(t("pages:admin.endpoints.stateFailed", { error: err.message })),
-  });
-
-  const canApprove = provider.trim().length > 0 && baseUrl.trim().length > 7
-    && loggingDisclosure.trim().length >= 20 && protectionClass !== "" && policyVersion.trim().length > 0;
-
-  return (
-    <div className="space-y-5">
-      <p className="text-[11px] text-neutral-500">{t("pages:admin.endpoints.intro")}</p>
-
-      {/* Approval form — both disclosures are required, with no silent default
-          for the protection class. */}
-      <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-neutral-200">{t("pages:admin.endpoints.approveTitle")}</h3>
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label={t("pages:admin.endpoints.fields.provider")} hint={t("pages:admin.endpoints.providerHint")}>
-            <input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="openai" className={`${inputClass} w-32`} />
-          </Field>
-          <Field label={t("pages:admin.endpoints.fields.baseUrl")} hint={t("pages:admin.endpoints.baseUrlHint")}>
-            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" className={`${inputClass} w-72`} />
-          </Field>
-          <Field label={t("pages:admin.endpoints.fields.endpointClass")}>
-            <select value={endpointClass} onChange={(e) => setEndpointClass(e.target.value as "first_party" | "approved_proxy")} className={inputClass}>
-              <option value="first_party">first_party</option>
-              <option value="approved_proxy">approved_proxy</option>
-            </select>
-          </Field>
-          <Field label={t("pages:admin.endpoints.fields.protectionClass")} hint={t("pages:admin.endpoints.protectionHint")}>
-            <select value={protectionClass} onChange={(e) => setProtectionClass(e.target.value as "" | "standard" | "reduced")} className={inputClass}>
-              <option value="">—</option>
-              <option value="standard">standard</option>
-              <option value="reduced">reduced</option>
-            </select>
-          </Field>
-          <Field label={t("pages:admin.endpoints.fields.policyVersion")}>
-            <input value={policyVersion} onChange={(e) => setPolicyVersion(e.target.value)} className={`${inputClass} w-32`} />
-          </Field>
-        </div>
-        <Field label={t("pages:admin.endpoints.fields.loggingDisclosure")} hint={t("pages:admin.endpoints.disclosureHint")}>
-          <textarea
-            value={loggingDisclosure}
-            onChange={(e) => setLoggingDisclosure(e.target.value)}
-            rows={2}
-            placeholder={t("pages:admin.endpoints.disclosurePlaceholder")}
-            className={`${inputClass} w-full resize-y`}
-          />
-        </Field>
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            disabled={!canApprove || approve.isPending}
-            onClick={() => protectionClass && approve.mutate({
-              provider: provider.trim(),
-              baseUrl: baseUrl.trim(),
-              endpointClass,
-              loggingDisclosure: loggingDisclosure.trim(),
-              protectionClass,
-              policyVersion: policyVersion.trim(),
-            })}
-            className="text-xs h-8"
-          >
-            {approve.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-            {t("pages:admin.endpoints.approve")}
-          </Button>
-          {!canApprove && (
-            <span className="text-[10px] text-neutral-600">{t("pages:admin.endpoints.needBothDisclosures")}</span>
-          )}
-        </div>
-      </div>
-
-      {/* List */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setEnabledOnly((v) => !v)}
-          className={`text-[11px] px-2 py-1 rounded border transition-colors ${
-            enabledOnly
-              ? "border-blue-500/40 bg-blue-500/10 text-blue-400"
-              : "border-neutral-700 text-neutral-500 hover:text-neutral-200"
-          }`}
-        >
-          {t("pages:admin.endpoints.enabledOnly")}
-        </button>
-        {data && (
-          <span className="text-[11px] text-neutral-500">
-            {data.length} {t("pages:admin.endpoints.countSuffix")}
-          </span>
-        )}
-      </div>
-
-      {isLoading && (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-        </div>
-      )}
-
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-          <p className="font-medium">{t("pages:admin.endpoints.loadFailed")}</p>
-          <p className="text-xs text-red-400/70 mt-1">{error.message}</p>
-        </div>
-      )}
-
-      {data && data.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-neutral-600 gap-2">
-          <Server className="w-10 h-10" />
-          <p className="text-sm">{t("pages:admin.endpoints.empty")}</p>
-          <p className="text-xs text-neutral-700 max-w-md text-center">{t("pages:admin.endpoints.emptyWhy")}</p>
-        </div>
-      )}
-
-      {data && data.length > 0 && (
-        <div className="space-y-2">
-          {data.map((row) => (
-            <div key={row.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-neutral-200">{row.provider}</span>
-                <span className="text-xs font-mono text-neutral-400 break-all">{row.baseUrl}</span>
-                <Badge className="bg-neutral-500/15 text-neutral-400 border-neutral-500/20">{row.adapterKind}</Badge>
-                <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/20">{row.endpointClass}</Badge>
-                <Badge className={row.protectionClass === "reduced"
-                  ? "bg-red-500/15 text-red-400 border-red-500/20"
-                  : "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"}>
-                  {row.protectionClass}
-                </Badge>
-                <Badge className={endpointStateColor(row)}>
-                  {row.enabled
-                    ? (row.liveForGate ? t("pages:admin.endpoints.reachable") : t("pages:admin.endpoints.enabledNotMatching"))
-                    : t("pages:admin.endpoints.disabled")}
-                </Badge>
-                <div className="ml-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7"
-                    disabled={setEnabled.isPending}
-                    onClick={() => setEnabled.mutate({ endpointId: row.id, enabled: !row.enabled })}
-                  >
-                    {row.enabled ? t("pages:admin.endpoints.disable") : t("pages:admin.endpoints.enable")}
-                  </Button>
-                </div>
-              </div>
-
-              {/* The disclosure a buyer's run is made under. */}
-              <p className="text-xs text-neutral-300 bg-neutral-800/40 border border-neutral-800 rounded-lg p-2.5">
-                {row.loggingDisclosure}
-              </p>
-
-              {row.matchKey && (
-                <p className="text-[10px] font-mono text-neutral-600 break-all">
-                  {t("pages:admin.endpoints.matchKey")} {row.matchKey}
-                </p>
-              )}
-              {row.urlUnusable && (
-                <p className="text-[10px] text-amber-400">
-                  {t("pages:admin.endpoints.urlUnusable", { error: row.urlUnusable })}
-                </p>
-              )}
-              {!row.adapterMatchesProvider && !row.urlUnusable && (
-                <p className="text-[10px] text-amber-400">
-                  {t("pages:admin.endpoints.adapterMismatch", { expected: row.expectedAdapterKind })}
-                </p>
-              )}
-              <div className="flex items-center gap-4 text-[10px] text-neutral-600">
-                <span>{t("pages:admin.endpoints.policy")} {row.policyVersion}</span>
-                <span>{t("pages:admin.endpoints.approvedBy")} {row.approvedByUsername ?? `#${row.approvedBy ?? "?"}`}</span>
-                <span>{t("pages:admin.meta.created")} {row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}</span>
-                <span>{t("pages:admin.meta.id")} {row.id}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── MODEL CATALOG TAB ────────────────────────────────────────────────
 // Vendor (the model's developer) is the field a D12 refusal tells a user to

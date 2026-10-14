@@ -35,7 +35,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { pipelineSteps, pipelineTemplates, projects } from "@db/schema";
 import { logger } from "../lib/logger";
-import { resolveProtectedExecutionRight } from "./marketplaceExecutionService";
+import { resolveProtectedExecutionRight } from "./executionRight";
 import {
   captureVersionFromProject,
   loadVersionDefinition,

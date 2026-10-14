@@ -52,15 +52,12 @@ describe("buildHelp", () => {
     expect(on.filter((n) => n.startsWith("team_"))).toEqual([]);
   });
 
-  it("includes research tools only when the batch_mode flag is on", () => {
-    const off = buildHelp(base({ flags: { teamsync: false, mcp_sampling: false, batch_mode: false } }));
-    expect(toolNames(off)).not.toContain("run_batch");
-
-    const on = buildHelp(base({ flags: { teamsync: false, mcp_sampling: false, batch_mode: true } }));
-    expect(toolNames(on)).toContain("run_batch");
-    expect(toolNames(on)).toContain("batch_status");
-    expect(toolNames(on)).toContain("resume_batch");
-    expect(toolNames(on)).toContain("export_batch_results");
+  it("no longer offers batch runs: research mode is gone with the cut", () => {
+    const names = toolNames(buildHelp(base()));
+    for (const dead of ["run_batch", "batch_status", "resume_batch", "export_batch_results"]) {
+      expect(names).not.toContain(dead);
+    }
+    expect(names).toContain("export_run");
   });
 
   it("hides tools whose required scopes the caller lacks", () => {
@@ -116,17 +113,6 @@ describe("buildHelp", () => {
     expect(supported.tips.join(" ")).toContain("supports MCP sampling");
   });
 
-  it("discloses retained private plans on every delivery tool in the rendered guide", () => {
-    const help = buildHelp(base());
-    const tools = help.sections.flatMap((section) => section.tools);
-    for (const name of ["preview_work_delivery", "deliver_work_data", "sweep_delivered_work"]) {
-      const tool = tools.find((entry) => entry.name === name);
-      expect(tool).toBeDefined();
-      expect(tool!.summary).toContain("not complete erasure");
-      expect(tool!.summary).toContain("benchmark plans and spend-approval snapshots");
-      expect(JSON.stringify(tool)).not.toMatch(/only copy|server no longer holds/);
-    }
-  });
 
   it("states the commercial model in the tips, and sells neither a subscription nor a tier", () => {
     const help = buildHelp(base());
@@ -194,9 +180,10 @@ describe("buildHelp", () => {
   it("includes portability tools in the Your data group", () => {
     const help = buildHelp(base());
     const names = toolNames(help);
-    expect(names).toContain("export_pipeline");
+    // The cut left exactly one portability promise: your data leaves with you.
     expect(names).toContain("export_my_data");
-    expect(names).toContain("sync_to_github");
+    expect(names).not.toContain("export_pipeline");
+    expect(names).not.toContain("sync_to_github");
 
     const yourDataGroup = help.sections.find((s) => s.group === "Your data");
     expect(yourDataGroup).toBeDefined();
@@ -205,14 +192,7 @@ describe("buildHelp", () => {
     // user's own device holds it. Membership is still pinned exactly, so a tool
     // cannot silently appear or disappear from the one group a user reads when
     // they ask "what happens to my data".
-    expect(yourDataGroup?.tools.map((t) => t.name)).toEqual([
-      "preview_work_delivery",
-      "deliver_work_data",
-      "sweep_delivered_work",
-      "export_pipeline",
-      "export_my_data",
-      "sync_to_github",
-    ]);
+    expect(yourDataGroup?.tools.map((t) => t.name)).toEqual(["export_my_data"]);
   });
 
   it("submit_for_review describes the three-layer certification model", () => {

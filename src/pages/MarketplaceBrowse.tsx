@@ -72,12 +72,6 @@ export default function MarketplaceBrowse() {
                   {t("pages:marketplace.browse.sellPipeline")}
                 </Button>
               </Link>
-              <Link to="/reviewer/portal">
-                <Button variant="outline" size="sm" className="border-neutral-700 text-neutral-300 hover:text-white">
-                  <Star className="w-4 h-4 mr-1.5" />
-                  {t("pages:marketplace.browse.review")}
-                </Button>
-              </Link>
             </div>
           </div>
 

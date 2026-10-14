@@ -18,7 +18,6 @@ import { registerBillingWebhookRoute } from "./billing-webhook-route";
 import { registerCertificationBadgeRoute } from "./certification-badge-route";
 import { registerMcpRoutes } from "./mcp/register";
 import { registerSsoRoutes } from "./sso-route";
-import { registerRelayRoutes } from "./relay-route";
 import { startSwarmWorker, stopSwarmWorker, enqueueSwarmRun, isSwarmWorkerRunning } from "./workers/swarmWorker";
 import { startDesignWorker, startDesignOutboxReconciler, stopDesignWorker } from "./workers/designWorker";
 import { startBenchmarkWorker, startBenchmarkReconciler, stopBenchmarkWorker } from "./workers/benchmarkWorker";
@@ -190,16 +189,6 @@ try {
   registerSsoRoutes(app);
 } catch (err) {
   logger.error("SSO route registration failed — SSO endpoints disabled", {
-    error: (err as Error).message,
-  });
-}
-
-// Register on-prem relay routes (outbound-only connector bridge). Endpoints
-// self-gate behind the `enterprise_relay` feature flag (404 when disabled).
-try {
-  registerRelayRoutes(app);
-} catch (err) {
-  logger.error("Relay route registration failed — relay endpoints disabled", {
     error: (err as Error).message,
   });
 }

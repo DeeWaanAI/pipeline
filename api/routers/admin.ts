@@ -4,12 +4,11 @@ import { getDb } from "../queries/connection";
 import {
   users, feedback, swarmRuns, featureFlags,
   projects, ssoConnections, marketplaceListings, blindReviewTasks, waitlistEntries,
-  trustedProviderEndpoints, modelCatalog, modelReleaseEvents,
+  modelCatalog, modelReleaseEvents,
   evidencePublications, benchmarks, callAttempts, spendApprovals,
 } from "@db/schema";
 import { eq, sql, desc, and, or, like, inArray, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { signScreenshotUrl } from "../lib/screenshotUrls";
 import { encryptClientSecret, maskSecret, normalizeDomain } from "../services/sso";
 import { logAdminAction } from "../services/adminAudit";
 import { adminDemotionError } from "../lib/adminGuards";
@@ -21,11 +20,7 @@ import {
 } from "../services/promotionService";
 import { accountHoldings } from "../services/storageInventory";
 import { adminAuditLog } from "@db/schema";
-import {
-  PROTECTED_EGRESS_POLICY_VERSION, normalizeEndpointUrl, resolvedAdapterKind,
-} from "../services/protectedEgress";
 import { benchmarkLedgerTotals, costDisclosure, repriceUnpricedOperations, type CostDisclosureInput } from "../services/benchmark/benchmarkLedger";
-import { readAttachmentForSupport, summarizeAttachments } from "../services/feedbackAttachments";
 import { PublicEvidenceManifestSchema } from "../../contracts/offeringV2";
 
 export const adminRouter = createRouter({
@@ -108,127 +103,6 @@ export const adminRouter = createRouter({
   // nothing, so there is no admin lever for it any more.
 
   // ─── Feedback Management (CRITICAL for beta testing) ───────────────
-  listAllFeedback: adminQuery
-    .input(z.object({
-      page: z.number().min(1).default(1),
-      pageSize: z.number().min(1).max(100).default(20),
-      status: z.enum(["new", "triaged", "in_progress", "resolved", "verified", "closed"]).optional(),
-      severity: z.enum(["critical", "major", "minor", "cosmetic"]).optional(),
-      feedbackType: z.enum(["bug", "suggestion", "praise", "confusion"]).optional(),
-      projectId: z.number().optional(),
-      userId: z.number().optional(),
-    }))
-    .query(async ({ input }) => {
-      const db = getDb();
-      const offset = (input.page - 1) * input.pageSize;
-      
-      // Build where conditions
-      const conditions = [];
-      if (input.status) conditions.push(eq(feedback.status, input.status));
-      if (input.severity) conditions.push(eq(feedback.severity, input.severity));
-      if (input.feedbackType) conditions.push(eq(feedback.feedbackType, input.feedbackType));
-      if (input.projectId) conditions.push(eq(feedback.projectId, input.projectId));
-      if (input.userId) conditions.push(eq(feedback.userId, input.userId));
-
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-      
-      const items = await db.select({
-        id: feedback.id,
-        userId: feedback.userId,
-        username: users.username,
-        projectId: feedback.projectId,
-        feedbackType: feedback.feedbackType,
-        severity: feedback.severity,
-        status: feedback.status,
-        content: feedback.content,
-        screenshotUrl: feedback.screenshotUrl,
-        contextJson: feedback.contextJson,
-        createdAt: feedback.createdAt,
-        // D11: how many objects the author consented to attach. The outer table
-        // has to be spelled out — drizzle emits an UNQUALIFIED column for
-        // `${feedback.id}` inside raw sql and MySQL then binds `id` to
-        // `feedback_attachments`' own row, turning a correlated count into a
-        // constant (finding #36, fixed in `99ffa9b` for the five older fields
-        // below that had it). See also `listUsers.projectCount`,
-        // `certificationQueue.poolTotal`, `listWaitlist.position`.
-        attachmentCount: sql<number>`(SELECT COUNT(*) FROM feedback_attachments WHERE feedback_attachments.feedback_id = feedback.id)`,
-      })
-        .from(feedback)
-        .leftJoin(users, eq(feedback.userId, users.id))
-        .where(whereClause)
-        .orderBy(desc(feedback.createdAt))
-        .limit(input.pageSize)
-        .offset(offset);
-
-      // Get total count with same filters
-      const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` })
-        .from(feedback)
-        .where(whereClause);
-      
-      // Decorate stored screenshot paths with short-lived signed URLs so the
-      // admin panel can render them in <img> tags (see api/lib/screenshotUrls.ts).
-      //
-      // The attachment SUMMARY is the second half: what was attached, under
-      // which consent version, and whether the stored snapshot is a redacted
-      // view — deliberately NOT the payload, which can be several kilobytes of
-      // prompt text per row and is a per-attachment read
-      // (`feedbackAttachmentDetail`). A support list never drags every attached
-      // prompt across the wire by accident.
-      const summaries = await summarizeAttachments(items.map((i) => i.id));
-      const decorated = items.map((r) => ({
-        ...r,
-        attachmentCount: Number(r.attachmentCount),
-        attachments: summaries.get(r.id) ?? [],
-        screenshotUrl: r.screenshotUrl ? signScreenshotUrl(r.screenshotUrl) : r.screenshotUrl,
-      }));
-
-      return { items: decorated, total: Number(total), page: input.page, pageSize: input.pageSize };
-    }),
-
-  // One consented attachment, payload included, for the support desk. Admin-only
-  // by the middleware, and this widens nothing: the snapshot was written
-  // through the consenting author's OWN read projection, so what is stored here
-  // is exactly what that account could already see (spec A12 — see
-  // api/services/feedbackAttachments.ts).
-  feedbackAttachmentDetail: adminQuery
-    .input(z.object({ attachmentId: z.number().int().positive() }))
-    .query(async ({ input, ctx }) => {
-      const row = await readAttachmentForSupport(input.attachmentId);
-      logger.info("Admin: feedback attachment read", {
-        attachmentId: input.attachmentId, adminUserId: ctx.user.id,
-        kind: row.kind, refId: row.refId, visibility: row.visibility,
-      });
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: "feedback.read_attachment",
-        targetType: "feedback_attachment", targetId: input.attachmentId,
-        // The ids and the shape only — never the content, which is the whole
-        // reason this read is audited at all.
-        detail: { kind: row.kind, refId: row.refId, consentVersion: row.consentVersion, visibility: row.visibility },
-        ip: ctx.remoteIp,
-      });
-      return row;
-    }),
-
-  updateFeedbackStatus: adminQuery
-    .input(z.object({
-      feedbackId: z.number(),
-      status: z.enum(["new", "triaged", "in_progress", "resolved", "verified", "closed"]),
-      assignedTo: z.number().optional(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const updates: Record<string, any> = { status: input.status };
-      if (input.assignedTo !== undefined) updates.assignedTo = input.assignedTo;
-
-      await getDb().update(feedback).set(updates).where(eq(feedback.id, input.feedbackId));
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: "feedback.update_status",
-        targetType: "feedback", targetId: input.feedbackId,
-        detail: { status: input.status, assignedTo: input.assignedTo }, ip: ctx.remoteIp,
-      });
-      return { success: true };
-    }),
-
-  // ─── System Stats ──────────────────────────────────────────────────
   systemStats: adminQuery.query(async () => {
     const db = getDb();
     
@@ -676,166 +550,6 @@ export const adminRouter = createRouter({
   // ships empty, which is the only reason the drill stops before the egress
   // gate — so the list below reports each row by the gate's own predicate,
   // including whether the row could ever match at all.
-
-  listTrustedEndpoints: adminQuery
-    .input(z.object({
-      enabledOnly: z.boolean().optional(),
-      provider: z.string().max(80).optional(),
-    }).optional())
-    .query(async ({ input }) => {
-      const db = getDb();
-      const conditions = [];
-      if (input?.enabledOnly) conditions.push(eq(trustedProviderEndpoints.enabled, true));
-      if (input?.provider) conditions.push(eq(trustedProviderEndpoints.provider, input.provider.trim().toLowerCase()));
-      const rows = await db.select({
-        id: trustedProviderEndpoints.id,
-        provider: trustedProviderEndpoints.provider,
-        baseUrl: trustedProviderEndpoints.baseUrl,
-        adapterKind: trustedProviderEndpoints.adapterKind,
-        endpointClass: trustedProviderEndpoints.endpointClass,
-        loggingDisclosure: trustedProviderEndpoints.loggingDisclosure,
-        protectionClass: trustedProviderEndpoints.protectionClass,
-        approvedBy: trustedProviderEndpoints.approvedBy,
-        approvedByUsername: users.username,
-        policyVersion: trustedProviderEndpoints.policyVersion,
-        enabled: trustedProviderEndpoints.enabled,
-        createdAt: trustedProviderEndpoints.createdAt,
-      })
-        .from(trustedProviderEndpoints)
-        .leftJoin(users, eq(trustedProviderEndpoints.approvedBy, users.id))
-        .where(conditions.length ? and(...conditions) : undefined)
-        .orderBy(desc(trustedProviderEndpoints.id));
-
-      return rows.map((r) => {
-        // `normalizeEndpointUrl` is the same function the gate runs on both
-        // sides of the comparison, so a row that will not normalize here is a
-        // row that can never be reached there — reported, not hidden.
-        let normalizedBaseUrl: string | null = null;
-        let urlUnusable: string | null = null;
-        try {
-          normalizedBaseUrl = normalizeEndpointUrl(r.baseUrl);
-        } catch (err) {
-          urlUnusable = (err as Error).message;
-        }
-        const expectedAdapterKind = resolvedAdapterKind(r.provider);
-        const adapterMatchesProvider = r.adapterKind === expectedAdapterKind;
-        return {
-          ...r,
-          normalizedBaseUrl,
-          urlUnusable,
-          expectedAdapterKind,
-          adapterMatchesProvider,
-          // The destination, named exactly as a protected run must match it.
-          matchKey: normalizedBaseUrl ? `${r.provider} ${normalizedBaseUrl} ${r.adapterKind}` : null,
-          liveForGate: !!normalizedBaseUrl && adapterMatchesProvider && r.enabled,
-        };
-      });
-    }),
-
-  approveTrustedEndpoint: adminQuery
-    .input(z.object({
-      provider: z.string().min(1).max(80).describe("The provider slug the adapter router serves (e.g. openai, anthropic, together)"),
-      baseUrl: z.string().min(8).max(512).describe("Stored normalized; https only, no credentials, query or fragment"),
-      // Optional: it defaults to the adapter this provider actually builds, and
-      // a mismatch is refused, because a row naming the wrong adapter is
-      // invisible to the gate and would read as "approved" to a human.
-      adapterKind: z.enum(["anthropic", "openai_compatible"]).optional(),
-      endpointClass: z.enum(["first_party", "approved_proxy"]).default("first_party"),
-      // MANDATORY disclosures (§8.2): the product's promise is that we name the
-      // destination AND record its logging posture before the run.
-      loggingDisclosure: z.string().min(20).max(2000)
-        .describe("What this provider records/retains about protected-run inputs — reviewer-verified, never a placeholder"),
-      protectionClass: z.enum(["standard", "reduced"])
-        .describe("No default on purpose: an admin must state the protection class for this destination"),
-      policyVersion: z.string().min(1).max(40).default(PROTECTED_EGRESS_POLICY_VERSION),
-      enabled: z.boolean().default(true),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-      const provider = input.provider.trim().toLowerCase();
-      const expectedAdapterKind = resolvedAdapterKind(provider);
-      const adapterKind = input.adapterKind ?? expectedAdapterKind;
-      if (adapterKind !== expectedAdapterKind) {
-        throw new Error(
-          `adapter_kind_mismatch: provider "${provider}" is served by the ${expectedAdapterKind} adapter. `
-          + `An approved row naming "${adapterKind}" could never be matched by a protected run, so it is refused.`,
-        );
-      }
-      let baseUrl: string;
-      try {
-        baseUrl = normalizeEndpointUrl(input.baseUrl);
-      } catch (err) {
-        throw new Error(`endpoint_refused: ${(err as Error).message}`);
-      }
-
-      const [existing] = await db.select({ id: trustedProviderEndpoints.id })
-        .from(trustedProviderEndpoints)
-        .where(and(eq(trustedProviderEndpoints.provider, provider), eq(trustedProviderEndpoints.baseUrl, baseUrl)))
-        .limit(1);
-      // Approval never silently rewrites a reviewed disclosure. To change one,
-      // a new approval must be an explicit decision, not a side effect.
-      if (existing) {
-        throw new Error(`already_approved: ${provider} ${baseUrl} is approved as endpoint #${existing.id} — enable/disable that row instead of re-approving it`);
-      }
-
-      try {
-        await db.insert(trustedProviderEndpoints).values({
-          provider, baseUrl, adapterKind,
-          endpointClass: input.endpointClass,
-          loggingDisclosure: input.loggingDisclosure.trim(),
-          protectionClass: input.protectionClass,
-          approvedBy: ctx.user.id,
-          policyVersion: input.policyVersion.trim(),
-          enabled: input.enabled,
-        });
-      } catch (err) {
-        const m = (err as Error).message ?? "";
-        if (m.includes("Duplicate entry") || m.includes("ER_DUP_ENTRY")) {
-          throw new Error("already_approved: another admin approved this (provider, baseUrl) a moment ago");
-        }
-        throw err;
-      }
-
-      const [saved] = await db.select({ id: trustedProviderEndpoints.id })
-        .from(trustedProviderEndpoints)
-        .where(and(eq(trustedProviderEndpoints.provider, provider), eq(trustedProviderEndpoints.baseUrl, baseUrl)))
-        .limit(1);
-      logger.info("Admin: provider endpoint approved", {
-        endpointId: saved?.id, provider, baseUrl, adapterKind, protectionClass: input.protectionClass,
-      });
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: "trusted_endpoint.approve",
-        targetType: "trusted_provider_endpoint", targetId: saved?.id ?? null,
-        detail: {
-          provider, baseUrl, adapterKind, endpointClass: input.endpointClass,
-          protectionClass: input.protectionClass, policyVersion: input.policyVersion, enabled: input.enabled,
-        }, ip: ctx.remoteIp,
-      });
-      return { success: true, endpointId: saved?.id ?? null, normalizedBaseUrl: baseUrl };
-    }),
-
-  setTrustedEndpointEnabled: adminQuery
-    .input(z.object({ endpointId: z.number().int().positive(), enabled: z.boolean() }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-      const [row] = await db.select({
-        id: trustedProviderEndpoints.id, provider: trustedProviderEndpoints.provider,
-        baseUrl: trustedProviderEndpoints.baseUrl, enabled: trustedProviderEndpoints.enabled,
-      }).from(trustedProviderEndpoints).where(eq(trustedProviderEndpoints.id, input.endpointId)).limit(1);
-      if (!row) throw new Error("Endpoint not found");
-
-      await db.update(trustedProviderEndpoints)
-        .set({ enabled: input.enabled })
-        .where(eq(trustedProviderEndpoints.id, input.endpointId));
-      logger.info("Admin: trusted endpoint enabled state changed", { endpointId: input.endpointId, enabled: input.enabled });
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: "trusted_endpoint.set_enabled",
-        targetType: "trusted_provider_endpoint", targetId: input.endpointId,
-        detail: { enabled: input.enabled, previousEnabled: row.enabled, provider: row.provider, baseUrl: row.baseUrl },
-        ip: ctx.remoteIp,
-      });
-      return { success: true, enabled: input.enabled };
-    }),
 
   // ─── Model catalog (spec §12.1, D12 vendor attribution) ───────────
   // The reviewed catalog's reads, plus the one lever that was missing: setting

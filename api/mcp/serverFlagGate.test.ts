@@ -19,7 +19,12 @@ import { createMcpServer } from "./server";
 import { TOOLS } from "./tools/index";
 import type { McpAuthContext } from "./types";
 
-const BATCH_TOOLS = ["run_batch", "batch_status", "resume_batch", "export_batch_results"];
+// The gate is demonstrated on a SURVIVING gated tool (the benchmark workbench
+// behind v2Benchmarks). The batch tools it used to use were deleted in the v3
+// cut, and their absence is asserted below rather than gated.
+const GATED = ["list_benchmarks"];
+const GATED_FLAG = "v2Benchmarks";
+const CUT_AWAY = ["run_batch", "batch_status", "resume_batch", "export_batch_results"];
 
 const auth: McpAuthContext = {
   userId: 1,
@@ -44,11 +49,12 @@ describe("MCP feature-flag gate on the live server", () => {
     flags.enabled = new Set();
     const { client, names } = await liveSurface();
     try {
-      for (const name of BATCH_TOOLS) expect(names, `${name} is callable while batch_mode is off`).not.toContain(name);
+      for (const name of GATED) expect(names, `${name} is callable while ${GATED_FLAG} is off`).not.toContain(name);
+      for (const name of CUT_AWAY) expect(names, `${name} survived the v3 cut`).not.toContain(name);
       // Ungated tools are unaffected, and the gated ones really are declared.
       expect(names).toContain("get_settings");
-      for (const name of BATCH_TOOLS) {
-        expect(TOOLS.find((t) => t.name === name)?.featureFlag).toBe("batch_mode");
+      for (const name of GATED) {
+        expect(TOOLS.find((t) => t.name === name)?.featureFlag).toBe(GATED_FLAG);
       }
       // A hidden tool is not merely absent from the list: calling it by name
       // never reaches its handler. The SDK reports that as an error RESULT
@@ -62,10 +68,11 @@ describe("MCP feature-flag gate on the live server", () => {
   });
 
   it("shows the same tools once the flag is enabled for this user", async () => {
-    flags.enabled = new Set(["batch_mode"]);
+    flags.enabled = new Set([GATED_FLAG]);
     const { client, names } = await liveSurface();
     try {
-      for (const name of BATCH_TOOLS) expect(names).toContain(name);
+      for (const name of GATED) expect(names).toContain(name);
+      for (const name of CUT_AWAY) expect(names).not.toContain(name);
     } finally {
       await client.close();
     }

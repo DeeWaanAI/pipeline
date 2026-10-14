@@ -14,7 +14,6 @@ import { templateRouter } from "./routers/template";
 import { marketplaceRouter } from "./routers/marketplace";
 import { projectFilesRouter } from "./routers/projectFiles";
 import { projectImportRouter } from "./routers/projectImport";
-import { feedbackRouter } from "./routers/feedback";
 import { issuesRouter } from "./routers/issues";
 import { voucherRouter } from "./routers/voucher";
 import { exportRouter } from "./routers/export";
@@ -22,16 +21,12 @@ import { adminRouter } from "./routers/admin";
 import { notificationRouter } from "./routers/notification";
 import { searchRouter } from "./routers/search";
 import { testFixtureRouter } from "./routers/testFixture";
-import { githubRouter } from "./routers/github";
 import { billingRouter } from "./routers/billing";
 import { certificationRouter } from "./routers/certification";
 import { designJobsRouter } from "./routers/designJobs";
 import { benchmarkRouter } from "./routers/benchmark";
 import { communityEvidenceRouter, evidenceRouter } from "./routers/evidence";
-import { marketplaceExecutionRouter } from "./routers/marketplaceExecution";
-import { pipelineShareRouter } from "./routers/pipelineShare";
 import { modelCatalogRouter } from "./routers/modelCatalog";
-import { dataDeliveryRouter } from "./routers/dataDelivery";
 import { PLUGINS } from "./plugins/registry";
 
 // Build plugin sub-routers
@@ -59,7 +54,6 @@ export const appRouter = createRouter({
   marketplace: marketplaceRouter,
   projectFile: projectFilesRouter,
   projectImport: projectImportRouter,
-  feedback: feedbackRouter,
   issues: issuesRouter,
   voucher: voucherRouter,
   export: exportRouter,
@@ -67,17 +61,13 @@ export const appRouter = createRouter({
   notification: notificationRouter,
   search: searchRouter,
   testFixture: testFixtureRouter,
-  github: githubRouter,
   billing: billingRouter,
   certification: certificationRouter,
   designJobs: designJobsRouter,
   benchmark: benchmarkRouter,
   evidence: evidenceRouter,
   communityEvidence: communityEvidenceRouter,
-  marketplaceExecution: marketplaceExecutionRouter,
-  pipelineShare: pipelineShareRouter,
   modelCatalog: modelCatalogRouter,
-  dataDelivery: dataDeliveryRouter,
   // Plugin routes are namespaced under their plugin ID
   ...pluginRouters,
 });

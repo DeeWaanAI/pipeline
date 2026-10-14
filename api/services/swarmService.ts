@@ -20,7 +20,6 @@ import type { ChatMessage, ChatAttachment, ContentPart } from "@contracts/index"
 import { createProviderAdapter } from "../lib/providers";
 import { getMasterKey, decrypt } from "./cryptoService";
 import { emitEvent } from "./eventBus";
-import { incrementBatchProgress } from "./batchService";
 import { logger } from "../lib/logger";
 
 /** Parse Retry-After (seconds) from provider error message. */
@@ -85,16 +84,6 @@ export interface SwarmRunParams {
   // runs). The steps are loaded from pipeline_versions at execution time.
   snapshotVersionId?: number;
   callPlanId?: number;
-  /** §8.1: present when the snapshot belongs to ANOTHER user (a marketplace
-   *  buyer running a seller's published version). Execution is authorized
-   *  through this context and re-checked against current rows, never through
-   *  ownership of the version. */
-  protectedRun?: import("./marketplaceExecutionService").ProtectedRunParams;
-  /** A per-account pipeline share (api/services/pipelineSharing.ts): the
-   *  recipient running the grantor's workflow. Authorized the same way — the
-   *  grant row is re-read at dispatch, never trusted from this blob — and a
-   *  `run_only` grant is redacted exactly like a protected buyer run. */
-  sharedRun?: import("./runAccess").SharedRunAccessParams;
 }
 
 export function decryptApiKey(encryptedRef: string): string {
@@ -1145,7 +1134,6 @@ async function runPipelineAsync(opts: {
     // ─── Batch progress accounting ───
     if (batchId) {
       try {
-        await incrementBatchProgress(batchId, { completed: 1, tokens: totalTokens.value });
       } catch (batchErr) {
         logger.error("[PIPELINE-ASYNC] Batch progress update failed", { batchId, error: (batchErr as Error).message });
       }
@@ -1200,7 +1188,6 @@ async function runPipelineAsync(opts: {
     // ─── Batch progress accounting ───
     if (batchId) {
       try {
-        await incrementBatchProgress(batchId, { failed: 1, tokens: totalTokens.value });
       } catch (batchErr) {
         logger.error("[PIPELINE-ASYNC] Batch progress update failed", { batchId, error: (batchErr as Error).message });
       }
@@ -1427,23 +1414,6 @@ export async function executeSwarmRun(
       if (version.ownerId === userId) {
         // The owner running their own version (durable design jobs, benchmarks).
         pipeline = resolveSnapshotSteps(definition);
-      } else if (params.protectedRun) {
-        // §8.1: a BUYER running a seller's published version. Authorized
-        // through the protected context, re-checked against CURRENT rows —
-        // the right is never inferred from the run_params blob alone, so a
-        // grant revoked after queuing stops the run here.
-        const { loadAuthorizedSnapshotSteps } = await import("./marketplaceExecutionService");
-        pipeline = (await loadAuthorizedSnapshotSteps({
-          runRow: run, callerId: userId, params: params.protectedRun, versionId: params.snapshotVersionId,
-        })).steps;
-      } else if (params.sharedRun) {
-        // The same rule for a pipeline shared between two accounts: the
-        // definition belongs to the grantor, the run belongs to the recipient,
-        // and the grant row — not this blob — decides whether it proceeds.
-        const { loadAuthorizedSharedSnapshotSteps } = await import("./pipelineSharing");
-        pipeline = (await loadAuthorizedSharedSnapshotSteps({
-          runRow: run, callerId: userId, params: params.sharedRun, versionId: params.snapshotVersionId,
-        })).steps;
       } else {
         // Identical message either way: a caller must not learn that some other
         // user's workflow version exists (§10.1).
@@ -1764,12 +1734,7 @@ async function runExecutePipeline(opts: {
     autoApprove,
     batchId: run.batchId ?? undefined,
     chain: params.chain,
-    // A `run_only` share is as restricted as a buyer run: the step prompts,
-    // the context and the intermediates are the grantor's, and this run lives
-    // under the RECIPIENT's project where any of their read surfaces could see
-    // it. A `full` grantee is entitled to the definition, so their run keeps
-    // the ordinary audit summary.
-    restricted: Boolean(params.protectedRun) || params.sharedRun?.mode === "run_only",
+    restricted: false,
   });
 }
 

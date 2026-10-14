@@ -713,84 +713,6 @@ function GiteeTokenSection() {
   );
 }
 
-function GitHubTokenSection() {
-  const { t } = useTranslation("pages");
-  const [token, setToken] = useState(localStorage.getItem("github_token") ?? "");
-  const [username, setUsername] = useState(localStorage.getItem("github_username") ?? "");
-  const [input, setInput] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
-
-  const validateMutation = trpc.github.validateToken.useMutation();
-
-  const handleSave = async () => {
-    if (!input.trim()) return;
-    setTesting(true); setTestResult(null);
-    try {
-      const result = await validateMutation.mutateAsync({ token: input.trim() });
-      if (result.valid && result.user) {
-        localStorage.setItem("github_token", input.trim());
-        localStorage.setItem("github_username", result.user.login);
-        setToken(input.trim());
-        setUsername(result.user.login);
-        setSaved(true);
-        setTestResult({ ok: true, msg: t("pages:settingsExtra.github.connectedAs", { username: `${result.user.name || result.user.login}` }) });
-        setTimeout(() => setSaved(false), 3000);
-      } else {
-        setTestResult({ ok: false, msg: t("pages:settingsExtra.github.invalidToken") });
-      }
-    } catch (e) {
-      setTestResult({ ok: false, msg: `Error: ${(e as Error).message}` });
-    } finally { setTesting(false); }
-  };
-
-  const handleClear = () => {
-    localStorage.removeItem("github_token");
-    localStorage.removeItem("github_username");
-    setToken(""); setUsername(""); setInput(""); setTestResult(null);
-  };
-
-  return (
-    <Card className="bg-neutral-900 border-neutral-800">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-neutral-200 flex items-center gap-2">
-          <GitBranch className="w-5 h-5 text-neutral-400" />
-          {t("pages:settingsExtra.github.title")}
-        </CardTitle>
-        <CardDescription className="text-xs text-neutral-500">
-          {t("pages:settingsExtra.github.description")}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {token && username ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="w-4 h-4 text-neutral-400" />
-              <span className="text-neutral-300">{t("pages:settingsExtra.github.connectedAs", { username })}</span>
-            </div>
-            <Button variant="outline" size="sm" onClick={handleClear} className="border-neutral-700 text-neutral-400 hover:text-red-400 hover:border-red-400/30">
-              <Trash2 className="w-3.5 h-3.5 mr-1" /> {t("pages:settingsExtra.github.disconnect")}
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <Input type="password" value={input} onChange={(e) => setInput(e.target.value)} placeholder={t("pages:settingsExtra.github.tokenPlaceholder")} className="bg-neutral-800 border-neutral-700 text-neutral-100" />
-            {testResult && (
-              <p className={`text-xs px-3 py-2 rounded ${testResult.ok ? "text-neutral-400 bg-neutral-500/10" : "text-red-400 bg-red-500/10"}`}>{testResult.msg}</p>
-            )}
-            <Button size="sm" onClick={handleSave} disabled={!input.trim() || testing} className="bg-neutral-700 hover:bg-neutral-600 text-white">
-              {testing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4 mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-              {testing ? t("pages:settingsExtra.github.testing") : saved ? t("pages:settingsExtra.github.connected") : t("pages:settingsExtra.github.connectButton")}
-            </Button>
-            <p className="text-xs text-neutral-600">{t("pages:settingsExtra.github.tokenHelp")}</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 // ─── Local Data Folder Section ───────────────────────────────────────
 function LocalDataFolderSection() {
   const { t } = useTranslation("settings");
@@ -1151,9 +1073,6 @@ export default function SettingsPage() {
         <DeclaredPricesSection />
         <Separator className="bg-neutral-800 my-6" />
         <GiteeTokenSection />
-        <div className="mt-4">
-          <GitHubTokenSection />
-        </div>
         <div className="mt-4">
           <LocalDataFolderSection />
         </div>

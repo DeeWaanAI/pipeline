@@ -60,17 +60,8 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Show me pipeline 12.\"",
   },
   {
-    name: "get_shared_pipeline", group: "Discover", scopes: ["mcp:read"],
-    summary: "Read a pipeline someone shared with you, at exactly the level your grant allows: a full share returns the real steps with every system prompt, a run_only share returns step order, names, roles and enabled flags only and says what was withheld. No account with no grant gets further than 'not found'.",
-    example: "\"What did Ali share with me?\"",
-  },
-  {
     name: "project_context", group: "Discover", scopes: ["mcp:read"],
     summary: "Read a project's working context (goal, state summary, recent decisions).",
-  },
-  {
-    name: "memory_get", group: "Discover", scopes: ["mcp:read"],
-    summary: "Read your persistent memory notes for a project.",
   },
   {
     name: "search_marketplace", group: "Discover", scopes: ["mcp:read"],
@@ -88,35 +79,10 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Check a run: current step, agent outputs so far, whether it's waiting on your approval.",
   },
   {
-    name: "run_shared_pipeline", group: "Run", scopes: ["mcp:run"],
-    summary: "Run a pipeline that was shared with you, on YOUR provider. The definition never lands in your records: an immutable snapshot owned by the account that shared it executes inside a container of yours, and under a run_only grant the run's prompts are redacted at the write so there is nothing to leak later.",
-    example: "\"Run the pipeline Ali shared with me on this text.\"",
-  },
-  {
-    name: "shared_run_status", group: "Run", scopes: ["mcp:read"],
-    summary: "Progress and final output of a run of a shared pipeline: step states, names, tokens and latency plus the answer. Step prompt and context columns are not part of this projection, and on a run_only share the provider's error text is reported as a category because it can quote the owner's workflow.",
-  },
-  {
     name: "approve_step", group: "Run", scopes: ["mcp:run"],
     summary: "Approve or reject a paused human-review step so the run continues.",
   },
   // ── Research ────────────────────────────────────────────────────
-  {
-    name: "run_batch", group: "Research", scopes: ["mcp:run"], flag: "batch_mode",
-    summary: "Start a batch of 1–100 pipeline runs in parallel. Returns immediately — poll batch_status. Supports chaining to a target project on completion.",
-  },
-  {
-    name: "batch_status", group: "Research", scopes: ["mcp:read"], flag: "batch_mode",
-    summary: "Check a batch's progress: queued/running/completed/failed counts and member runs.",
-  },
-  {
-    name: "resume_batch", group: "Research", scopes: ["mcp:run"], flag: "batch_mode",
-    summary: "Resume a paused or partially-failed batch from where it stopped.",
-  },
-  {
-    name: "export_batch_results", group: "Research", scopes: ["mcp:read"], flag: "batch_mode",
-    summary: "Export all of a batch's run results as CSV for analysis.",
-  },
   {
     name: "export_run", group: "Research", scopes: ["mcp:read"],
     summary: "Export one run's authorized history plus archive.files: input, final output, step records, full run JSON and a hash manifest. The chat client must write decoded UTF-8 contents into your selected folder and verify byte counts and SHA-256 before claiming success. Protected intermediate data remains withheld; nothing is deleted.",
@@ -208,46 +174,6 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   {
     name: "export_benchmark", group: "Evaluate", scopes: ["mcp:read"], flag: "v2Benchmarks",
     summary: "Export one private evaluation as an exact local archive — the frozen plan, the full text of every judging prompt the panel used, every case input and candidate output, every judgment including the failures, the cost ledger rows, and a SHA-256 manifest. Read out the manifest's `incomplete` list: those are bodies the server no longer holds and cannot recover. Writes nothing itself and sweeps nothing.",
-  },
-  {
-    name: "memory_append", group: "Author", scopes: ["mcp:write"],
-    summary: "Add a note to your persistent project memory (survives across chats).",
-  },
-  {
-    name: "preview_work_delivery", group: "Your data", scopes: ["mcp:read"],
-    summary: "Preview delivery counts, volume, hash, excluded runs and the retention notice. Sweeping is not complete erasure: benchmark plans and spend-approval snapshots remain and may contain private inputs and prompts. Writes nothing and returns no work content.",
-  },
-  {
-    name: "deliver_work_data", group: "Your data", scopes: ["mcp:read"],
-    summary: "Deliver selected sweepable work data with its sha256 and signed receipt. Your chat client writes and verifies the selected folder. Nothing is deleted by this call. Review retention before sweeping: it is not complete erasure; benchmark plans and spend-approval snapshots may retain private inputs and prompts.",
-    example: "\"Save my work into ~/DeeWaan/backup and explain what the server would retain after a sweep.\"",
-  },
-  {
-    name: "sweep_delivered_work", group: "Your data", scopes: ["mcp:write"],
-    summary: "Clear only the named sweepable columns after the folder is written and verified. Requires the receipt and confirmation; changed bundles and active work are refused. This is not complete erasure: benchmark plans and spend-approval snapshots may retain private inputs and prompts; financial/evidentiary records remain unchanged.",
-    example: "\"The folder is verified and I understand what remains — clear the disclosed sweepable columns.\"",
-  },
-  {
-    name: "share_pipeline", group: "Author", scopes: ["mcp:write"],
-    summary: "Lend ONE pipeline to ONE named account: run_only lets them run it and keep the answer while their reads show step names and states only, full lets them read the definition, and canModify (full only) lets them edit it. This is a grant between two people, not a team, and never a transfer — you stay the owner and the only account that can publish it.",
-    example: "\"Share my contract pipeline with partner@example.com so they can run it but not read the prompts.\"",
-  },
-  {
-    name: "list_pipeline_shares", group: "Author", scopes: ["mcp:read"],
-    summary: "The shares involving your account: what you have lent out (revoked grants included, because the row is the record that access existed) and what is currently lent to you, each naming the original creator of the work so you can see that a shared pipeline is a loan.",
-  },
-  {
-    name: "revoke_pipeline_share", group: "Author", scopes: ["mcp:write"],
-    summary: "Take a share back, owner-only and idempotent. Access is re-read at dispatch, so a run that was already queued stops before its first provider call; completed runs stay with the account that ran them.",
-  },
-  {
-    name: "update_shared_pipeline", group: "Author", scopes: ["mcp:write"],
-    summary: "Edit the steps of a pipeline shared to you as full+canModify. The write lands on the owner's project, ownership does not move, and the recorded original creator is left exactly as it was — improving borrowed work cannot turn it into work you may sell.",
-  },
-  {
-    name: "clone_shared_pipeline", group: "Author", scopes: ["mcp:write"],
-    summary: "Copy a full-share pipeline into your own project with a template and a first immutable version. Your copy runs and reads like yours and stays ATTRIBUTED: the original creator is carried forward as data, so publishing stays refused for you. Refused for a run_only share.",
-    example: "\"Clone the pipeline Ali shared with me so I can adapt it for our Arabic market.\"",
   },
   // ── Marketplace ─────────────────────────────────────────────────
   {
@@ -350,19 +276,6 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     summary: "Withdraw a community report you authored, with a logged reason. Author-only, idempotent and available even while publication is disabled — a user must always be able to retract their own disclosed data. The row and its consent proof are retained; withdrawal is not a quality verdict.",
   },
   {
-    name: "start_protected_run", group: "Marketplace", scopes: ["mcp:run"], flag: "v2ProtectedExecution",
-    summary: "Run a pipeline you bought WITHOUT getting its definition. The seller's published immutable version executes server-side in a restricted context — their prompts, files, memory, repository tokens and tools are not reachable, your own approved provider is the only billable route, and the endpoint must be on the approved list. The result states the protection class and the provider's logging disclosure.",
-    example: "\"Run listing 3 on this text using my OpenAI provider.\"",
-  },
-  {
-    name: "marketplace_execution_right", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",
-    summary: "Whether you may run a listing and which version your purchase or grant covers. Delisting stops new sales, not existing purchased access; purchased versions do not inherit a later version's evidence.",
-  },
-  {
-    name: "protected_run_status", group: "Marketplace", scopes: ["mcp:read"], flag: "v2ProtectedExecution",
-    summary: "Progress and final output of a protected run: step states, names, tokens and latency plus the answer — never the workflow's prompts or intermediate content.",
-  },
-  {
     name: "model_retest_suggestions", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
     summary: "Your model-freshness suggestions from admin-reviewed release events. Nothing has been re-run and nothing has been spent; your published scores and test dates are untouched, and age alone never delists a listing.",
   },
@@ -397,26 +310,11 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     name: "deewaanai_help", group: "Account", scopes: ["mcp:read"],
     summary: "This guide — filtered to your scopes, what you own, and the connected app.",
   },
-  {
-    name: "send_feedback", group: "Account", scopes: ["mcp:write"],
-    summary: "Tell the team about a problem with a specific pipeline, run or benchmark and attach THAT object, so support sees what you saw. Each attachment is one explicit opt-in on one object and the receipt records the consent version — nothing is harvested, and an unticked or unseen item refuses the submission rather than writing half of it. The snapshot is exactly what your own account can already read: for a run_only shared run or a purchased workflow, that is the redacted view you already get, never the owner's prompts, model bindings or keys.",
-    example: "\"Send feedback that run 42 stopped after step 2, and attach the run so they can see it.\"",
-  },
   // ── Your data (Batch B — no lock-in) ────────────────────────────
-  {
-    name: "export_pipeline", group: "Your data", scopes: ["mcp:read"],
-    summary: "Export any pipeline you own as portable JSON. Ask your chat to save it anywhere — a local folder, GitHub, or paste it into another tool.",
-    example: "\"Export pipeline 12 as JSON and save it to my Documents folder.\"",
-  },
   {
     name: "export_my_data", group: "Your data", scopes: ["mcp:read"],
     summary: "Export everything you own (pipelines, agents, templates, settings) in one JSON bundle. Your data is always exportable.",
     example: "\"Export all my DeeWaanAI data.\"",
-  },
-  {
-    name: "sync_to_github", group: "Your data", scopes: ["mcp:write"],
-    summary: "Push a pipeline export to your connected GitHub repo.",
-    example: "\"Back up my pipeline to GitHub.\"",
   },
   // ── Diagnostics ─────────────────────────────────────────────────
   {

@@ -296,13 +296,6 @@ export default function MarketplaceDetail() {
                       <p className="text-xs text-blue-300 leading-relaxed">
                         {t("pages:marketplace.detail.certifyingNotice")}
                       </p>
-                      <Link
-                        to="/reviewer/portal"
-                        className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300"
-                      >
-                        <Award className="w-3.5 h-3.5" />
-                        {t("pages:marketplace.detail.becomeReviewerCta")}
-                      </Link>
                     </div>
                   )}
                   <div className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-500">

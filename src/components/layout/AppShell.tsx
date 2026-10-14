@@ -47,7 +47,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       label: t("nav.groups.market", "Market"),
       items: [
         { path: "/marketplace", icon: Store, label: t("nav.marketplace", "Marketplace") },
-        { path: "/reviewer/portal", icon: ClipboardCheck, label: t("nav.review", "Review") },
       ],
     },
     {

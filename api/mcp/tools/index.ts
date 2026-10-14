@@ -20,7 +20,6 @@ import { samplePing } from "./samplePing";
 import { runStatus } from "./getRunStatus";
 import { approveStep } from "./approveStep";
 import { projectContext } from "./projectContext";
-import { memoryGet, memoryAppend } from "./memory";
 import { searchMarketplace } from "./searchMarketplace";
 import { enrollReviewer } from "./enrollReviewer";
 import { getNextReviewTask } from "./getNextReviewTask";
@@ -33,19 +32,11 @@ import {
   myPurchases,
   deliverPurchasedCopyTool,
 } from "./marketplaceTools";
-import { exportPipeline, exportMyData, syncToGithub } from "./portability";
+import { exportMyData } from "./portability";
 import { exportRun } from "./exportRun";
-import { runBatch } from "./runBatch";
-import { batchStatus } from "./batchStatus";
 import { PUBLICATION_TOOLS } from "./publicationTools";
 import { EXTERNAL_EVIDENCE_TOOLS } from "./externalEvidenceTools";
-import { PIPELINE_SHARING_TOOLS } from "./pipelineSharingTools";
-import { DATA_DELIVERY_TOOLS } from "./dataDeliveryTools";
-import { PROTECTED_EXECUTION_TOOLS } from "./protectedExecutionTools";
 import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
-import { FEEDBACK_TOOLS } from "./feedbackTools";
-import { resumeBatchTool } from "./resumeBatch";
-import { exportBatchResultsTool } from "./exportBatchResults";
 
 export const TOOLS: McpTool[] = [
   runPipeline,
@@ -72,13 +63,10 @@ export const TOOLS: McpTool[] = [
   // keeps publishing with the original creator (owner decisions 2026-09-22).
   // Not flag-gated: it is gated on ownership and on the grant row, and no new
   // OAuth scope exists to gate it with.
-  ...PIPELINE_SHARING_TOOLS,
   // D14 deliver-then-sweep, so the desktop chat client that owns the folder can
   // actually honour the storage promise from the workbench.
-  ...DATA_DELIVERY_TOOLS,
   // Offering redesign v2 — protected buyer execution (hidden unless
   // v2ProtectedExecution). Buyer-side half of §8.
-  ...PROTECTED_EXECUTION_TOOLS,
   // Offering redesign v2 — model release awareness (§12.1). Suggestions only:
   // no public tool can record a model or fan out notices.
   ...MODEL_CATALOG_TOOLS,
@@ -86,7 +74,6 @@ export const TOOLS: McpTool[] = [
   // under an explicit consent. Not flag-gated — it is an account-scoped write
   // gated by ownership alone, and the snapshot can never carry more than the
   // consenting account can already read.
-  ...FEEDBACK_TOOLS,
   deewaanaiHelp,
   suggestLlmProviders,
   addProvider,
@@ -96,8 +83,6 @@ export const TOOLS: McpTool[] = [
   runStatus,
   approveStep,
   projectContext,
-  memoryGet,
-  memoryAppend,
   searchMarketplace,
   enrollReviewer,
   getNextReviewTask,
@@ -112,14 +97,8 @@ export const TOOLS: McpTool[] = [
   // to exist — and a refund closes it at the same moment it closes the run door.
   deliverPurchasedCopyTool,
   // Batch B — data portability (no lock-in, from chat)
-  exportPipeline,
   exportMyData,
-  syncToGithub,
   // Research Mode — granular run export (full step/response history)
   exportRun,
   // Research Mode — batch runs
-  runBatch,
-  batchStatus,
-  resumeBatchTool,
-  exportBatchResultsTool,
 ];
