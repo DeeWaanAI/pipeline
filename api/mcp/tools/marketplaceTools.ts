@@ -2,7 +2,7 @@
 // Reuses existing backend logic where possible.
 
 import { z } from "zod";
-import { eq, and, ne, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import type { McpTool, McpAuthContext } from "../types";
 import { getDb } from "../../queries/connection";
 import {
@@ -10,22 +10,14 @@ import {
   pipelineTemplates,
   marketplaceListings,
   encryptedPrompts,
-  reviewAssignments,
-  listingReviews,
-  testPrompts,
   marketplacePurchases,
   users,
 } from "@db/schema";
 import { encryptPipelineSteps } from "../../lib/marketplaceCrypto";
 import { assertOriginalCreatorMayList } from "../../services/workflowLineage";
 import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema } from "../../services/pipelineDelivery";
-import { env } from "../../lib/env";
 import { logger } from "../../lib/logger";
 import { appRouter } from "../../router";
-
-// ─── Certification policy ──────────────────────────────────────────
-// Override via env vars for beta (e.g., 1/1 for self-certification)
-const MIN_UNIQUE_REVIEWERS = env.marketplaceMinReviewers;
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. publish_to_marketplace
@@ -128,7 +120,7 @@ const SubmitSchema = z.object({
 export const submitForReview: McpTool = {
   name: "submit_for_review",
   description:
-    "Submit a marketplace listing for certification. Runs the trust flow: deterministic security scan → background test-data generation (uses your configured LLM provider) → platform AI triage (non-gating feedback) → 'certifying' (visible, not buyable) → blind human review decides buyability.",
+    "Submit a marketplace listing for certification. Runs the trust flow: deterministic security scan → background test-data generation (uses your configured LLM provider; the platform pays for zero model calls) → 'certifying' (visible, not buyable). Buyability rides on published evidence: publish the listing's signed evidence record (publish_evidence_version) to make it buyable. There is no AI judge and no human review panel.",
   inputSchema: SubmitSchema,
   requiredScopes: ["mcp:write"],
   annotations: { readOnlyHint: false, destructiveHint: false },
@@ -139,8 +131,8 @@ export const submitForReview: McpTool = {
     // Delegate to the REAL tRPC trust flow (marketplace.submitForReview) via
     // a server-side caller — chat and web must run identical certification
     // (chat-first rule). This replaced a legacy inline path that demanded 3
-    // user providers, set pending_review, and skipped the security scan,
-    // test generation, AI triage, and the blind pool entirely.
+    // user providers, set pending_review, and skipped the security scan and
+    // test generation entirely.
     const [user] = await db
       .select()
       .from(users)
@@ -164,7 +156,7 @@ export const submitForReview: McpTool = {
         promptsCount: result.promptsCount,
         message: result.status === "rejected"
           ? result.message
-          : "Submission started: security scan passed, test data is generating in the background. When it completes, the platform AI triage runs (non-gating) and the listing enters 'certifying' — visible, but not buyable until blind human review certifies it.",
+          : "Submission started: security scan passed, test data is generating in the background. When it completes, the listing enters 'certifying' — visible, but not buyable until you publish its signed evidence record (publish_evidence_version).",
         next: `get_listing_status(listingId: ${input.listingId})`,
       };
     } catch (err) {
@@ -192,7 +184,7 @@ const StatusSchema = z.object({
 
 export const getListingStatus: McpTool = {
   name: "get_listing_status",
-  description: "Track a marketplace listing's certification progress: status, review completion percentage, grade, and publish state.",
+  description: "Track a marketplace listing's certification progress: status, grade, security feedback, and publish state.",
   inputSchema: StatusSchema,
   requiredScopes: ["mcp:read"],
   annotations: { readOnlyHint: true },
@@ -208,83 +200,45 @@ export const getListingStatus: McpTool = {
 
     if (!listing) throw new Error("Listing not found");
 
-    // Only creator or assigned reviewers can view status
+    // Only the creator can view status. (The reviewer pool that also had read
+    // access is gone — there are no human reviewers any more.)
     if (listing.creatorId !== ctx.userId) {
-      const [assignment] = await db
-        .select()
-        .from(reviewAssignments)
-        .where(and(
-          eq(reviewAssignments.listingId, input.listingId),
-          eq(reviewAssignments.reviewerId, ctx.userId),
-        ))
-        .limit(1);
-      if (!assignment) throw new Error("Not authorized to view this listing's status");
+      throw new Error("Not authorized to view this listing's status");
     }
 
-    // Review progress
-    const totalAssignments = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(reviewAssignments)
-      .where(eq(reviewAssignments.listingId, input.listingId));
-
-    const completedReviews = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(listingReviews)
-      .where(eq(listingReviews.listingId, input.listingId));
-
-    const uniqueReviewers = await db
-      .select({ reviewerId: listingReviews.reviewerId })
-      .from(listingReviews)
-      .where(and(
-        eq(listingReviews.listingId, input.listingId),
-        ne(listingReviews.reviewerId, listing.creatorId),
-      ))
-      .groupBy(listingReviews.reviewerId);
-
-    const totalNeeded = MIN_UNIQUE_REVIEWERS * 3; // 5 reviewers × 3 reviews each
-    const done = completedReviews[0]?.count ?? 0;
-    const pct = totalNeeded > 0 ? Math.min(100, Math.round((done / totalNeeded) * 100)) : 0;
-
+    const published = listing.status === "published";
+    // Buyability rides on a published evidence record, not on human reviews:
+    // `certifying` means the security scan passed and test data generated, but
+    // the seller has not yet published the signed evidence that makes it buyable.
     return {
       listingId: input.listingId,
       title: listing.title,
       status: listing.status,
       grade: listing.grade,
-      aiReview: listing.aiGrade ? {
-        grade: listing.aiGrade,
-        kappaScore: listing.aiKappaScore,
-        feedback: listing.aiFeedback,
-        reviewedAt: listing.aiReviewedAt,
-      } : null,
-      reviewProgress: {
-        completed: done,
-        needed: totalNeeded,
-        percentage: pct,
-        uniqueReviewers: uniqueReviewers.length,
-      },
-      canPublish: listing.status === "approved" || listing.status === "published",
-      published: listing.status === "published",
-      // A draft with zero reviews used to be reported as "Review in progress:
-      // 0% complete", which is a stage that has not begun, not one that stalled
-      // (D9 finding 15) — the next turn was enrolling reviewers nobody needed.
-      next: listing.status === "published" ? "Nothing further: it is live."
-        : listing.status === "rejected" ? "Address the AI feedback above, then submit_for_review again."
-        : listing.status === "approved" ? "Publish it when you are ready."
-        : done === 0 ? `No review has started (status '${listing.status}').`
-        : `${uniqueReviewers.length}/${MIN_UNIQUE_REVIEWERS} reviewers and ${done}/${totalNeeded} reviews exist — more reviewer throughput is what is missing, not a new submission.`,
-      message: listing.status === "published"
-        ? listing.aiGrade
-          ? `AI-verified and published. Grade: ${listing.aiGrade}. Human reviews: ${pct}% complete.`
-          : "Published and earning."
+      canPublish: listing.status === "approved" || published,
+      published,
+      // The deterministic security scan writes its findings into aiFeedback on
+      // rejection; surface it so a rejected seller knows what to fix. No AI
+      // judge runs any more, so this is never an AI quality verdict.
+      feedback: listing.aiFeedback ?? null,
+      next: published
+        ? "Nothing further: it is live and buyable."
         : listing.status === "rejected"
-          ? `AI review rejected this listing. Grade: ${listing.aiGrade}. Feedback: ${listing.aiFeedback?.substring(0, 200)}...`
-          : listing.status === "approved"
-            ? "Certified and ready to publish."
-            : done === 0
-              ? `Not yet in review: status '${listing.status}', 0 of ${totalNeeded} reviews, ${uniqueReviewers.length} reviewers. Nothing is waiting on anyone.`
-              : pct < 100
-                ? `Review in progress: ${pct}% complete (${done}/${totalNeeded} reviews).`
-                : "Review complete — awaiting final grade calculation.",
+          ? "Address the security findings in feedback, then submit_for_review again."
+          : listing.status === "certifying"
+            ? "Visible but not buyable yet — publish its evidence record with publish_evidence_version to make it buyable."
+            : listing.status === "generating"
+              ? "Test data is still generating; re-check shortly."
+              : `Status '${listing.status}'.`,
+      message: published
+        ? listing.grade
+          ? `Published and buyable. Grade: ${listing.grade}.`
+          : "Published and buyable."
+        : listing.status === "rejected"
+          ? `Rejected by the automated security review. Feedback: ${listing.aiFeedback?.substring(0, 200) ?? ""}`
+          : listing.status === "certifying"
+            ? "Certifying: visible in the marketplace, not buyable until you publish its evidence record."
+            : `Status '${listing.status}'.`,
     };
   },
 };

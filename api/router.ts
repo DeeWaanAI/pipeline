@@ -15,7 +15,6 @@ import { marketplaceRouter } from "./routers/marketplace";
 import { projectFilesRouter } from "./routers/projectFiles";
 import { projectImportRouter } from "./routers/projectImport";
 import { issuesRouter } from "./routers/issues";
-import { voucherRouter } from "./routers/voucher";
 import { exportRouter } from "./routers/export";
 import { adminRouter } from "./routers/admin";
 import { notificationRouter } from "./routers/notification";
@@ -55,7 +54,6 @@ export const appRouter = createRouter({
   projectFile: projectFilesRouter,
   projectImport: projectImportRouter,
   issues: issuesRouter,
-  voucher: voucherRouter,
   export: exportRouter,
   admin: adminRouter,
   notification: notificationRouter,

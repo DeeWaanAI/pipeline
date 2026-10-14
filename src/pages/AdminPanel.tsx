@@ -27,14 +27,11 @@ import {
   ClipboardList,
   Award,
   Rocket,
-  Ticket,
-  AlertTriangle,
   Boxes,
   FileSearch,
   Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -51,9 +48,7 @@ type UserRole = "user" | "admin";
 type TabKey =
   | "users" | "stats" | "flags" | "certification" | "audit" | "beta"
   // v2 operations (spec D10)
-  | "catalog" | "evidence" | "spend"
-  // admin-defined free-days grants (ticket #62)
-  | "promotions";
+  | "catalog" | "evidence" | "spend";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -208,7 +203,6 @@ export default function AdminPanel() {
     { key: "certification", label: t("pages:admin.tabs.certification"), icon: <Award className="w-4 h-4" /> },
     { key: "audit", label: t("pages:admin.tabs.audit"), icon: <ClipboardList className="w-4 h-4" /> },
     { key: "beta", label: t("pages:admin.tabs.beta"), icon: <Rocket className="w-4 h-4" /> },
-    { key: "promotions", label: t("pages:admin.tabs.promotions"), icon: <Ticket className="w-4 h-4" /> },
     { key: "catalog", label: t("pages:admin.tabs.catalog"), icon: <Boxes className="w-4 h-4" /> },
     { key: "evidence", label: t("pages:admin.tabs.evidence"), icon: <FileSearch className="w-4 h-4" /> },
     { key: "spend", label: t("pages:admin.tabs.spend"), icon: <Coins className="w-4 h-4" /> },
@@ -256,7 +250,6 @@ export default function AdminPanel() {
           {activeTab === "certification" && <CertificationTab />}
           {activeTab === "audit" && <AuditTab />}
           {activeTab === "beta" && <BetaTab />}
-          {activeTab === "promotions" && <PromotionsTab />}
           {activeTab === "catalog" && <CatalogTab />}
           {activeTab === "evidence" && <EvidenceTab />}
           {activeTab === "spend" && <SpendTab />}
@@ -582,8 +575,9 @@ function FeatureFlagsTab() {
 }
 
 // ─── CERTIFICATION QUEUE TAB ──────────────────────────────────────────
-// Trust Phase 0 ops view: listings by stage with last-activity age and
-// blind-pool progress, plus a requeue action for stuck states.
+// Ops view: listings by stage with last-activity age. Read-only since the
+// reviewer pool was retired — there is no blind pool to requeue any more;
+// a listing becomes buyable when its seller publishes the evidence record.
 function certStageColor(status: string) {
   switch (status) {
     case "generating":     return "bg-amber-500/15 text-amber-400 border-amber-500/20";
@@ -599,15 +593,6 @@ function certStageColor(status: string) {
 function CertificationTab() {
   const { t } = useTranslation("pages");
   const { data: queue, isLoading, error } = trpc.admin.certificationQueue.useQuery();
-  const utils = trpc.useUtils();
-
-  const requeue = trpc.admin.requeueCertification.useMutation({
-    onSuccess: () => {
-      toast.success(t("pages:admin.certification.requeued"));
-      utils.admin.certificationQueue.invalidate();
-    },
-    onError: (err) => toast.error(t("pages:admin.certification.requeueFailed", { error: err.message })),
-  });
 
   if (isLoading) {
     return (
@@ -645,14 +630,11 @@ function CertificationTab() {
             <th className="text-left px-4 py-2.5 font-medium">{t("pages:admin.certification.stage")}</th>
             <th className="text-left px-4 py-2.5 font-medium">{t("pages:admin.certification.lastActivity")}</th>
             <th className="text-left px-4 py-2.5 font-medium">{t("pages:admin.certification.aiGrade")}</th>
-            <th className="text-left px-4 py-2.5 font-medium">{t("pages:admin.certification.reviews")}</th>
             <th className="text-left px-4 py-2.5 font-medium">{t("pages:admin.certification.grade")}</th>
-            <th className="text-right px-4 py-2.5 font-medium">{t("pages:admin.certification.actions")}</th>
           </tr>
         </thead>
         <tbody>
           {queue.map((row) => {
-            const canRequeue = row.status === "generating" || (row.status === "certifying" && Number(row.poolTotal) === 0);
             return (
               <tr key={row.id} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-800/30">
                 <td className="px-4 py-2.5">
@@ -672,25 +654,7 @@ function CertificationTab() {
                 </td>
                 <td className="px-4 py-2.5 text-neutral-400">{timeAgo(row.updatedAt ?? row.createdAt, t)}</td>
                 <td className="px-4 py-2.5 text-neutral-400 tabular-nums">{row.aiGrade ?? "—"}</td>
-                <td className="px-4 py-2.5 text-neutral-400 tabular-nums">
-                  {Number(row.poolTotal) > 0 ? `${row.poolCompleted}/${row.poolTotal}` : (row.reviewCount ?? 0)}
-                </td>
                 <td className="px-4 py-2.5 text-neutral-400 tabular-nums">{row.grade ?? "—"}</td>
-                <td className="px-4 py-2.5 text-right">
-                  {canRequeue && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={requeue.isPending}
-                      onClick={() => requeue.mutate({ listingId: row.id })}
-                      className="text-xs h-7"
-                    >
-                      {row.status === "generating"
-                        ? t("pages:admin.certification.resetToDraft")
-                        : t("pages:admin.certification.recreatePool")}
-                    </Button>
-                  )}
-                </td>
               </tr>
             );
           })}
@@ -787,186 +751,7 @@ function AuditTab() {
 }
 
 
-// ─── BETA TAB (Pioneer 100 waitlist + vouchers) ───────────────────────
-// Admin-defined free days (ticket #62). A promotion is a Stripe trial on the one
-// flat subscription — it never changes the price, and this screen cannot hand a
-// grant to anybody: the redemption row is written by the webhook when a
-// subscription actually completes, so an abandoned checkout costs nothing.
-function PromotionsTab() {
-  const { t } = useTranslation("pages");
-  const utils = trpc.useUtils();
-  const { data, isLoading, error } = trpc.admin.listPromotions.useQuery();
-  const { data: billing } = trpc.billing.listPlans.useQuery();
-
-  const [name, setName] = useState("");
-  const [days, setDays] = useState("7");
-  const [audience, setAudience] = useState<"new_signups" | "code">("new_signups");
-  const [code, setCode] = useState("");
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
-  const [maxRedemptions, setMaxRedemptions] = useState("");
-  const [note, setNote] = useState("");
-
-  const reset = () => {
-    setName(""); setDays("7"); setCode(""); setStartsAt(""); setEndsAt("");
-    setMaxRedemptions(""); setNote("");
-  };
-
-  const create = trpc.admin.createPromotion.useMutation({
-    onSuccess: (promo) => {
-      void utils.admin.listPromotions.invalidate();
-      reset();
-      toast.success(t("pages:admin.promotions.created", { name: promo.name, days: promo.days }));
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const toggle = trpc.admin.setPromotionActive.useMutation({
-    onSuccess: () => void utils.admin.listPromotions.invalidate(),
-    onError: (err) => toast.error(err.message),
-  });
-
-  const stamp = (value: string) => (value ? new Date(value) : null);
-  const when = (d: Date | null) => (d ? new Date(d).toLocaleString() : "—");
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-neutral-100">{t("pages:admin.promotions.title")}</h2>
-        <p className="mt-1 text-xs text-neutral-500 max-w-3xl">{t("pages:admin.promotions.subtitle")}</p>
-        {!billing?.billingEnabled && (
-          <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            <AlertTriangle className="mt-0.5 w-3.5 h-3.5 shrink-0" />
-            {t("pages:admin.promotions.billingOff")}
-          </p>
-        )}
-      </div>
-
-      <form onSubmit={(e) => { e.preventDefault(); create.mutate({
-        name,
-        days: Number(days),
-        audience,
-        code: audience === "code" ? code : null,
-        startsAt: stamp(startsAt),
-        endsAt: stamp(endsAt),
-        maxRedemptions: maxRedemptions ? Number(maxRedemptions) : null,
-        note: note || null,
-      }); }} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.name")}
-          <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-        </label>
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.days")}
-          <Input type="number" min="1" max="365" value={days} onChange={(e) => setDays(e.target.value)} className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-        </label>
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.audience")}
-          <select
-            value={audience}
-            onChange={(e) => setAudience(e.target.value as "new_signups" | "code")}
-            className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-800 px-2 py-2 text-sm text-neutral-200"
-          >
-            <option value="new_signups">{t("pages:admin.promotions.newSignups")}</option>
-            <option value="code">{t("pages:admin.promotions.codeAudience")}</option>
-          </select>
-        </label>
-        {audience === "code" ? (
-          <label className="block text-xs text-neutral-500">
-            {t("pages:admin.promotions.code")}
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="LAUNCH-WEEK" className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-          </label>
-        ) : (
-          <div className="text-[11px] text-neutral-600 self-end pb-2">{t("pages:admin.promotions.noCodeNeeded")}</div>
-        )}
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.startsAt")}
-          <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-        </label>
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.endsAt")}
-          <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-        </label>
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.cap")}
-          <Input type="number" min="1" value={maxRedemptions} placeholder={t("pages:admin.promotions.unlimited")} onChange={(e) => setMaxRedemptions(e.target.value)} className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-        </label>
-        <label className="block text-xs text-neutral-500">
-          {t("pages:admin.promotions.note")}
-          <Input value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 bg-neutral-800 border-neutral-700 text-sm" />
-        </label>
-        <div className="self-end">
-          <Button type="submit" size="sm" disabled={create.isPending} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-            {create.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4 mr-1" />}
-            {t("pages:admin.promotions.create")}
-          </Button>
-        </div>
-      </form>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
-      ) : error ? (
-        <p className="text-sm text-red-400">{t("pages:admin.promotions.loadFailed", { error: error.message })}</p>
-      ) : !data?.promotions.length ? (
-        <p className="text-sm text-neutral-500">{t("pages:admin.promotions.empty")}</p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-neutral-800">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-neutral-900/60 text-neutral-500">
-              <tr>
-                <th className="px-3 py-2 font-medium">{t("pages:admin.promotions.name")}</th>
-                <th className="px-3 py-2 font-medium">{t("pages:admin.promotions.days")}</th>
-                <th className="px-3 py-2 font-medium">{t("pages:admin.promotions.who")}</th>
-                <th className="px-3 py-2 font-medium">{t("pages:admin.promotions.window")}</th>
-                <th className="px-3 py-2 font-medium">{t("pages:admin.promotions.redemptions")}</th>
-                <th className="px-3 py-2 font-medium">{t("pages:admin.promotions.status")}</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.promotions.map((p) => (
-                <tr key={p.id} className="border-t border-neutral-800/70">
-                  <td className="px-3 py-2 text-neutral-200">
-                    {p.name}
-                    {p.note && <span className="block text-[11px] text-neutral-500">{p.note}</span>}
-                  </td>
-                  <td className="px-3 py-2 text-neutral-300">{p.days}</td>
-                  <td className="px-3 py-2 text-neutral-400">
-                    {p.audience === "new_signups" ? t("pages:admin.promotions.newSignups") : t("pages:admin.promotions.codeAudience")}
-                    {p.code && <span className="ml-1 font-mono text-neutral-300">{p.code}</span>}
-                  </td>
-                  <td className="px-3 py-2 text-neutral-500">
-                    {when(p.startsAt)} → {when(p.endsAt)}
-                  </td>
-                  <td className="px-3 py-2 text-neutral-300">
-                    {p.redemptions}{p.maxRedemptions ? ` / ${p.maxRedemptions}` : ""}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                      p.status === "live" ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
-                        : p.status === "sold_out" ? "border-amber-500/25 bg-amber-500/10 text-amber-400"
-                          : "border-neutral-700 bg-neutral-800/60 text-neutral-400"
-                    }`}>{t(`pages:admin.promotions.statuses.${p.status}`)}</span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toggle.mutate({ id: p.id, active: !p.active })}
-                      className="text-neutral-500 hover:text-neutral-200 underline underline-offset-2"
-                    >
-                      {p.active ? t("pages:admin.promotions.deactivate") : t("pages:admin.promotions.reactivate")}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="text-[11px] text-neutral-600">{t("pages:admin.promotions.historyNote")}</p>
-    </div>
-  );
-}
+// ─── BETA TAB (Pioneer 100 waitlist) ─────────────────────────────
 
 function BetaTab() {
   const { t } = useTranslation("pages");
@@ -995,21 +780,6 @@ function BetaTab() {
       utils.admin.listWaitlist.invalidate();
     },
     onError: (err) => toast.error(t("pages:admin.beta.inviteFailed", { error: err.message })),
-  });
-
-  // Voucher state
-  const [voucherTier, setVoucherTier] = useState<"pro_designer" | "pro_auto">("pro_designer");
-  const [durationDays, setDurationDays] = useState(30);
-  const [maxUses, setMaxUses] = useState(1);
-  const [voucherLabel, setVoucherLabel] = useState("");
-
-  const { data: vouchers } = trpc.voucher.list.useQuery();
-  const generateVoucher = trpc.voucher.generate.useMutation({
-    onSuccess: (res) => {
-      toast.success(t("pages:admin.beta.generated", { code: res.code }));
-      utils.voucher.list.invalidate();
-    },
-    onError: (err) => toast.error(t("pages:admin.beta.generateFailed", { error: err.message })),
   });
 
   return (
@@ -1116,103 +886,6 @@ function BetaTab() {
         )}
       </div>
 
-      {/* Vouchers section */}
-      <div className="border-t border-neutral-800 pt-6 space-y-4">
-        <h3 className="text-sm font-semibold text-neutral-200">{t("pages:admin.beta.vouchers")}</h3>
-        <p className="text-[11px] text-amber-400/80">{t("pages:admin.beta.tierLegacy")}</p>
-
-        {/* Generate form */}
-        <div className="flex flex-wrap items-end gap-3 bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wide">{t("pages:admin.beta.tier")}</span>
-            <select
-              value={voucherTier}
-              onChange={(e) => setVoucherTier(e.target.value as "pro_designer" | "pro_auto")}
-              className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-[11px] text-neutral-200 focus:outline-none focus:border-blue-500"
-            >
-              <option value="pro_designer">pro_designer</option>
-              <option value="pro_auto">pro_auto</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wide">{t("pages:admin.beta.durationDays")}</span>
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={durationDays}
-              onChange={(e) => setDurationDays(Number(e.target.value))}
-              className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-[11px] text-neutral-200 w-20 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wide">{t("pages:admin.beta.maxUses")}</span>
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={maxUses}
-              onChange={(e) => setMaxUses(Number(e.target.value))}
-              className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-[11px] text-neutral-200 w-20 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wide">{t("pages:admin.beta.label")}</span>
-            <input
-              value={voucherLabel}
-              onChange={(e) => setVoucherLabel(e.target.value)}
-              placeholder="Optional"
-              className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-[11px] text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <Button
-            size="sm"
-            disabled={generateVoucher.isPending}
-            onClick={() => generateVoucher.mutate({ tier: voucherTier, durationDays, maxUses, label: voucherLabel || undefined })}
-            className="text-xs h-8"
-          >
-            {t("pages:admin.beta.generate")}
-          </Button>
-        </div>
-
-        {/* Voucher list */}
-        {vouchers && vouchers.length > 0 && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-neutral-800 text-neutral-500">
-                  <th className="text-left px-4 py-2.5 font-medium">Code</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Tier</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Duration</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Uses</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Label</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Expires</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vouchers.map((v) => (
-                  <tr key={v.id} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-800/30">
-                    <td className="px-4 py-2.5 font-mono text-neutral-300">{v.code}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge className="bg-purple-500/15 text-purple-400 border-purple-500/20">{v.tier}</Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-neutral-400">{v.durationDays}d</td>
-                    <td className="px-4 py-2.5 text-neutral-400">{v.usedCount}/{v.maxUses}</td>
-                    <td className="px-4 py-2.5 text-neutral-400">{v.label ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-neutral-400">
-                      {v.expiresAt ? new Date(v.expiresAt).toLocaleDateString() : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {vouchers && vouchers.length === 0 && (
-          <p className="text-sm text-neutral-500">No vouchers yet.</p>
-        )}
-      </div>
     </div>
   );
 }

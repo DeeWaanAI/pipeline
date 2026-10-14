@@ -26,14 +26,10 @@ import {
   Loader2,
   Star,
   BarChart3,
-  Sparkles,
   CheckCircle,
-  ClipboardList,
-  AlertTriangle,
   FileText,
   ChevronDown,
   ChevronUp,
-  Clock,
   Play,
   TestTube,
   Layers,
@@ -181,18 +177,9 @@ function ListingRow({ listing, onSelfTest, onSubmitWarning }: { listing: { id: n
     onSuccess: () => window.location.reload(),
   });
 
-  const calculateGradeMutation = trpc.marketplace.calculateGrade.useMutation({
-    onSuccess: () => window.location.reload(),
-  });
-
   const deleteMutation = trpc.marketplace.delete.useMutation({
     onSuccess: () => window.location.reload(),
   });
-
-  const { data: reviewStats } = trpc.marketplace.getReviewStats.useQuery(
-    { listingId: listing.id },
-    { enabled: expanded && (listing.status === "pending_review" || listing.status === "reviewing" || listing.status === "approved"), refetchInterval: 5000 }
-  );
 
   // Poll generation status when listing is generating
   const { data: genStatus } = trpc.marketplace.getGenerationStatus.useQuery(
@@ -204,11 +191,6 @@ function ListingRow({ listing, onSelfTest, onSubmitWarning }: { listing: { id: n
   if (genStatus && !genStatus.isGenerating && genStatus.isReady) {
     window.location.reload();
   }
-
-  const { data: testPrompts } = trpc.marketplace.reviewProgress.useQuery(
-    { listingId: listing.id },
-    { enabled: expanded }
-  );
 
   return (
     <>
@@ -269,34 +251,6 @@ function ListingRow({ listing, onSelfTest, onSubmitWarning }: { listing: { id: n
               </div>
             )}
 
-            {listing.status === "pending_review" && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-yellow-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {t("pages:marketplace.creator.actions.pendingReviewers")}
-                </span>
-                {reviewStats && (
-                  <span className="text-xs text-neutral-500">
-                    ({reviewStats.uniqueReviewers} {t("pages:marketplace.creator.actions.enrolled")})
-                  </span>
-                )}
-              </div>
-            )}
-
-            {(listing.status === "pending_review" || listing.status === "reviewing") && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs text-amber-400 hover:text-amber-300"
-                onClick={() => calculateGradeMutation.mutate({ listingId: listing.id })}
-                disabled={calculateGradeMutation.isPending || (reviewStats ? !reviewStats.canCalculateGrade : true)}
-                title={reviewStats?.message ?? "Waiting for review reports"}
-              >
-                <Sparkles className="w-3 h-3 mr-1" />
-                {calculateGradeMutation.isPending ? t("pages:marketplace.creator.actions.calculating") : t("pages:marketplace.creator.actions.calculateGrade")}
-              </Button>
-            )}
-
             {listing.status === "approved" && (
               <Button
                 size="sm"
@@ -337,67 +291,16 @@ function ListingRow({ listing, onSelfTest, onSubmitWarning }: { listing: { id: n
         </td>
       </tr>
 
-      {/* Expanded review details */}
+      {/* Expanded listing details */}
       {expanded && (
         <tr>
           <td colSpan={6} className="px-4 py-4 bg-neutral-900/30 border-b border-neutral-800">
             <div className="space-y-4">
-              {/* Review Stats */}
-              {reviewStats && (
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-neutral-100">{reviewStats.totalPrompts}</div>
-                    <div className="text-xs text-neutral-500">{t("pages:marketplace.creator.reviewStats.testPrompts")}</div>
-                  </div>
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-neutral-100">{reviewStats.uniqueReviewers}</div>
-                    <div className="text-xs text-neutral-500">{t("pages:marketplace.creator.reviewStats.reviewers")}</div>
-                  </div>
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-blue-400">{reviewStats.completedReviews}</div>
-                    <div className="text-xs text-neutral-500">{t("pages:marketplace.creator.reviewStats.reviewsSubmitted")}</div>
-                  </div>
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 text-center">
-                    <div className={`text-lg font-bold ${reviewStats.canCalculateGrade ? "text-emerald-400" : "text-yellow-400"}`}>
-                      {reviewStats.canCalculateGrade ? t("pages:marketplace.creator.reviewStats.ready") : t("pages:marketplace.creator.reviewStats.waiting")}
-                    </div>
-                    <div className="text-xs text-neutral-500">{t("pages:marketplace.creator.reviewStats.gradeStatus")}</div>
-                  </div>
-                </div>
-              )}
-
-              {!reviewStats?.canCalculateGrade && reviewStats && (
-                <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-500/10 rounded-md px-3 py-2">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{reviewStats.message}</span>
-                </div>
-              )}
-
               {/* Test Prompts — always show when expanded, component handles empty state */}
               <TestPromptsList listingId={listing.id} />
 
               {/* Debug: raw DB state */}
               <DebugListing listingId={listing.id} />
-
-              {/* Assignment Status */}
-              {testPrompts && testPrompts.assignments.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <ClipboardList className="w-3.5 h-3.5" />
-                    {t("pages:marketplace.creator.assignments.title", { count: testPrompts.assignments.length })}
-                  </h4>
-                  <div className="space-y-1.5">
-                    {testPrompts.assignments.map((a, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm bg-neutral-800/30 rounded-md px-3 py-1.5">
-                        <span className="text-neutral-400">{t("pages:marketplace.creator.assignments.reviewerId", { id: a.reviewerId })}</span>
-                        <Badge variant="outline" className={`text-xs capitalize ${a.status === "completed" ? "text-emerald-400 border-emerald-500/20" : a.status === "in_progress" ? "text-blue-400 border-blue-500/20" : "text-neutral-400 border-neutral-700"}`}>
-                          {a.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </td>
         </tr>

@@ -183,12 +183,12 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   {
     name: "submit_for_review", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Submit a draft marketplace listing for certification. Three layers: (1) a deterministic security scan of your prompts; (2) AI triage that runs generated test inputs and gives feedback — it can reject low-quality submissions but can never approve; (3) blind human review — independent reviewers score real outputs without knowing who built it. Publication requires human consensus: a minimum average score plus a minimum pass ratio. If rejected at any layer, you get actionable findings and can fix and resubmit.",
+    summary: "Submit a draft marketplace listing for certification. The platform pays for zero model calls: a deterministic security scan of your prompts runs first and rejects with actionable findings if it fails, then test data generates on YOUR OWN provider key. There is no AI judge and no human review panel — the listing becomes buyable when you publish its signed evidence record with publish_evidence_version; until then it stays visible but locked ('certifying').",
     example: "\"Submit listing 1 for certification.\"",
   },
   {
     name: "get_listing_status", group: "Marketplace", scopes: ["mcp:read"],
-    summary: "Check a marketplace listing's certification stage: generating test data, pending review, in blind review, certifying, rejected, or published.",
+    summary: "Check a marketplace listing's certification stage: generating test data, pending review, certifying (awaiting its published evidence record), rejected, or published.",
     example: "\"What's the status of listing 1?\"",
   },
   {
@@ -205,21 +205,6 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     name: "deliver_purchased_copy", group: "Marketplace", scopes: ["mcp:write"],
     summary: "Take a listing you bought into your own account as an editable copy that runs on your keys. You receive the workflow, not a secret: the copy is yours, it can be shared, and its published evidence describes the exact hash delivered — edit it and that evidence quietly stops describing yours.",
     example: "\"Deliver the contract redliner I bought into my pipelines.\"",
-  },
-  {
-    name: "enroll_reviewer", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Join the marketplace reviewer pool. Reviews are recorded and raise your trust score. Reviewer rewards are PAUSED: points can no longer be traded for subscription days because there is no subscription, and what reviewers should receive has not been decided.",
-    example: "\"Enroll me as a reviewer.\"",
-  },
-  {
-    name: "get_next_review_task", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Claim the next blind review task as an enrolled reviewer: one anonymized input/output pair plus the rubric, with the listing's identity never revealed. This is how the human half of certification is actually performed, so it must be discoverable from the guide.",
-    example: "\"Give me my next review task.\"",
-  },
-  {
-    name: "submit_review_task", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Return your 1–5 scores for a claimed blind task and earn reviewer points. When a listing reaches the reviewer quorum, certification is decided from the consensus — published or rejected, never left in review.",
-    example: "\"Score task 12: accuracy 4, completeness 4, clarity 5.\"",
   },
   // ── Publish (v2 evidence) ───────────────────────────────────────
   {

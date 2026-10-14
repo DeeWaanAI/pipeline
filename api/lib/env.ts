@@ -78,15 +78,6 @@ export const env = {
   // Override for beta: set to 1/1 to allow self-certification with a single reviewer
   marketplaceMinReviewers: parseInt(process.env.MARKETPLACE_MIN_REVIEWERS ?? "5", 10) || 5,
   marketplaceMinReviewsPerReviewer: parseInt(process.env.MARKETPLACE_MIN_REVIEWS_PER_REVIEWER ?? "3", 10) || 3,
-  // ─── Marketplace AI triage (Trust spec §0.3 / §2) ───────────────────
-  // Platform-controlled, NON-GATING quality triage. Receives test I/O only —
-  // never secret prompts (encryptedPrompts). Empty slug/model = triage
-  // skipped entirely (submissions go straight to human review).
-  // Recommended: Alibaba Cloud Model Studio, openai-compatible, qwen3.6-flash.
-  aiTriageSlug: process.env.AI_TRIAGE_SLUG ?? "",
-  aiTriageApiKey: process.env.AI_TRIAGE_API_KEY ?? "",
-  aiTriageBaseUrl: process.env.AI_TRIAGE_BASE_URL ?? "",
-  aiTriageModel: process.env.AI_TRIAGE_MODEL ?? "",
   // Public origin of the app, used for absolute links (spec §0.9b).
   publicAppUrl: process.env.PUBLIC_APP_URL ?? "https://app.deewaanai.com",
   // ─── Research Mode (batch runs + pipeline chaining) ───────────────
@@ -99,12 +90,3 @@ export const env = {
   // domain is final. Set e.g. "https://deewaanai.com" to tighten.
   waitlistCorsOrigins: process.env.WAITLIST_CORS_ORIGINS ?? "*",
 };
-
-/**
- * True when the platform AI triage model is configured (Trust spec §0.3).
- * The API key is optional — self-hosted endpoints may not require one.
- * When false, triage is skipped (non-gating: absence of AI never blocks).
- */
-export function isAiTriageConfigured(): boolean {
-  return Boolean(env.aiTriageSlug && env.aiTriageModel);
-}

@@ -100,10 +100,6 @@ export async function seedDefaultFlags() {
   const defaults = [
     { key: "circuit_breaker", name: "Circuit Breaker", description: "Pipeline safety limits", enabled: true, rolloutPercent: 100 },
     { key: "local_folder", name: "Local Folder Access", description: "Link local project folders via File System Access API", enabled: true, rolloutPercent: 100 },
-    // Marketplace trust (spec 0.7): platform-model AI triage for submissions.
-    // Non-gating — when off or unconfigured, submissions skip triage and go
-    // straight to `certifying`. Human certification always gates buyability.
-    { key: "marketplace_ai_triage", name: "Marketplace AI Triage", description: "Platform-model AI triage for marketplace submissions (non-gating; off = straight to certifying)", enabled: true, rolloutPercent: 100 },
     // Research Mode (Phase 0): batch runs + pipeline chaining. Default OFF.
     { key: "batch_mode", name: "Research Mode — Batch Runs", description: "Run up to 100 pipeline inputs in parallel", enabled: false, rolloutPercent: 0 },
     { key: "pipeline_chaining", name: "Research Mode — Pipeline Chaining", description: "Chain pipeline outputs into evaluation pipelines", enabled: false, rolloutPercent: 0 },

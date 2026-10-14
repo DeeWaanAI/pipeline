@@ -195,13 +195,26 @@ describe("buildHelp", () => {
     expect(yourDataGroup?.tools.map((t) => t.name)).toEqual(["export_my_data"]);
   });
 
-  it("submit_for_review describes the three-layer certification model", () => {
+  it("submit_for_review describes the scan + evidence certification model", () => {
     const entry = HELP_CATALOG.find((e) => e.name === "submit_for_review");
     expect(entry).toBeDefined();
-    expect(entry!.summary).toContain("can never approve");
-    expect(entry!.summary).toContain("human consensus");
+    // The platform pays for zero model calls and there is no review panel:
+    // the retired three-layer copy (AI triage floor, blind human consensus)
+    // must not creep back into the guide, and buyability must be described as
+    // riding on the published evidence record.
+    expect(entry!.summary).toContain("security scan");
+    expect(entry!.summary).toContain("evidence");
+    expect(entry!.summary).not.toMatch(/AI triage|human consensus|blind review/i);
     expect(entry!.summary).not.toContain("≥3.5");
     expect(entry!.summary).not.toContain("published immediately");
+  });
+
+  it("no longer advertises the reviewer pool", () => {
+    const names = toolNames(buildHelp(base()));
+    for (const dead of ["enroll_reviewer", "get_next_review_task", "submit_review_task"]) {
+      expect(names).not.toContain(dead);
+      expect(HELP_CATALOG.find((e) => e.name === dead)).toBeUndefined();
+    }
   });
 
   it("get_listing_status uses current stage names not old grade framing", () => {

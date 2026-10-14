@@ -3,7 +3,7 @@ import { createRouter, adminQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import {
   users, feedback, swarmRuns, featureFlags,
-  projects, ssoConnections, marketplaceListings, blindReviewTasks, waitlistEntries,
+  projects, ssoConnections, marketplaceListings, waitlistEntries,
   modelCatalog, modelReleaseEvents,
   evidencePublications, benchmarks, callAttempts, spendApprovals,
 } from "@db/schema";
@@ -12,12 +12,6 @@ import { logger } from "../lib/logger";
 import { encryptClientSecret, maskSecret, normalizeDomain } from "../services/sso";
 import { logAdminAction } from "../services/adminAudit";
 import { adminDemotionError } from "../lib/adminGuards";
-import { setLegacyListingStatus } from "../services/marketplacePublication";
-import {
-  listPromotions,
-  createPromotion,
-  setPromotionActive,
-} from "../services/promotionService";
 import { accountHoldings } from "../services/storageInventory";
 import { adminAuditLog } from "@db/schema";
 import { benchmarkLedgerTotals, costDisclosure, repriceUnpricedOperations, type CostDisclosureInput } from "../services/benchmark/benchmarkLedger";
@@ -296,8 +290,10 @@ export const adminRouter = createRouter({
     }),
 
   // ─── Certification queue (Trust Phase 0 ops, Batch B 2026-07-28) ────
-  // Listings by pipeline stage with last-activity age and blind-pool stats,
-  // so stuck states (e.g. orphaned `generating`) are visible without SQL.
+  // Listings by pipeline stage with last-activity age, so stuck states (e.g.
+  // orphaned `generating`) are visible without SQL. The blind-review pool is
+  // gone: buyability now rides on a published evidence record, so there are no
+  // pool stats to show and no pool to requeue.
   certificationQueue: adminQuery.query(async () => {
     const db = getDb();
     const rows = await db.select({
@@ -312,8 +308,6 @@ export const adminRouter = createRouter({
       updatedAt: marketplaceListings.updatedAt,
       creatorId: marketplaceListings.creatorId,
       creatorUsername: users.username,
-      poolTotal: sql<number>`(SELECT COUNT(*) FROM blind_review_tasks t WHERE t.listing_id = marketplace_listings.id)`,
-      poolCompleted: sql<number>`(SELECT COUNT(*) FROM blind_review_tasks t WHERE t.listing_id = marketplace_listings.id AND t.status = 'completed')`,
     })
       .from(marketplaceListings)
       .leftJoin(users, eq(marketplaceListings.creatorId, users.id))
@@ -332,71 +326,11 @@ export const adminRouter = createRouter({
         ...r,
         ageMinutes,
         // A listing stuck in `generating` beyond one full generation cycle
-        // (~30 min) means the fire-and-forget block died — needs requeue.
+        // (~30 min) means the fire-and-forget block died — needs attention.
         stuck: r.status === "generating" && ageMinutes !== null && ageMinutes > 30,
       };
     });
   }),
-
-  requeueCertification: adminQuery
-    .input(z.object({ listingId: z.number().int().positive() }))
-    .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-      const [listing] = await db
-        .select({ id: marketplaceListings.id, status: marketplaceListings.status })
-        .from(marketplaceListings)
-        .where(eq(marketplaceListings.id, input.listingId))
-        .limit(1);
-      if (!listing) throw new Error("Listing not found");
-
-      if (listing.status === "generating") {
-        // Stuck/orphaned background generation → back to draft so the creator
-        // can resubmit (resubmission is idempotent: prompts/pool are reset).
-        await setLegacyListingStatus(input.listingId, { status: "draft" });
-        logger.info("Admin: certification requeued to draft", { listingId: input.listingId });
-        await logAdminAction({
-          adminUserId: ctx.user.id, action: "certification.requeue",
-          targetType: "marketplace_listing", targetId: input.listingId,
-          detail: { from: "generating", to: "draft" }, ip: ctx.remoteIp,
-        });
-        return { success: true, action: "reset_to_draft" as const };
-      }
-
-      if (listing.status === "certifying") {
-        // Certifying but the blind pool was never created (enqueue crashed).
-        const [{ pooled }] = await db
-          .select({ pooled: sql<number>`COUNT(*)` })
-          .from(blindReviewTasks)
-          .where(eq(blindReviewTasks.listingId, input.listingId));
-        if (Number(pooled) > 0) {
-          throw new Error("Listing already has blind review tasks — nothing to requeue");
-        }
-        const { enqueueBlindReviewTasks } = await import("./marketplace");
-        const created = await enqueueBlindReviewTasks(input.listingId);
-        logger.info("Admin: blind pool recreated", { listingId: input.listingId, tasks: created });
-        await logAdminAction({
-          adminUserId: ctx.user.id, action: "certification.requeue",
-          targetType: "marketplace_listing", targetId: input.listingId,
-          detail: { from: "certifying", to: "certifying", tasksCreated: created }, ip: ctx.remoteIp,
-        });
-        return { success: true, action: "pool_recreated" as const, tasks: created };
-      }
-
-      if (listing.status === "reviewing" || listing.status === "pending_review") {
-        // Stuck/orphaned review pool (reviewer pool never filled) → back to
-        // pending_review so the pool can be re-opened.
-        await setLegacyListingStatus(input.listingId, { status: "pending_review" });
-        logger.info("Admin: certification returned to pending_review", { listingId: input.listingId });
-        await logAdminAction({
-          adminUserId: ctx.user.id, action: "certification.requeue",
-          targetType: "marketplace_listing", targetId: input.listingId,
-          detail: { from: listing.status, to: "pending_review" }, ip: ctx.remoteIp,
-        });
-        return { success: true, action: "returned_to_pending_review" as const };
-      }
-
-      throw new Error(`Cannot requeue a listing in status "${listing.status}"`);
-    }),
   // ─── Waitlist (Pioneer 100 beta ops, Batch D 2026-07-29) ────────────
   listWaitlist: adminQuery
     .input(z.object({
@@ -482,60 +416,6 @@ export const adminRouter = createRouter({
   storageHoldings: adminQuery
     .input(z.object({ userId: z.number().int().positive() }))
     .query(async ({ input }) => accountHoldings(input.userId)),
-
-  // ─── Promotions: admin-defined free days (ticket #62) ─────────────
-  // A promotion grants free days on the one flat subscription; it is a Stripe
-  // trial, not a discount, so nothing here touches the price. The rules live in
-  // api/services/promotionService.ts — these procedures only gate and audit.
-  listPromotions: adminQuery.query(async () => {
-    return { promotions: await listPromotions() };
-  }),
-
-  createPromotion: adminQuery
-    .input(z.object({
-      name: z.string().min(1).max(80),
-      days: z.number().int().min(1).max(365),
-      audience: z.enum(["new_signups", "code"]),
-      code: z.string().max(32).nullish(),
-      startsAt: z.coerce.date().nullish(),
-      endsAt: z.coerce.date().nullish(),
-      maxRedemptions: z.number().int().min(1).nullish(),
-      note: z.string().max(200).nullish(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const promo = await createPromotion({
-        name: input.name,
-        days: input.days,
-        audience: input.audience,
-        code: input.code ?? null,
-        startsAt: input.startsAt ?? null,
-        endsAt: input.endsAt ?? null,
-        maxRedemptions: input.maxRedemptions ?? null,
-        note: input.note ?? null,
-      }, ctx.user.id);
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: "promotion.create",
-        targetType: "promotion", targetId: promo.id,
-        detail: { days: promo.days, audience: promo.audience, code: promo.code, maxRedemptions: promo.maxRedemptions },
-        ip: ctx.remoteIp,
-      });
-      return promo;
-    }),
-
-  // Deactivation stops FUTURE grants. Rows already granted live in
-  // promotion_redemptions with their own copy of the days, so this cannot take
-  // back anything somebody already received.
-  setPromotionActive: adminQuery
-    .input(z.object({ id: z.number().int().positive(), active: z.boolean() }))
-    .mutation(async ({ input, ctx }) => {
-      await setPromotionActive(input.id, input.active, ctx.user.id);
-      await logAdminAction({
-        adminUserId: ctx.user.id, action: input.active ? "promotion.reactivate" : "promotion.deactivate",
-        targetType: "promotion", targetId: input.id,
-        detail: { active: input.active }, ip: ctx.remoteIp,
-      });
-      return { success: true };
-    }),
 
   // ═══ V2 OPERATIONS (spec D10) ═══════════════════════════════════════
   // Four areas that had no screen at all: trusted provider endpoints, the

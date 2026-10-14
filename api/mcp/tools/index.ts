@@ -21,9 +21,6 @@ import { runStatus } from "./getRunStatus";
 import { approveStep } from "./approveStep";
 import { projectContext } from "./projectContext";
 import { searchMarketplace } from "./searchMarketplace";
-import { enrollReviewer } from "./enrollReviewer";
-import { getNextReviewTask } from "./getNextReviewTask";
-import { submitReviewTask } from "./submitReviewTask";
 import {
   publishToMarketplace,
   submitForReview,
@@ -84,9 +81,6 @@ export const TOOLS: McpTool[] = [
   approveStep,
   projectContext,
   searchMarketplace,
-  enrollReviewer,
-  getNextReviewTask,
-  submitReviewTask,
   publishToMarketplace,
   submitForReview,
   getListingStatus,
