@@ -124,6 +124,18 @@ describe("the benchmark archive", () => {
 // `partial` flag and no sentence saying which it is. An archive that a buyer reads
 // without the platform present cannot afford the misreading.
 describe("the cost a local archive carries", () => {
+  it("ships exactly one cost figure: the cached row column is not in the archive", () => {
+    // Two dollar amounts in one folder, one of them frozen at finalisation and
+    // therefore wrong for any benchmark priced afterwards, is the misreading a
+    // buyer has no platform present to correct. This asserts the ABSENCE — the
+    // archive is allowed one authority, `manifest.cost`.
+    const a = buildBenchmarkArchive(input());
+    const row = JSON.parse(a.files.find((f) => f.path === "benchmark.json")!.content);
+    expect(row).not.toHaveProperty("totalObservedCost");
+    expect(row).not.toHaveProperty("costCompleteness");
+    expect(JSON.stringify(row)).not.toMatch(/observedCost/i);
+  });
+
   it("puts the FLOOR sentence in the manifest next to the figure", () => {
     const a = buildBenchmarkArchive(input());
     const manifest = manifestOf(a);

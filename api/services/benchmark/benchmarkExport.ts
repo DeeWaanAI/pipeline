@@ -72,10 +72,23 @@ const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
  *  are about to leave the server, so a future caller that hands it a full row
  *  cannot ship an execution credential by accident. `leaseToken` authorizes a
  *  worker to run the benchmark — it is not the user's data. */
+/** Fields of the row that are deliberately NOT written into the archive.
+ *
+ *  `totalObservedCost` / `costCompleteness` are cached on the row at finalisation,
+ *  which is BEFORE an unpriced operation can later be given a price. A benchmark
+ *  that finalised with nothing priced therefore reads "$0.00 spent" here while the
+ *  ledger beside it says otherwise. Two cost figures in one archive, disagreeing,
+ *  is worse than one — and the one that is right is `manifest.cost`, rebuilt from
+ *  the ledger rows at export time. The columns stay in the database (they are the
+ *  user's own recorded data, exported by `export_my_data` and used by the UI); only
+ *  the archive drops the duplicate. */
+const NOT_ARCHIVED = new Set(["totalObservedCost", "costCompleteness"]);
+
 function publicBenchmarkRow(row: BenchmarkArchiveInput["benchmark"]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
     if (/token|secret|credential|apiKeyRef/i.test(key)) continue;
+    if (NOT_ARCHIVED.has(key)) continue;
     out[key] = value;
   }
   return out;
@@ -188,7 +201,7 @@ export function buildBenchmarkArchive(input: BenchmarkArchiveInput) {
     incomplete: missing,
     // The cost sentence travels with the archive, in the file a verifier reads.
     cost: input.cost,
-    costBasis: "reduced from this archive's own ledger.json rows at export time; the `totalObservedCost` column in benchmark.json is a cached figure frozen when the benchmark finalised",
+    costBasis: "reduced from this archive's own ledger.json rows at export time. This archive carries NO other cost figure: the row's cached cost column is deliberately not written, because it is frozen at finalisation and cannot reflect prices recorded afterwards",
     files: files.map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })),
   });
 
