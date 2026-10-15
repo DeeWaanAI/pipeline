@@ -31,12 +31,12 @@
 
 import { createHash } from "crypto";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { evidencePublications, marketplaceListingV2, marketplaceListings, pipelineSteps, pipelineTemplates, projects, users } from "@db/schema";
 import { logger } from "../lib/logger";
 import { buildPipelineBundle, bundleIntegrityHash, verifyPipelineBundle, type PipelineBundle } from "./pipelineBundle";
-import { signingPublicKeyPem, type EvidenceAttestation } from "./evidenceSigning";
+import { attestBundle, signingPublicKeyPem, type EvidenceAttestation } from "./evidenceSigning";
 import { resolveProtectedExecutionRight } from "./executionRight";
 import type { VersionDefinition } from "./benchmark/benchmarkTypes";
 import {
@@ -107,74 +107,91 @@ interface MaterializeArgs {
 async function writeCopyIntoAccount(args: {
   userId: number;
   listing: { id: number; title: string; description: string | null };
-  sellerId: number;
   steps: VersionDefinition["steps"];
-  sourceVersionId: number;
+  pipelineConfig: typeof projects.$inferInsert.pipelineConfig;
   sourceVersionNumber: number;
-  via: "purchase" | "fork" | "import";
   name?: string;
-}): Promise<{ projectId: number; projectName: string; templateId: number; versionId: number }> {
+} & ({
+  via: "purchase" | "fork";
+  sellerId: number;
+  sourceVersionId: number;
+} | {
+  via: "import";
+  portableMetadata: {
+    kind: string;
+    exportedAt: string;
+    provenance: PipelineBundle["provenance"];
+    evidence: PipelineBundle["evidence"];
+    attestation: PipelineBundle["attestation"];
+    verification: ReturnType<typeof verifyPipelineBundle>;
+  };
+})): Promise<{ projectId: number; projectName: string; templateId: number; versionId: number }> {
   const db = getDb();
   const projectName = (args.name ?? `${args.listing.title} (copy)`).slice(0, 200);
+  const pipelineConfig = args.via === "import"
+    ? { ...args.pipelineConfig, _importedBundle: args.portableMetadata }
+    : args.pipelineConfig ?? null;
 
-  const [insertedProject] = await db.insert(projects).values({
-    userId: args.userId,
-    name: projectName,
-    description: args.listing.description,
-    // PROVENANCE AS DATA: the copy is owned and editable by the buyer, and it
-    // stays attributed to the account that originally made the work — which is
-    // also what refuses a reseller at the publish gate.
-    originCreatorId: args.sellerId,
-  });
-  const projectId = Number((insertedProject as { insertId: number }).insertId);
-
-  // (3) The seller's bindings are dropped, not inherited.
-  for (const step of args.steps) {
-    await db.insert(pipelineSteps).values({
-      projectId,
-      stepOrder: step.stepOrder,
-      agentId: null,
-      stepType: step.stepType ?? "agent",
-      name: step.name,
-      role: step.role,
-      systemPrompt: step.systemPrompt,
-      providerId: null,
-      model: step.model ?? null,
-      temperature: step.temperature ?? "0.7",
-      maxTokens: step.maxTokens ?? 4096,
-      ifConfig: step.ifConfig ?? null,
-      whileConfig: step.whileConfig ?? null,
-      isEnabled: true,
+  const { projectId, templateId } = await db.transaction(async (tx) => {
+    const [insertedProject] = await tx.insert(projects).values({
+      userId: args.userId,
+      name: projectName,
+      description: args.listing.description,
+      pipelineConfig,
+      // NULL means the local owner created it. Zero instead keeps external work
+      // ineligible for resale without treating a remote account ID as a local one.
+      originCreatorId: args.via === "import" ? 0 : args.sellerId,
     });
-  }
+    const projectId = Number((insertedProject as { insertId: number }).insertId);
 
-  const [insertedTemplate] = await db.insert(pipelineTemplates).values({
-    userId: args.userId,
-    name: `${projectName} template`.slice(0, 200),
-    description: `${args.via === "purchase" ? "Delivered" : args.via === "fork" ? "Forked" : "Imported"} from marketplace listing ${args.listing.id} (workflow version ${args.sourceVersionNumber})`,
-    isAuto: false,
-    sourceProjectId: projectId,
-    steps: args.steps.map((s) => ({
-      name: s.name,
-      role: s.role,
-      systemPrompt: s.systemPrompt,
-      stepType: s.stepType ?? "agent",
-      ifConfig: s.ifConfig ?? null,
-      whileConfig: s.whileConfig ?? null,
-      providerId: null,
-      model: s.model ?? null,
-      temperature: s.temperature ?? "0.7",
-      maxTokens: s.maxTokens ?? 4096,
-    })),
+    // (3) The seller's bindings are dropped, not inherited.
+    for (const step of args.steps) {
+      await tx.insert(pipelineSteps).values({
+        projectId,
+        stepOrder: step.stepOrder,
+        agentId: null,
+        stepType: step.stepType ?? "agent",
+        name: step.name,
+        role: step.role,
+        systemPrompt: step.systemPrompt,
+        providerId: null,
+        model: step.model ?? null,
+        temperature: step.temperature ?? "0.7",
+        maxTokens: step.maxTokens ?? 4096,
+        ifConfig: step.ifConfig ?? null,
+        whileConfig: step.whileConfig ?? null,
+        isEnabled: true,
+      });
+    }
+
+    const [insertedTemplate] = await tx.insert(pipelineTemplates).values({
+      userId: args.userId,
+      name: `${projectName} template`.slice(0, 200),
+      description: `${args.via === "purchase" ? "Delivered" : args.via === "fork" ? "Forked" : "Imported"} from ${args.via === "import" ? "external " : ""}marketplace listing ${args.listing.id} (workflow version ${args.sourceVersionNumber})`,
+      isAuto: false,
+      sourceProjectId: projectId,
+      steps: args.steps.map((s) => ({
+        name: s.name,
+        role: s.role,
+        systemPrompt: s.systemPrompt,
+        stepType: s.stepType ?? "agent",
+        ifConfig: s.ifConfig ?? null,
+        whileConfig: s.whileConfig ?? null,
+        providerId: null,
+        model: s.model ?? null,
+        temperature: s.temperature ?? "0.7",
+        maxTokens: s.maxTokens ?? 4096,
+      })),
+    });
+    const templateId = Number((insertedTemplate as { insertId: number }).insertId);
+    await tx.update(projects).set({ pipelineTemplateId: templateId }).where(eq(projects.id, projectId));
+    return { projectId, templateId };
   });
-  const templateId = Number((insertedTemplate as { insertId: number }).insertId);
-  await db.update(projects).set({ pipelineTemplateId: templateId }).where(eq(projects.id, projectId));
 
-  // The copy gets a version row of its own, parented to the certified one, so
-  // the seller's account survives in lineage and the buyer's edits start from a
-  // known hash rather than from nothing.
+  // Version capture uses its own connection, so it must follow the copy commit.
+  // Remote version IDs remain metadata even when they happen to exist locally.
   const { versionId } = await captureVersionFromProject(args.userId, projectId, {
-    parentVersionId: args.sourceVersionId > 0 ? args.sourceVersionId : null,
+    parentVersionId: args.via === "import" ? null : args.sourceVersionId,
   });
   return { projectId, projectName, templateId, versionId };
 }
@@ -219,6 +236,7 @@ async function materializeCertifiedVersion(args: MaterializeArgs): Promise<Deliv
 
   const written = await writeCopyIntoAccount({
     userId, listing, sellerId, steps: definition.steps,
+    pipelineConfig: definition.pipelineConfig as typeof projects.$inferInsert.pipelineConfig,
     sourceVersionId: args.soldVersionId, sourceVersionNumber: Number(version.versionNumber),
     via: args.via, name: args.name,
   });
@@ -317,8 +335,9 @@ export async function forkPublicListing(
       "this listing's benchmark evidence is not published, so it cannot be forked — the shared copy must come with its inputs, outputs and judging prompts",
     );
   }
-  // Forking your own listing is just a copy of your own work; allowed, but it is
-  // the same materializer with the same attribution rules.
+  const { version } = await loadVersionDefinition(v2.currentWorkflowVersionId);
+  await readPublishedBundleEvidence(listing.id, listing.creatorId, version.id,
+    version.definitionHash, v2.currentEvidencePublicationId);
   return materializeCertifiedVersion({
     userId, listing, sellerId: listing.creatorId,
     soldVersionId: v2.currentWorkflowVersionId, versionBinding: "public_fork",
@@ -367,42 +386,48 @@ export async function exportListingBundle(
   const { version, definition } = await loadVersionDefinition(versionId);
   const [author] = await db.select({ name: users.name }).from(users).where(eq(users.id, sellerId)).limit(1);
 
-  let manifestHash: string | null = null;
-  let attestation: EvidenceAttestation | null = null;
-  if (v2?.currentEvidencePublicationId) {
-    const [pub] = await db.select({
-      manifestHash: evidencePublications.manifestHash,
-      publicManifest: evidencePublications.publicManifest,
-    }).from(evidencePublications)
-      .where(eq(evidencePublications.id, v2.currentEvidencePublicationId)).limit(1);
-    if (pub) {
-      manifestHash = pub.manifestHash;
-      try {
-        attestation = (JSON.parse(String(pub.publicManifest)) as { attestation?: EvidenceAttestation }).attestation ?? null;
-      } catch {
-        // A stored manifest that will not parse is reported by its absence: the
-        // bundle still carries the work, and the evidence section says there is
-        // nothing verified to attach.
-        attestation = null;
-      }
-    }
+  if (version.ownerId !== sellerId ||
+    createHash("sha256").update(stableJson(definition)).digest("hex") !== version.definitionHash) {
+    throw new PipelineDeliveryError("definition_hash_mismatch", "the source version failed its integrity check");
   }
+  const publication = await readPublishedBundleEvidence(
+    listing!.id, sellerId, versionId, version.definitionHash,
+    entitled?.purchase?.evidencePublicationId ?? v2?.currentEvidencePublicationId ?? null,
+  );
+  const { manifestHash, manifestJson, attestation } = publication;
+
+  const shippedSteps = definition.steps.map((st) => ({
+    stepOrder: st.stepOrder,
+    name: st.name,
+    role: st.role,
+    systemPrompt: st.systemPrompt,
+    stepType: st.stepType,
+    model: st.model ?? null,
+    temperature: st.temperature ?? null,
+    maxTokens: st.maxTokens ?? null,
+    ifConfig: st.ifConfig ?? null,
+    whileConfig: st.whileConfig ?? null,
+  }));
+  const bundleHash = bundleIntegrityHash({
+    steps: shippedSteps,
+    schemaVersion: Number(definition.schemaVersion ?? 1),
+    pipelineConfig: definition.pipelineConfig ?? null,
+  });
+  // Signed over the sanitized form, so the recipient's copy is provably what we
+  // released — not merely internally consistent.
+  const bundleAttestation = attestBundle({
+    bundleHash,
+    definitionHash: String(version.definitionHash),
+    manifestHash,
+    listingId: listing!.id,
+    workflowVersionId: version.id,
+    originCreatorId: sellerId,
+  });
 
   return buildPipelineBundle({
     pipelineName: listing!.title,
     pipelineDescription: listing!.description ?? null,
-    steps: definition.steps.map((st) => ({
-      stepOrder: st.stepOrder,
-      name: st.name,
-      role: st.role,
-      systemPrompt: st.systemPrompt,
-      stepType: st.stepType,
-      model: st.model ?? null,
-      temperature: st.temperature ?? null,
-      maxTokens: st.maxTokens ?? null,
-      ifConfig: st.ifConfig ?? null,
-      whileConfig: st.whileConfig ?? null,
-    })),
+    steps: shippedSteps,
     listingId: listing!.id,
     workflowVersionId: version.id,
     schemaVersion: Number(definition.schemaVersion ?? 1),
@@ -411,18 +436,45 @@ export async function exportListingBundle(
     originAccountName: author?.name ?? null,
     workflowVersionNumber: Number(version.versionNumber),
     definitionHash: String(version.definitionHash),
-    bundleHash: bundleIntegrityHash({
-      steps: definition.steps.map((st) => ({
-        stepOrder: st.stepOrder, name: st.name, role: st.role, systemPrompt: st.systemPrompt,
-        stepType: st.stepType, model: st.model ?? null, temperature: st.temperature ?? null,
-        maxTokens: st.maxTokens ?? null, ifConfig: st.ifConfig ?? null, whileConfig: st.whileConfig ?? null,
-      })),
-      schemaVersion: Number(definition.schemaVersion ?? 1),
-      pipelineConfig: definition.pipelineConfig ?? null,
-    }),
+    bundleHash,
     manifestHash,
+    manifestJson,
     attestation,
+    bundleAttestation,
   });
+}
+
+async function readPublishedBundleEvidence(
+  listingId: number, authorId: number, versionId: number, definitionHash: string,
+  publicationId: number | null,
+): Promise<{ manifestHash: string; manifestJson: string; attestation: EvidenceAttestation | null }> {
+  if (!publicationId) throw new PipelineDeliveryError("no_published_evidence", "the shared version has no published evidence");
+  const [publication] = await getDb().select().from(evidencePublications).where(and(
+    eq(evidencePublications.id, publicationId), eq(evidencePublications.state, "published"),
+    eq(evidencePublications.listingId, listingId), eq(evidencePublications.authorId, authorId),
+    eq(evidencePublications.listingWorkflowVersionId, versionId),
+  )).limit(1);
+  if (!publication) throw new PipelineDeliveryError("no_published_evidence", "evidence is withdrawn or belongs to another version");
+  let stored;
+  try {
+    stored = JSON.parse(publication.publicManifest);
+  } catch {
+    throw new PipelineDeliveryError("invalid_evidence", "published evidence is not readable");
+  }
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
+    throw new PipelineDeliveryError("invalid_evidence", "published evidence is not an object");
+  }
+  const { attestation, ...manifest } = stored;
+  // Canonical bytes, not JSON.stringify: the published hash was computed over
+  // the key-sorted serialization, so plain stringify here can never match it.
+  const manifestJson = stableJson(manifest);
+  const identity = manifest.versionIdentity;
+  if (!identity || identity.listingId !== listingId || identity.workflowVersionId !== versionId ||
+    identity.definitionHash !== definitionHash ||
+    createHash("sha256").update(manifestJson).digest("hex") !== publication.manifestHash) {
+    throw new PipelineDeliveryError("invalid_evidence", "published evidence does not match this pipeline version");
+  }
+  return { manifestHash: publication.manifestHash, manifestJson, attestation: attestation ?? null };
 }
 
 export const importPipelineBundleInputSchema = z.object({
@@ -454,11 +506,18 @@ export async function importPipelineBundle(
   const written = await writeCopyIntoAccount({
     userId,
     listing: { id: p.listingId ?? 0, title: candidate.pipeline.name, description: candidate.pipeline.description ?? null },
-    sellerId: p.originCreatorId,
     steps: candidate.pipeline.steps as unknown as VersionDefinition["steps"],
-    sourceVersionId: p.workflowVersionId ?? 0,
+    pipelineConfig: p.pipelineConfig as typeof projects.$inferInsert.pipelineConfig,
     sourceVersionNumber: p.workflowVersionNumber ?? 0,
     via: "import",
+    portableMetadata: {
+      kind: candidate.kind,
+      exportedAt: candidate.exportedAt,
+      provenance: p,
+      evidence: candidate.evidence,
+      attestation: candidate.attestation,
+      verification,
+    },
     name: input.name,
   });
   const meaning = verification.evidenceState === "verified"

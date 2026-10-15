@@ -274,3 +274,160 @@ export function verifyEvidenceAttestation(
     signerPinned: Boolean(pinnedPublicKeyPem),
   };
 }
+
+// ─── Bundle attestation ─────────────────────────────────────────────
+// A pipeline file that leaves the platform must still be checkable there. The
+// evidence attestation above proves who published a benchmark; this one proves
+// that the *sanitized* steps in somebody's folder are the steps the platform
+// released. Without it, a reader who edits the steps can simply recompute the
+// file's own integrity hash and the tampering is invisible.
+
+export const BUNDLE_ATTESTATION_KIND = "deewaanai-pipeline-bundle-v1";
+
+export interface BundleAttestation {
+  kind: string;
+  algorithm: string;
+  keyId: string;
+  issuedAt: string;
+  bundleHash: string;
+  definitionHash: string;
+  manifestHash: string | null;
+  listingId: number | null;
+  workflowVersionId: number | null;
+  originCreatorId: number;
+  signedPayload: string;
+  signature: string;
+  publicKeyPem: string;
+}
+
+export function bundleAttestationPayload(a: {
+  bundleHash: string;
+  definitionHash: string;
+  manifestHash: string | null;
+  listingId: number | null;
+  workflowVersionId: number | null;
+  originCreatorId: number;
+  issuedAt: string;
+  keyId: string;
+}): string {
+  return stableJson({
+    kind: BUNDLE_ATTESTATION_KIND,
+    algorithm: EVIDENCE_ALGORITHM_ED25519,
+    bundleHash: a.bundleHash,
+    definitionHash: a.definitionHash,
+    manifestHash: a.manifestHash,
+    listingId: a.listingId,
+    workflowVersionId: a.workflowVersionId,
+    originCreatorId: a.originCreatorId,
+    issuedAt: a.issuedAt,
+    keyId: a.keyId,
+  });
+}
+
+/** Returns null when no signing key is configured: a bundle then ships
+ *  unlabelled as unattested, which is the truth, rather than failing the share. */
+export function attestBundle(args: {
+  bundleHash: string;
+  definitionHash: string;
+  manifestHash: string | null;
+  listingId: number | null;
+  workflowVersionId: number | null;
+  originCreatorId: number;
+  issuedAt?: Date;
+}): BundleAttestation | null {
+  const pem = decodePrivateKey(env.evidenceSigningPrivateKey);
+  if (!pem) return null;
+  let privateKey;
+  try {
+    privateKey = createPrivateKey({ key: pem, format: "pem" });
+  } catch {
+    return null;
+  }
+  const keyId = signingKeyId();
+  const issuedAt = (args.issuedAt ?? new Date()).toISOString();
+  const signedPayload = bundleAttestationPayload({ ...args, issuedAt, keyId });
+  return {
+    kind: BUNDLE_ATTESTATION_KIND,
+    algorithm: EVIDENCE_ALGORITHM_ED25519,
+    keyId,
+    issuedAt,
+    bundleHash: args.bundleHash,
+    definitionHash: args.definitionHash,
+    manifestHash: args.manifestHash,
+    listingId: args.listingId,
+    workflowVersionId: args.workflowVersionId,
+    originCreatorId: args.originCreatorId,
+    signedPayload,
+    signature: edSign(null, Buffer.from(signedPayload, "utf8"), privateKey).toString("base64"),
+    publicKeyPem: createPublicKey(privateKey).export({ type: "spki", format: "pem" }).toString(),
+  };
+}
+
+export function verifyBundleAttestation(
+  attestation: BundleAttestation,
+  expected: {
+    bundleHash: string;
+    definitionHash: string;
+    manifestHash: string | null;
+    listingId: number | null;
+    workflowVersionId: number | null;
+    originCreatorId: number;
+  },
+  pinnedPublicKeyPem?: string,
+): { valid: boolean; reason: string; keyId: string; fingerprint: string; signerPinned: boolean } {
+  const fail = (reason: string) => ({
+    valid: false, reason, keyId: attestation?.keyId ?? "unknown",
+    fingerprint: safeFingerprint(attestation?.publicKeyPem), signerPinned: false,
+  });
+  if (!attestation || attestation.kind !== BUNDLE_ATTESTATION_KIND) return fail("not_a_bundle_attestation");
+  if (attestation.algorithm !== EVIDENCE_ALGORITHM_ED25519) return fail(`unknown_algorithm:${attestation.algorithm}`);
+
+  const recomputed = bundleAttestationPayload({
+    bundleHash: expected.bundleHash,
+    definitionHash: expected.definitionHash,
+    manifestHash: expected.manifestHash,
+    listingId: expected.listingId,
+    workflowVersionId: expected.workflowVersionId,
+    originCreatorId: expected.originCreatorId,
+    issuedAt: attestation.issuedAt,
+    keyId: attestation.keyId,
+  });
+  // The signature is checked against the bytes the READER derived from the file
+  // in hand, so recomputing the file's own integrity hash does not help anyone.
+  if (recomputed !== attestation.signedPayload) return fail("attestation_does_not_describe_this_file");
+
+  if (pinnedPublicKeyPem) {
+    try {
+      const a = createPublicKey(pinnedPublicKeyPem).export({ type: "spki", format: "der" }).toString("hex");
+      const b = createPublicKey(attestation.publicKeyPem).export({ type: "spki", format: "der" }).toString("hex");
+      if (a !== b) return { ...fail("signer_key_not_the_pinned_platform_key"), signerPinned: false };
+    } catch {
+      return fail("pinned_key_unreadable");
+    }
+  }
+  try {
+    const ok = edVerify(
+      null, Buffer.from(attestation.signedPayload, "utf8"),
+      createPublicKey(attestation.publicKeyPem), Buffer.from(attestation.signature, "base64"),
+    );
+    if (!ok) return fail("signature_invalid");
+  } catch (err) {
+    return fail(`verify_threw:${(err as Error).message}`);
+  }
+  return {
+    valid: true,
+    reason: pinnedPublicKeyPem ? "signed_by_the_pinned_platform_key" : "signature_valid_but_signer_unverified",
+    keyId: attestation.keyId,
+    fingerprint: safeFingerprint(attestation.publicKeyPem),
+    signerPinned: Boolean(pinnedPublicKeyPem),
+  };
+}
+
+function safeFingerprint(pem?: string): string {
+  if (!pem) return "no-public-key";
+  try {
+    return publicKeyFingerprint(pem);
+  } catch {
+    return "unreadable-public-key";
+  }
+}

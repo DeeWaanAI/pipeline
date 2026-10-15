@@ -39,10 +39,55 @@
 // proves the benchmark claims.
 
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { stableJson } from "./benchmark/versionService";
-import { verifyEvidenceAttestation, type EvidenceAttestation } from "./evidenceSigning";
+import { verifyBundleAttestation, verifyEvidenceAttestation, type BundleAttestation, type EvidenceAttestation } from "./evidenceSigning";
 
 export const PIPELINE_BUNDLE_KIND = "deewaanai-pipeline-bundle-v1";
+
+const hashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const idSchema = z.number().int().positive();
+const signatureSchema = z.object({
+  kind: z.string(), algorithm: z.literal("ed25519"), keyId: z.string().min(1),
+  issuedAt: z.string().datetime(), signedPayload: z.string().min(1),
+  signature: z.string().min(1), publicKeyPem: z.string().min(1),
+});
+const bundleSchema = z.object({
+  kind: z.literal(PIPELINE_BUNDLE_KIND),
+  exportedAt: z.string().datetime(),
+  pipeline: z.object({
+    name: z.string().min(1).max(200), description: z.string().nullable(),
+    steps: z.array(z.object({
+      stepOrder: idSchema, name: z.string().min(1).max(100), role: z.string().min(1).max(50),
+      systemPrompt: z.string(), stepType: z.enum(["agent", "if", "while", "approval"]),
+      model: z.string().max(100).nullable(), temperature: z.string().max(10).nullable(),
+      maxTokens: idSchema.nullable(),
+      ifConfig: z.object({ options: z.array(z.string()), mappings: z.record(z.string(), idSchema) }).strict().nullable(),
+      whileConfig: z.object({ targetStep: idSchema, maxIterations: idSchema }).strict().nullable(),
+    }).strict()).min(1),
+  }).strict(),
+  provenance: z.object({
+    listingId: idSchema.nullable(), workflowVersionId: idSchema.nullable(),
+    originCreatorId: idSchema, originAccountName: z.string().nullable(),
+    workflowVersionNumber: idSchema.nullable(), definitionHash: hashSchema,
+    bundleHash: hashSchema, schemaVersion: z.literal(1), pipelineConfig: z.json(),
+  }).strict(),
+  evidence: z.object({
+    manifestHash: hashSchema,
+    manifestJson: z.string().min(1).nullable(),
+    attestation: signatureSchema.extend({
+      signer: z.literal("platform"), manifestHash: hashSchema,
+      hashExcludes: z.tuple([z.literal("attestation")]),
+      identity: z.object({ listingId: idSchema.nullable(), workflowVersionId: idSchema.nullable(),
+        definitionHash: hashSchema.nullable(), authorId: idSchema }).strict(),
+    }).strict().nullable(),
+  }).strict().nullable(),
+  attestation: signatureSchema.extend({
+    bundleHash: hashSchema, definitionHash: hashSchema, manifestHash: hashSchema.nullable(),
+    listingId: idSchema.nullable(), workflowVersionId: idSchema.nullable(), originCreatorId: idSchema,
+  }).strict().nullable(),
+  note: z.string(),
+}).strict();
 
 export interface BundleStep {
   stepOrder: number;
@@ -84,8 +129,13 @@ export interface PipelineBundle {
   };
   evidence: {
     manifestHash: string;
+    manifestJson: string | null;
     attestation: EvidenceAttestation | null;
   } | null;
+  /** The platform's signature over the file AS SHIPPED. This is what makes the
+   *  integrity hash more than a checksum: an editor who recomputes
+   *  `provenance.bundleHash` still cannot reproduce it. */
+  attestation: BundleAttestation | null;
   note: string;
 }
 
@@ -96,6 +146,9 @@ export interface BundleVerification {
   /** Whether the benchmark claim on this file can be trusted, separately from
    *  whether the file is intact. `unsigned` means intact and unproven. */
   evidenceState: "verified" | "unsigned" | "invalid" | "absent" | "signer_unpinned";
+  /** Whether the shipped file is provably what the platform released. `unsigned`
+   *  means the file is intact but nothing binds these steps to that release. */
+  provenanceState: "signed" | "unsigned" | "invalid" | "signer_unpinned";
   fingerprint?: string;
   keyId?: string;
 }
@@ -142,7 +195,9 @@ export function buildPipelineBundle(args: {
   schemaVersion: number;
   pipelineConfig: unknown;
   manifestHash: string | null;
+  manifestJson: string | null;
   attestation: EvidenceAttestation | null;
+  bundleAttestation: BundleAttestation | null;
 }): PipelineBundle {
   return {
     kind: PIPELINE_BUNDLE_KIND,
@@ -164,8 +219,9 @@ export function buildPipelineBundle(args: {
       definitionHash: args.definitionHash,
     },
     evidence: args.manifestHash
-      ? { manifestHash: args.manifestHash, attestation: args.attestation }
+      ? { manifestHash: args.manifestHash, manifestJson: args.manifestJson, attestation: args.attestation }
       : null,
+    attestation: args.bundleAttestation,
     note: "Put this file in your own folder and import it whenever you like — it is yours to read, edit and run. provenance.bundleHash covers the steps as shipped; provenance.definitionHash is the certified version the signed evidence describes. They are different hashes on purpose, because the certified version records the author's provider bindings and this file must not.",
   };
 }
@@ -179,13 +235,23 @@ export function verifyPipelineBundle(
   bundle: PipelineBundle,
   pinnedPlatformKeyPem?: string,
 ): BundleVerification {
-  const base = { definitionHash: "" };
+  const base = { definitionHash: "", provenanceState: "unsigned" as const };
   if (!bundle || bundle.kind !== PIPELINE_BUNDLE_KIND) {
     return { ...base, valid: false, reason: "not_a_pipeline_bundle", evidenceState: "absent" };
   }
   const steps = bundle.pipeline?.steps;
   if (!Array.isArray(steps) || steps.length === 0) {
     return { ...base, valid: false, reason: "no_steps", evidenceState: "absent" };
+  }
+  if (!bundleSchema.safeParse(bundle).success) {
+    return { ...base, valid: false, reason: "invalid_bundle_shape", evidenceState: "invalid" };
+  }
+  const orders = new Set(steps.map((step) => step.stepOrder));
+  if (orders.size !== steps.length || steps.some((step) =>
+    (step.whileConfig != null && !orders.has((step.whileConfig as { targetStep: number }).targetStep)) ||
+    (step.ifConfig != null && Object.values((step.ifConfig as { mappings: Record<string, number> }).mappings)
+      .some((target) => !orders.has(target))))) {
+    return { ...base, valid: false, reason: "invalid_step_references", evidenceState: "invalid" };
   }
   const recomputed = bundleIntegrityHash({
     steps,
@@ -196,14 +262,55 @@ export function verifyPipelineBundle(
     return {
       definitionHash: recomputed, valid: false,
       reason: "steps_do_not_match_the_declared_hash", evidenceState: "absent",
+      provenanceState: "invalid",
     };
   }
   const ok: BundleVerification = {
-    definitionHash: recomputed, valid: true, reason: "intact", evidenceState: "absent",
+    definitionHash: recomputed, valid: true, reason: "intact",
+    evidenceState: "absent", provenanceState: "unsigned",
   };
 
+  // The file's own signature is checked against the hash recomputed HERE, from
+  // the steps in hand — so recomputing `provenance.bundleHash` to match an edit
+  // defeats the checksum and nothing else.
+  if (bundle.attestation) {
+    const pv = verifyBundleAttestation(bundle.attestation, {
+      bundleHash: recomputed,
+      definitionHash: bundle.provenance.definitionHash,
+      manifestHash: bundle.evidence?.manifestHash ?? null,
+      listingId: bundle.provenance.listingId,
+      workflowVersionId: bundle.provenance.workflowVersionId,
+      originCreatorId: bundle.provenance.originCreatorId,
+    }, pinnedPlatformKeyPem);
+    if (!pv.valid) {
+      return {
+        ...ok, valid: false, evidenceState: "invalid", provenanceState: "invalid",
+        reason: `bundle_${pv.reason}`, fingerprint: pv.fingerprint, keyId: pv.keyId,
+      };
+    }
+    ok.provenanceState = pv.signerPinned ? "signed" : "signer_unpinned";
+    ok.fingerprint = pv.fingerprint;
+    ok.keyId = pv.keyId;
+  }
+
   if (!bundle.evidence) return { ...ok, evidenceState: "absent", reason: "intact_but_no_evidence_record" };
-  const { manifestHash, attestation } = bundle.evidence;
+  const { manifestHash, manifestJson, attestation } = bundle.evidence;
+  if (manifestJson === null) {
+    return { ...ok, evidenceState: "absent", reason: "evidence_content_missing" };
+  }
+  if (createHash("sha256").update(manifestJson, "utf8").digest("hex") !== manifestHash) {
+    return { ...ok, valid: false, evidenceState: "invalid", reason: "evidence_content_hash_mismatch" };
+  }
+  try {
+    const identity = JSON.parse(manifestJson).versionIdentity;
+    if (!identity || identity.listingId !== bundle.provenance.listingId ||
+      identity.workflowVersionId !== bundle.provenance.workflowVersionId ||
+      identity.definitionHash !== bundle.provenance.definitionHash) {
+      return { ...ok, valid: false, evidenceState: "invalid", reason: "evidence_identity_mismatch" };
+    }
+  } catch {
+    return { ...ok, valid: false, evidenceState: "invalid", reason: "evidence_content_invalid" };
+  }
   if (!attestation) return { ...ok, evidenceState: "unsigned", reason: "intact_evidence_unsigned" };
 
   const verdict = verifyEvidenceAttestation(
@@ -220,9 +327,12 @@ export function verifyPipelineBundle(
   if (!verdict.valid) {
     return { ...ok, valid: false, evidenceState: "invalid", reason: `evidence_${verdict.reason}`, fingerprint: verdict.fingerprint, keyId: verdict.keyId };
   }
+  if (ok.provenanceState === "unsigned") {
+    return { ...ok, evidenceState: "unsigned", reason: "evidence_not_bound_to_shipped_pipeline" };
+  }
   return {
     ...ok,
-    evidenceState: verdict.signerPinned ? "verified" : "signer_unpinned",
+    evidenceState: verdict.signerPinned && ok.provenanceState === "signed" ? "verified" : "signer_unpinned",
     reason: verdict.signerPinned
       ? "intact_and_evidence_signed_by_the_pinned_platform_key"
       : "intact; signature valid against the key inside the file, which is not proof of who issued it",

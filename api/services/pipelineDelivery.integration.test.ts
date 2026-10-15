@@ -1,6 +1,6 @@
 // DB-backed Class A delivery drill (V3-ARCHITECTURE-DECISION.md §7, owner chose
-// "sold as a copy" on 2026-10-13). Own throwaway schema `swarm_v2test_delivery`
-// so it cannot collide with the parallel integration files.
+// "sold as a copy" on 2026-10-13). A unique throwaway schema keeps concurrent
+// integration runs isolated.
 //
 // What is exercised for real: entitlement resolution against a purchase row, the
 // recomputed definitionHash, the buyer-owned project/steps/template rows written
@@ -16,13 +16,16 @@
 //    about to be written, a drifted version row ships a copy its evidence no
 //    longer describes, and the receipt would be a lie.
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
 import { and, eq } from "drizzle-orm";
 
-const TEST_DB = "swarm_v2test_delivery";
+const TEST_DB = `swarm_v2test_delivery_${randomUUID().replaceAll("-", "")}`;
 const ROOT_MYSQL = process.env.MYSQL_ROOT_URL || "mysql://root:rootpass@localhost:3307";
 const SELLER_PROMPT = "SELLER SECRET SYSTEM PROMPT: reads ~/vault/secrets.md then drafts";
+const PIPELINE_CONFIG = { maxIterations: 3, enabledAgents: ["builder", "polisher"], stopOnNoImprovement: false };
 
 let delivery: typeof import("./pipelineDelivery");
 let versionService: typeof import("./benchmark/versionService");
@@ -30,20 +33,26 @@ let schema: typeof import("@db/schema");
 let admin: mysql.Connection;
 
 beforeAll(async () => {
+  const rootUrl = new URL(ROOT_MYSQL);
+  if (!["localhost", "127.0.0.1"].includes(rootUrl.hostname) || rootUrl.port !== "3307"
+    || !["", "/"].includes(rootUrl.pathname)) {
+    throw new Error("Delivery tests require the local Docker MySQL endpoint with no database selected");
+  }
   admin = await mysql.createConnection(ROOT_MYSQL);
-  await admin.query(`DROP DATABASE IF EXISTS ${TEST_DB}`);
   await admin.query(`CREATE DATABASE ${TEST_DB}`);
-  await admin.query(`GRANT ALL PRIVILEGES ON \`${TEST_DB}\`.* TO 'swarm'@'%'`);
-  await admin.query("FLUSH PRIVILEGES");
-  process.env.DATABASE_URL = `mysql://swarm:swarmpass@localhost:3307/${TEST_DB}`;
+  rootUrl.pathname = `/${TEST_DB}`;
+  process.env.DATABASE_URL = rootUrl.toString();
+  process.env.DATABASE_READ_URL = process.env.DATABASE_URL;
   process.env.REDIS_URL = "";
   process.env.NODE_ENV = "development";
   process.env.APP_SECRET ||= "1".repeat(64);
   process.env.AI_SWARM_MASTER_KEY ||= "2".repeat(64);
   process.env.MARKETPLACE_MASTER_KEY ||= "3".repeat(64);
   const { execFileSync } = await import("node:child_process");
-  execFileSync("npx", ["drizzle-kit", "push", "--force"], {
-    env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }, stdio: "ignore", timeout: 150_000,
+  execFileSync(process.execPath, [
+    fileURLToPath(new URL("../../node_modules/drizzle-kit/bin.cjs", import.meta.url)), "push", "--force",
+  ], {
+    env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }, stdio: "pipe", timeout: 150_000,
   });
   delivery = await import("./pipelineDelivery");
   versionService = await import("./benchmark/versionService");
@@ -53,7 +62,6 @@ beforeAll(async () => {
 afterAll(async () => {
   if (admin) {
     await admin.query(`DROP DATABASE IF EXISTS ${TEST_DB}`);
-    await admin.query(`REVOKE ALL PRIVILEGES ON \`${TEST_DB}\`.* FROM 'swarm'@'%'`);
     await admin.end();
   }
 });
@@ -105,7 +113,7 @@ async function seed(args: { purchase?: boolean; legacyListing?: boolean; unversi
   const created = await versionService.createVersionRow({
     ownerId: sellerId,
     sourceProjectId: sellerProjectId,
-    definition: { schemaVersion: 1, steps, pipelineConfig: null, sourceAgentIds: [] },
+    definition: { schemaVersion: 1, steps, pipelineConfig: PIPELINE_CONFIG, sourceAgentIds: [] },
     designerMethod: "manual",
   });
 
@@ -147,21 +155,30 @@ async function seed(args: { purchase?: boolean; legacyListing?: boolean; unversi
  *  fork it. Without this the sidecar has no evidence id and the fork refuses. */
 async function publishEvidenceFor(f: Awaited<ReturnType<typeof seed>>) {
   const d = await db();
-  const [manifest] = await d.insert(schema.evidencePublications).values({
+  const { createHash } = await import("crypto");
+  const { stableJson } = await import("./benchmark/versionService");
+  // A truthful publication: the manifest names the listing/version/definition it
+  // belongs to, and manifestHash is the real hash of its canonical bytes — the
+  // delivery path now refuses anything less.
+  const manifest = {
+    schemaVersion: 1,
+    versionIdentity: { listingId: f.listingId, workflowVersionId: f.versionId, definitionHash: f.definitionHash },
+  };
+  const [row] = await d.insert(schema.evidencePublications).values({
     authorId: f.sellerId,
     listingId: f.listingId,
     listingWorkflowVersionId: f.versionId,
     publicationKind: "seller",
     provenance: "platform_recorded",
-    publicManifest: JSON.stringify({ schemaVersion: 1, versionIdentity: { workflowVersionId: f.versionId, definitionHash: f.definitionHash } }),
-    manifestHash: f.definitionHash,
+    publicManifest: JSON.stringify(manifest),
+    manifestHash: createHash("sha256").update(stableJson(manifest)).digest("hex"),
     schemaVersion: 1,
     consentVersion: "consent-v1",
     state: "published",
     testedAt: new Date(),
     publishedAt: new Date(),
   });
-  const publicationId = Number((manifest as { insertId: number }).insertId);
+  const publicationId = Number((row as { insertId: number }).insertId);
   await d.update(schema.marketplaceListingV2).set({ currentEvidencePublicationId: publicationId })
     .where(eq(schema.marketplaceListingV2.listingId, f.listingId));
   return publicationId;
@@ -191,6 +208,7 @@ describe("Class A marketplace delivery (DB-backed)", () => {
     // seller's, and that is a column — not a string a reseller can rewrite.
     expect(project.originCreatorId).toBe(f.sellerId);
     expect(project.pipelineTemplateId).toBe(copy.templateId);
+    expect(project.pipelineConfig).toEqual(PIPELINE_CONFIG);
 
     const steps = await d.select().from(schema.pipelineSteps)
       .where(eq(schema.pipelineSteps.projectId, copy.projectId)).orderBy(schema.pipelineSteps.stepOrder);
@@ -214,6 +232,7 @@ describe("Class A marketplace delivery (DB-backed)", () => {
     expect(copyVersion.ownerId).toBe(f.buyerId);
     expect(copyVersion.parentVersionId).toBe(f.versionId);
     expect(copyVersion.originCreatorId).toBe(f.sellerId);
+    expect(JSON.parse(copyVersion.definition).pipelineConfig).toEqual(PIPELINE_CONFIG);
   });
 
   it("refuses a buyer with no purchase, and writes nothing on the way out", async () => {
@@ -430,11 +449,123 @@ describe("Class A marketplace delivery (DB-backed)", () => {
       const d = await db();
       const [project] = await d.select().from(schema.projects).where(eq(schema.projects.id, imported.projectId)).limit(1);
       expect(project.userId).toBe(stranger);
-      expect(project.originCreatorId).toBe(f.sellerId);
+      expect(project.originCreatorId).toBe(0);
+      expect(project.pipelineConfig).toMatchObject({
+        ...PIPELINE_CONFIG,
+        _importedBundle: { provenance: bundle.provenance, evidence: bundle.evidence, verification: imported.verification },
+      });
+      const [version] = await d.select().from(schema.pipelineVersions)
+        .where(eq(schema.pipelineVersions.sourceProjectId, imported.projectId));
+      expect(version.parentVersionId).toBeNull();
+      expect(version.originVersionId).toBeNull();
+      expect(version.originCreatorId).toBe(0);
       const steps = await d.select().from(schema.pipelineSteps)
         .where(eq(schema.pipelineSteps.projectId, imported.projectId));
       expect(steps).toHaveLength(2);
       expect(steps.every((x) => x.providerId === null && x.agentId === null)).toBe(true);
+    });
+
+    async function remoteBundle() {
+      const { buildPipelineBundle, bundleIntegrityHash } = await import("./pipelineBundle");
+      const steps = CERTIFIED_STEPS.map(({ providerId: _providerId, ...step }) => step);
+      return buildPipelineBundle({
+        pipelineName: "Independent installation",
+        pipelineDescription: "Portable pipeline with no local source rows",
+        steps,
+        listingId: 2_000_000_001,
+        workflowVersionId: 2_000_000_002,
+        originCreatorId: 2_000_000_003,
+        originAccountName: "Remote author",
+        workflowVersionNumber: 7,
+        definitionHash: "a".repeat(64),
+        bundleHash: bundleIntegrityHash({ steps, schemaVersion: 1, pipelineConfig: PIPELINE_CONFIG }),
+        schemaVersion: 1,
+        pipelineConfig: PIPELINE_CONFIG,
+        manifestHash: "b".repeat(64),
+        manifestJson: null,
+        attestation: null,
+        bundleAttestation: null,
+      });
+    }
+
+    it("imports absent remote identities without resolving local lineage and preserves portable metadata", async () => {
+      const bundle = await remoteBundle();
+      const stranger = await makeStranger(`remote-${randomUUID()}`);
+      const d = await db();
+      expect(await d.select().from(schema.users)
+        .where(eq(schema.users.id, bundle.provenance.originCreatorId))).toHaveLength(0);
+      expect(await d.select().from(schema.pipelineVersions)
+        .where(eq(schema.pipelineVersions.id, bundle.provenance.workflowVersionId!))).toHaveLength(0);
+      const lineage = await import("./workflowLineage");
+      const lookup = vi.spyOn(lineage, "resolveVersionLineage");
+      try {
+        const imported = await delivery.importPipelineBundle(stranger, { bundle, name: "Local copy" });
+        expect(lookup).not.toHaveBeenCalled();
+        const [project] = await d.select().from(schema.projects).where(eq(schema.projects.id, imported.projectId));
+        expect(project.userId).toBe(stranger);
+        expect(project.name).toBe("Local copy");
+        expect(project.originCreatorId).toBe(0);
+        expect(project.defaultProviderId).toBeNull();
+        expect(project.pipelineConfig).toEqual({
+          ...PIPELINE_CONFIG,
+          _importedBundle: {
+            kind: bundle.kind,
+            exportedAt: bundle.exportedAt,
+            provenance: bundle.provenance,
+            evidence: bundle.evidence,
+            attestation: bundle.attestation,
+            verification: imported.verification,
+          },
+        });
+        const [version] = await d.select().from(schema.pipelineVersions)
+          .where(eq(schema.pipelineVersions.sourceProjectId, imported.projectId));
+        expect(version.ownerId).toBe(stranger);
+        expect(version.parentVersionId).toBeNull();
+        expect(version.originVersionId).toBeNull();
+        expect(version.originCreatorId).toBe(0);
+        const definition = JSON.parse(version.definition);
+        expect(definition.pipelineConfig).toEqual(project.pipelineConfig);
+        expect(definition.sourceAgentIds).toEqual([null, null]);
+        expect(definition.steps.every((s: { providerId: number | null }) => s.providerId === null)).toBe(true);
+        const [template] = await d.select().from(schema.pipelineTemplates)
+          .where(eq(schema.pipelineTemplates.id, project.pipelineTemplateId!));
+        expect(template.userId).toBe(stranger);
+        expect(template.sourceProjectId).toBe(project.id);
+        expect(template.steps).toHaveLength(2);
+        expect(template.steps.every((s) => s.providerId === null)).toBe(true);
+        await expect(lineage.assertOriginalCreatorMaySellVersion({ userId: stranger, workflowVersionId: version.id }))
+          .rejects.toThrow(/publish_origin_required/);
+        const next = await versionService.captureVersionFromProject(stranger, project.id);
+        const loaded = await versionService.loadVersionDefinition(next.versionId);
+        expect(loaded.version.originCreatorId).toBe(0);
+        expect(loaded.definition.pipelineConfig).toEqual(project.pipelineConfig);
+      } finally {
+        lookup.mockRestore();
+      }
+    });
+
+    it("rolls back project and step writes when template insertion fails", async () => {
+      const bundle = await remoteBundle();
+      const stranger = await makeStranger(`rollback-${randomUUID()}`);
+      const d = await db();
+      const before = {
+        projects: (await d.select().from(schema.projects)).length,
+        steps: (await d.select().from(schema.pipelineSteps)).length,
+        templates: (await d.select().from(schema.pipelineTemplates)).length,
+        versions: (await d.select().from(schema.pipelineVersions)).length,
+      };
+      await admin.query(`CREATE TRIGGER \`${TEST_DB}\`.reject_delivery_template BEFORE INSERT ON \`${TEST_DB}\`.pipeline_templates
+        FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced template failure'`);
+      try {
+        await expect(delivery.importPipelineBundle(stranger, { bundle }))
+          .rejects.toMatchObject({ cause: { message: "forced template failure" } });
+        expect((await d.select().from(schema.projects)).length).toBe(before.projects);
+        expect((await d.select().from(schema.pipelineSteps)).length).toBe(before.steps);
+        expect((await d.select().from(schema.pipelineTemplates)).length).toBe(before.templates);
+        expect((await d.select().from(schema.pipelineVersions)).length).toBe(before.versions);
+      } finally {
+        await admin.query(`DROP TRIGGER \`${TEST_DB}\`.reject_delivery_template`);
+      }
     });
 
     it("refuses a bundle whose steps were edited, and writes nothing", async () => {

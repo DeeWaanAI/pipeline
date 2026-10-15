@@ -4,14 +4,19 @@
 // against bundles built by the production builders, not hand-written JSON.
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 
 let bundle: typeof import("./pipelineBundle");
 let signing: typeof import("./evidenceSigning");
 
 const key = generateKeyPairSync("ed25519");
 const PUBLIC_PEM = key.publicKey.export({ type: "spki", format: "pem" }).toString();
-const MANIFEST_HASH = "a".repeat(64);
+const MANIFEST_JSON = JSON.stringify({
+  versionIdentity: { listingId: 41, workflowVersionId: 7, definitionHash: "c".repeat(64) },
+  cases: [{ inputText: "agreement" }], outputs: [{ outputText: "redlined agreement" }],
+  judgePrompts: [{ messages: [{ role: "system", content: "score accuracy" }] }],
+});
+const MANIFEST_HASH = createHash("sha256").update(MANIFEST_JSON).digest("hex");
 
 const STEPS = [
   {
@@ -57,6 +62,13 @@ async function makeBundle(over: { attestation?: unknown | null; manifestHash?: s
     bundleHash,
     manifestHash: over.manifestHash === undefined ? MANIFEST_HASH : over.manifestHash,
     attestation: attestation as never,
+    manifestJson: over.manifestHash === null ? null : MANIFEST_JSON,
+    bundleAttestation: signing.attestBundle({
+      bundleHash, definitionHash: VERSION_HASH,
+      manifestHash: over.manifestHash === undefined ? MANIFEST_HASH : over.manifestHash,
+      listingId: PROVENANCE.listingId, workflowVersionId: PROVENANCE.workflowVersionId,
+      originCreatorId: PROVENANCE.originCreatorId,
+    }),
   });
 }
 
@@ -104,7 +116,7 @@ describe("pipeline bundle", () => {
     const v = bundle.verifyPipelineBundle(swapped, PUBLIC_PEM);
     expect(v.valid).toBe(false);
     expect(v.evidenceState).toBe("invalid");
-    expect(v.reason).toContain("attestation_does_not_describe_this_artifact");
+    expect(v.reason).toContain("attestation_does_not_describe_this_file");
     expect(other.provenance.listingId).toBe(41);
   });
 
@@ -148,11 +160,51 @@ describe("pipeline bundle", () => {
     const forged = bundle.buildPipelineBundle({
       ...PROVENANCE, ...shape, definitionHash: VERSION_HASH,
       bundleHash: bundle.bundleIntegrityHash(shape), manifestHash: MANIFEST_HASH, attestation,
+      manifestJson: MANIFEST_JSON,
+      bundleAttestation: forgedSigning.attestBundle({
+        bundleHash: bundle.bundleIntegrityHash(shape), definitionHash: VERSION_HASH,
+        manifestHash: MANIFEST_HASH, listingId: PROVENANCE.listingId,
+        workflowVersionId: PROVENANCE.workflowVersionId, originCreatorId: PROVENANCE.originCreatorId,
+      }),
     });
     expect(bundle.verifyPipelineBundle(forged).evidenceState).toBe("signer_unpinned");
     const checked = bundle.verifyPipelineBundle(forged, PUBLIC_PEM);
     expect(checked.valid).toBe(false);
     expect(checked.reason).toContain("signer_key_not_the_pinned_platform_key");
+  });
+
+  it("refuses edited steps even when the attacker recomputes the checksum", async () => {
+    const b = await makeBundle();
+    b.pipeline.steps = b.pipeline.steps.map((step) => ({ ...step, systemPrompt: "replaced" }));
+    b.provenance.bundleHash = bundle.bundleIntegrityHash({
+      steps: b.pipeline.steps, schemaVersion: b.provenance.schemaVersion,
+      pipelineConfig: b.provenance.pipelineConfig,
+    });
+    const result = bundle.verifyPipelineBundle(b, PUBLIC_PEM);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("bundle_attestation_does_not_describe_this_file");
+  });
+
+  it("does not claim verified pipeline evidence after its file signature is stripped", async () => {
+    const b = await makeBundle();
+    b.attestation = null;
+    const result = bundle.verifyPipelineBundle(b, PUBLIC_PEM);
+    expect(result.valid).toBe(true);
+    expect(result.evidenceState).toBe("unsigned");
+    expect(result.provenanceState).toBe("unsigned");
+  });
+
+  it("rejects malformed imported content without throwing", async () => {
+    const b = await makeBundle();
+    for (const bad of [
+      { ...b, provenance: null },
+      { ...b, pipeline: { ...b.pipeline, steps: [null] } },
+      { ...b, pipeline: { ...b.pipeline, steps: [{ ...b.pipeline.steps[0], providerId: 7 }] } },
+      { ...b, pipeline: { ...b.pipeline, steps: [{ ...b.pipeline.steps[0], whileConfig: { targetStep: 99, maxIterations: 2 } }] } },
+    ]) {
+      expect(() => bundle.verifyPipelineBundle(bad as never)).not.toThrow();
+      expect(bundle.verifyPipelineBundle(bad as never).valid).toBe(false);
+    }
   });
 
   it("rejects anything that is not a pipeline bundle", () => {
