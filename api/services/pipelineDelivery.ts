@@ -33,7 +33,7 @@ import { createHash } from "crypto";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { pipelineSteps, pipelineTemplates, projects } from "@db/schema";
+import { marketplaceListingV2, marketplaceListings, pipelineSteps, pipelineTemplates, projects } from "@db/schema";
 import { logger } from "../lib/logger";
 import { resolveProtectedExecutionRight } from "./executionRight";
 import {
@@ -56,6 +56,10 @@ export class PipelineDeliveryError extends Error {
   }
 }
 
+/** How the handed-over version was chosen. `public_fork` never came from a
+ *  purchase at all: the listing is public and its evidence is published. */
+export type DeliveryBinding = "purchase_receipt" | "grant" | "legacy_current" | "public_fork";
+
 export interface DeliveredCopy {
   projectId: number;
   projectName: string;
@@ -74,36 +78,37 @@ export interface DeliveredCopy {
    *  version was handed over instead — which is the one case where a copy can
    *  be a different build than the one money changed hands for. It is reported,
    *  not hidden, and it is not silently treated as a bound delivery. */
-  versionBinding: "purchase_receipt" | "grant" | "legacy_current";
+  versionBinding: DeliveryBinding;
   stepCount: number;
   meaning: string;
 }
 
-/**
- * Hand the entitled buyer their own copy of a listing's certified workflow
- * version: a project they own, steps they can edit, a template so the copy is a
- * complete runnable object, and a first immutable version of their own carrying
- * the seller in its lineage.
- */
-export async function deliverPurchasedCopy(
-  buyerId: number,
-  input: z.infer<typeof deliverPurchasedCopyInputSchema>,
-): Promise<DeliveredCopy> {
-  // (1) Entitlement. Deliberately the protected-run authority, so "you bought
-  // it" means one thing in this codebase and cannot drift between the two ways
-  // a buyer receives value.
-  const right = await resolveProtectedExecutionRight({
-    buyerId,
-    listingId: input.listingId,
-    purpose: "buyer_execution",
-  });
-  const listing = right.listing;
+interface MaterializeArgs {
+  userId: number;
+  listing: typeof marketplaceListings.$inferSelect;
+  sellerId: number;
+  soldVersionId: number;
+  versionBinding: DeliveryBinding;
+  via: "purchase" | "fork";
+  name?: string;
+}
 
-  const { version, definition } = await loadVersionDefinition(right.soldVersionId);
-  if (version.ownerId !== right.sellerId || version.id !== right.soldVersionId) {
+/**
+ * The one materializer behind both doors: it writes a listing's certified
+ * workflow version into the recipient's OWN account — a project they own, steps
+ * they can edit, a template so the copy is a complete runnable object, and a
+ * first immutable version carrying the origin account in its lineage. Whether
+ * the recipient earned that copy by purchase or by the listing being public is
+ * decided by the caller, never here.
+ */
+async function materializeCertifiedVersion(args: MaterializeArgs): Promise<DeliveredCopy> {
+  const { userId, listing, sellerId } = args;
+
+  const { version, definition } = await loadVersionDefinition(args.soldVersionId);
+  if (version.ownerId !== sellerId || version.id !== args.soldVersionId) {
     throw new PipelineDeliveryError(
       "version_unavailable",
-      "the version this purchase was receipted against no longer belongs to the listing",
+      "the version named for this handover no longer belongs to the listing",
     );
   }
   if (!Array.isArray(definition.steps) || definition.steps.length === 0) {
@@ -115,7 +120,7 @@ export async function deliverPurchasedCopy(
   const storedHash = String(version.definitionHash);
   if (recomputed !== storedHash) {
     logger.error("Refusing delivery: version row no longer matches its own hash", {
-      buyerId,
+      userId,
       listingId: listing.id,
       versionId: version.id,
       storedHash,
@@ -127,16 +132,16 @@ export async function deliverPurchasedCopy(
   }
 
   const db = getDb();
-  const projectName = (input.name ?? `${listing.title} (copy)`).slice(0, 200);
+  const projectName = (args.name ?? `${listing.title} (copy)`).slice(0, 200);
 
   const [insertedProject] = await db.insert(projects).values({
-    userId: buyerId,
+    userId,
     name: projectName,
     description: listing.description,
     // PROVENANCE AS DATA: the copy is owned and editable by the buyer, and it
     // stays attributed to the account that originally made the work — which is
     // also what refuses a reseller at the publish gate.
-    originCreatorId: right.sellerId,
+    originCreatorId: sellerId,
   });
   const projectId = Number((insertedProject as { insertId: number }).insertId);
 
@@ -161,9 +166,9 @@ export async function deliverPurchasedCopy(
   }
 
   const [insertedTemplate] = await db.insert(pipelineTemplates).values({
-    userId: buyerId,
+    userId,
     name: `${projectName} template`.slice(0, 200),
-    description: `Delivered from marketplace listing ${listing.id} (workflow version ${version.versionNumber})`,
+    description: `${args.via === "fork" ? "Forked" : "Delivered"} from marketplace listing ${listing.id} (workflow version ${version.versionNumber})`,
     isAuto: false,
     sourceProjectId: projectId,
     steps: definition.steps.map((s) => ({
@@ -185,20 +190,21 @@ export async function deliverPurchasedCopy(
   // The copy gets a version row of its own, parented to the certified one, so
   // the seller's account survives in lineage and the buyer's edits start from a
   // known hash rather than from nothing.
-  const { versionId: buyerVersionId } = await captureVersionFromProject(buyerId, projectId, {
-    parentVersionId: right.soldVersionId,
+  const { versionId: recipientVersionId } = await captureVersionFromProject(userId, projectId, {
+    parentVersionId: args.soldVersionId,
   });
 
-  logger.info("Marketplace copy delivered", {
-    buyerId,
+  logger.info("Marketplace copy handed over", {
+    userId,
+    via: args.via,
     listingId: listing.id,
-    sellerId: right.sellerId,
-    soldVersionId: right.soldVersionId,
+    sellerId,
+    soldVersionId: args.soldVersionId,
     projectId,
     definitionHash: storedHash,
   });
 
-  const bindingNote = right.versionBinding === "legacy_current"
+  const bindingNote = args.versionBinding === "legacy_current"
     // A pre-migration receipt names no version, so this is the listing's current
     // one — which a seller may have changed after the sale. Say so, in the record
     // the buyer keeps, rather than letting the hash imply a promise nobody made.
@@ -209,13 +215,82 @@ export async function deliverPurchasedCopy(
     projectId,
     projectName,
     templateId,
-    workflowVersionId: buyerVersionId,
+    workflowVersionId: recipientVersionId,
     listingId: listing.id,
-    sellerId: right.sellerId,
+    sellerId,
     deliveredDefinitionHash: storedHash,
     deliveredVersionNumber: Number(version.versionNumber),
-    versionBinding: right.versionBinding,
+    versionBinding: args.versionBinding,
     stepCount: definition.steps.length,
-    meaning: `This copy is yours to edit and to run, and it is billed to your own keys — the seller's provider and agent bindings were deliberately not carried over. It arrived as workflow version ${version.versionNumber} of listing ${listing.id}, definition hash ${storedHash}. The evidence published for that listing describes THAT hash: edit the copy and it stops describing yours, and nothing on our side will tell you when. A copy can be shared; that is what buying one means here, and this product does not claim to prevent it.${bindingNote}`,
+    meaning: `This copy is yours to edit and to run, and it is billed to your own keys — the origin account's provider and agent bindings were deliberately not carried over. It arrived as workflow version ${version.versionNumber} of listing ${listing.id}, definition hash ${storedHash}. The evidence published for that listing describes THAT hash: edit the copy and it stops describing yours, and nothing on our side will tell you when. ${args.via === "fork"
+      ? "It is attributed to the account that made it, the way a fork on GitHub is — that attribution travels with the copy."
+      : "A copy can be shared; that is what receiving one means here, and this product does not claim to prevent it."}${bindingNote}`,
   };
+}
+
+/** Door 1: the buyer of a listing takes delivery of what they bought. */
+export async function deliverPurchasedCopy(
+  buyerId: number,
+  input: z.infer<typeof deliverPurchasedCopyInputSchema>,
+): Promise<DeliveredCopy> {
+  // Entitlement is the protected-run authority, so "you bought it" means one
+  // thing in this codebase and cannot drift between the ways a buyer is served.
+  const right = await resolveProtectedExecutionRight({
+    buyerId,
+    listingId: input.listingId,
+    purpose: "buyer_execution",
+  });
+  return materializeCertifiedVersion({
+    userId: buyerId, listing: right.listing, sellerId: right.sellerId,
+    soldVersionId: right.soldVersionId, versionBinding: right.versionBinding,
+    via: "purchase", name: input.name,
+  });
+}
+
+export const forkPublicListingInputSchema = z.object({
+  listingId: z.number().int().positive(),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+/**
+ * Door 2: a public listing is forkable by anyone, with no purchase and no
+ * entitlement — but only because it paid the entry fee first. A listing reaches
+ * `published` through the evidence boundary, which requires a benchmark run with
+ * a three-judge panel, so "is there a published evidence record for exactly this
+ * version" IS the quality gate. No evidence, no fork: the refusal says so rather
+ * than handing over an unverified pipeline.
+ */
+export async function forkPublicListing(
+  userId: number,
+  input: z.infer<typeof forkPublicListingInputSchema>,
+): Promise<DeliveredCopy> {
+  const db = getDb();
+  const [listing] = await db.select().from(marketplaceListings)
+    .where(eq(marketplaceListings.id, input.listingId)).limit(1);
+  // A missing listing and an unpublished one answer identically: nothing here
+  // may be probed for existence.
+  if (!listing || listing.status !== "published") {
+    throw new PipelineDeliveryError("not_available", "this pipeline is not published for sharing");
+  }
+  const [v2] = await db.select().from(marketplaceListingV2)
+    .where(eq(marketplaceListingV2.listingId, listing.id)).limit(1);
+  if (v2?.publicationMode !== "v2" || !v2.currentWorkflowVersionId) {
+    throw new PipelineDeliveryError(
+      "no_certified_version",
+      "this listing has no certified workflow version, so there is nothing verified to fork",
+    );
+  }
+  if (!v2.currentEvidencePublicationId) {
+    throw new PipelineDeliveryError(
+      "no_published_evidence",
+      "this listing's benchmark evidence is not published, so it cannot be forked — the shared copy must come with its inputs, outputs and judging prompts",
+    );
+  }
+  // Forking your own listing is just a copy of your own work; allowed, but it is
+  // the same materializer with the same attribution rules.
+  return materializeCertifiedVersion({
+    userId, listing, sellerId: listing.creatorId,
+    soldVersionId: v2.currentWorkflowVersionId, versionBinding: "public_fork",
+    via: "fork", name: input.name,
+  });
 }

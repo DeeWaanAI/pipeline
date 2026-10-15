@@ -202,6 +202,11 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Show my purchased pipelines.\"",
   },
   {
+    name: "fork_pipeline", group: "Marketplace", scopes: ["mcp:write"],
+    summary: "Copy a publicly shared pipeline into your own account — the way a fork on GitHub works. Only listings whose benchmark evidence is published can be forked, so the inputs, outputs and judging prompts come with it; the copy runs on your keys and stays attributed to whoever made it.",
+    example: "\"Fork the contract redliner from the gallery into my account.\"",
+  },
+  {
     name: "deliver_purchased_copy", group: "Marketplace", scopes: ["mcp:write"],
     summary: "Take a listing you bought into your own account as an editable copy that runs on your keys. You receive the workflow, not a secret: the copy is yours, it can be shared, and its published evidence describes the exact hash delivered — edit it and that evidence quietly stops describing yours.",
     example: "\"Deliver the contract redliner I bought into my pipelines.\"",

@@ -142,6 +142,31 @@ async function seed(args: { purchase?: boolean; legacyListing?: boolean; unversi
   };
 }
 
+/** Publish a real evidence record for the seeded listing's version and point the
+ *  listing's sidecar at it — the state a listing must be in before anyone may
+ *  fork it. Without this the sidecar has no evidence id and the fork refuses. */
+async function publishEvidenceFor(f: Awaited<ReturnType<typeof seed>>) {
+  const d = await db();
+  const [manifest] = await d.insert(schema.evidencePublications).values({
+    authorId: f.sellerId,
+    listingId: f.listingId,
+    listingWorkflowVersionId: f.versionId,
+    publicationKind: "seller",
+    provenance: "platform_recorded",
+    publicManifest: JSON.stringify({ schemaVersion: 1, versionIdentity: { workflowVersionId: f.versionId, definitionHash: f.definitionHash } }),
+    manifestHash: f.definitionHash,
+    schemaVersion: 1,
+    consentVersion: "consent-v1",
+    state: "published",
+    testedAt: new Date(),
+    publishedAt: new Date(),
+  });
+  const publicationId = Number((manifest as { insertId: number }).insertId);
+  await d.update(schema.marketplaceListingV2).set({ currentEvidencePublicationId: publicationId })
+    .where(eq(schema.marketplaceListingV2.listingId, f.listingId));
+  return publicationId;
+}
+
 const projectCount = async (userId: number) => {
   const d = await db();
   return (await d.select({ id: schema.projects.id }).from(schema.projects)
@@ -306,5 +331,64 @@ describe("Class A marketplace delivery (DB-backed)", () => {
     for (const forbidden of ["providerId", "agentId", "projectId", "userId", '"id":']) {
       expect(text.includes(forbidden), `export payload carries ${forbidden}`).toBe(false);
     }
+  });
+  describe("forking a public listing", () => {
+    it("refuses a listing whose evidence is not published — no evidence, no fork", async () => {
+      const f = await seed();
+      await expect(delivery.forkPublicListing(f.buyerId, { listingId: f.listingId }))
+        .rejects.toThrow(/no_published_evidence/);
+      expect(await projectCount(f.buyerId)).toBe(0);
+    });
+
+    it("refuses an unpublished listing and a nonexistent one identically", async () => {
+      const f = await seed();
+      await publishEvidenceFor(f);
+      const d = await db();
+      await d.update(schema.marketplaceListings).set({ status: "unpublished" })
+        .where(eq(schema.marketplaceListings.id, f.listingId));
+      const hidden = await delivery.forkPublicListing(f.buyerId, { listingId: f.listingId })
+        .catch((err: Error) => err.message);
+      const missing = await delivery.forkPublicListing(f.buyerId, { listingId: 987_654 })
+        .catch((err: Error) => err.message);
+      expect(hidden).toBe(missing);
+      expect(String(hidden)).toMatch(/not_available/);
+    });
+
+    it("forks a published listing into the forker's own account, attributed to its origin", async () => {
+      const f = await seed();
+      await publishEvidenceFor(f);
+      const copy = await delivery.forkPublicListing(f.buyerId, { listingId: f.listingId });
+
+      expect(copy.versionBinding).toBe("public_fork");
+      expect(copy.deliveredDefinitionHash).toBe(f.definitionHash);
+      expect(copy.meaning).toContain("attributed");
+
+      const d = await db();
+      const [project] = await d.select().from(schema.projects).where(eq(schema.projects.id, copy.projectId)).limit(1);
+      expect(project.userId).toBe(f.buyerId);
+      // The fork carries the origin account as data, not as a string in a name.
+      expect(project.originCreatorId).toBe(f.sellerId);
+
+      const steps = await d.select().from(schema.pipelineSteps)
+        .where(eq(schema.pipelineSteps.projectId, copy.projectId));
+      expect(steps).toHaveLength(2);
+      expect(steps.every((s) => s.providerId === null && s.agentId === null)).toBe(true);
+      expect(steps.some((s) => s.systemPrompt === SELLER_PROMPT)).toBe(true);
+
+      const [copyVersion] = await d.select().from(schema.pipelineVersions)
+        .where(eq(schema.pipelineVersions.id, copy.workflowVersionId)).limit(1);
+      expect(copyVersion.originCreatorId).toBe(f.sellerId);
+      expect(copyVersion.parentVersionId).toBe(f.versionId);
+    });
+
+    it("lets the origin account fork its own listing without laundering attribution", async () => {
+      const f = await seed();
+      await publishEvidenceFor(f);
+      const copy = await delivery.forkPublicListing(f.sellerId, { listingId: f.listingId });
+      expect(copy.sellerId).toBe(f.sellerId);
+      const d = await db();
+      const [project] = await d.select().from(schema.projects).where(eq(schema.projects.id, copy.projectId)).limit(1);
+      expect(project.originCreatorId).toBe(f.sellerId);
+    });
   });
 });

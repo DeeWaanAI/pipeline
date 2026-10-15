@@ -15,7 +15,7 @@ import {
 } from "@db/schema";
 import { encryptPipelineSteps } from "../../lib/marketplaceCrypto";
 import { assertOriginalCreatorMayList } from "../../services/workflowLineage";
-import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema } from "../../services/pipelineDelivery";
+import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema, forkPublicListing, forkPublicListingInputSchema } from "../../services/pipelineDelivery";
 import { logger } from "../../lib/logger";
 import { appRouter } from "../../router";
 
@@ -343,5 +343,22 @@ export const deliverPurchasedCopyTool: McpTool = {
   handler: async (args, ctx) => {
     const input = deliverPurchasedCopyInputSchema.parse(args);
     return deliverPurchasedCopy(ctx.userId, input);
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// 7. fork_pipeline — the public gallery's one gesture (v3)
+// ═══════════════════════════════════════════════════════════════════
+
+export const forkPipelineTool: McpTool = {
+  name: "fork_pipeline",
+  description:
+    "Take a public marketplace listing into YOUR account as an editable copy — no purchase, no approval. The only entry fee is the one the sharer already paid: a listing can be forked because its benchmark evidence is published for exactly the version being handed over, so the inputs, outputs and judging prompts travel with it. Refused with `no_published_evidence` if that record is missing, and `no_certified_version` if the listing has no immutable version to copy. The copy arrives with the origin account's provider and agent bindings stripped, so it runs and bills on YOUR keys, and it stays attributed to whoever originally made it — like a fork on GitHub. Read `deliveredDefinitionHash` and `meaning` out to the user: the published evidence describes that exact hash, and editing the copy stops it describing theirs.",
+  inputSchema: forkPublicListingInputSchema,
+  requiredScopes: ["mcp:write"],
+  annotations: { readOnlyHint: false },
+  handler: async (args, ctx) => {
+    const input = forkPublicListingInputSchema.parse(args);
+    return forkPublicListing(ctx.userId, input);
   },
 };

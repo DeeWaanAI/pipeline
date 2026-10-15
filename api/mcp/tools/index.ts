@@ -28,6 +28,7 @@ import {
   myMarketplaceListings,
   myPurchases,
   deliverPurchasedCopyTool,
+  forkPipelineTool,
 } from "./marketplaceTools";
 import { exportMyData } from "./portability";
 import { exportRun } from "./exportRun";
@@ -90,6 +91,7 @@ export const TOOLS: McpTool[] = [
   // the purchase/grant row, so this needs no flag and no payment configuration
   // to exist — and a refund closes it at the same moment it closes the run door.
   deliverPurchasedCopyTool,
+  forkPipelineTool,
   // Batch B — data portability (no lock-in, from chat)
   exportMyData,
   // Research Mode — granular run export (full step/response history)
