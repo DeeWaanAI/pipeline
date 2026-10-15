@@ -26,7 +26,7 @@ import {
 export default function MarketplaceBrowse() {
   const { t } = useTranslation("pages");
   const [category, setCategory] = useState("all");
-  const [sortBy, setSortBy] = useState<"newest" | "price_asc" | "price_desc" | "grade" | "popular">("newest");
+  const [sortBy, setSortBy] = useState<"newest" | "grade" | "popular">("newest");
   const [searchQuery, setSearchQuery] = useState("");
 
   const CATEGORIES = [
@@ -107,8 +107,6 @@ export default function MarketplaceBrowse() {
                 <SelectItem value="newest" className="text-neutral-100">{t("pages:marketplace.browse.sort.newest")}</SelectItem>
                 <SelectItem value="popular" className="text-neutral-100">{t("pages:marketplace.browse.sort.popular")}</SelectItem>
                 <SelectItem value="grade" className="text-neutral-100">{t("pages:marketplace.browse.sort.grade")}</SelectItem>
-                <SelectItem value="price_asc" className="text-neutral-100">{t("pages:marketplace.browse.sort.priceAsc")}</SelectItem>
-                <SelectItem value="price_desc" className="text-neutral-100">{t("pages:marketplace.browse.sort.priceDesc")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -159,13 +157,9 @@ export default function MarketplaceBrowse() {
 
                 <div className="flex items-center justify-between pt-3 border-t border-neutral-800">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-neutral-100">${listing.price}</span>
-                    {listing.isSubscription && (
-                      <span className="text-xs text-neutral-500">{t("pages:marketplace.browse.perMonth")}</span>
-                    )}
+                    <span className="text-lg font-bold text-emerald-400">{t("pages:marketplace.browse.freeLabel")}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-neutral-500">
-                    <span>{listing.salesCount} {t("pages:marketplace.browse.sales")}</span>
                     {listing.reviewCount ? (
                       <span>{listing.reviewCount} {t("pages:marketplace.browse.reviews")}</span>
                     ) : null}

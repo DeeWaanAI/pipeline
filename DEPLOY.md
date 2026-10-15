@@ -87,8 +87,6 @@ Feature flags live in the database and start empty. Click **MySQL service → "D
 INSERT INTO feature_flags (`key`, name, description, enabled, rollout_percent) VALUES
   ('circuit_breaker', 'Circuit Breaker', 'Pipeline safety limits', 1, 100),
   ('local_folder', 'Local Folder Access', 'Link local project folders', 1, 100),
-  ('store_relaunch', 'Store Relaunch', 'Stripe marketplace purchases', 1, 100),
-  ('marketplace_ai_triage', 'Marketplace AI Triage', 'Platform AI triage for marketplace submissions (non-gating)', 1, 100),
   ('enterprise_sso', 'Enterprise SSO', 'OIDC/SAML login', 0, 0),
   ('enterprise_relay', 'Enterprise Relay', 'On-prem relay', 0, 0),
   ('gitee_sync', 'Gitee Sync', 'Gitee repo integration (incomplete feature)', 0, 0),
@@ -97,7 +95,7 @@ INSERT INTO feature_flags (`key`, name, description, enabled, rollout_percent) V
 
 (the two enterprise flags and `gitee_sync` stay off until you've tested them live — the burial checklist in `ENGINEERING.md` explains when to remove them entirely. `companion_mcp` needs no flag — it's permanently on.)
 
-Marketplace trust flow (see `DeeWaanAI-Next/MARKETPLACE-TRUST-SPEC.md`): submissions pass a deterministic security scan → optional platform AI triage (`marketplace_ai_triage` + `AI_TRIAGE_*` env vars; off/unconfigured = skipped, non-gating) → `certifying` (visible, not buyable) → blind human review (5×3, kappa > 0.60) → `published` (buyable). AI never publishes; humans gate buyability.
+Marketplace trust flow (v3): submissions pass a deterministic security scan → test runs on the creator's own provider keys (the platform pays for zero model calls) → `certifying` (visible, not forkable) → the evidence gate (frozen recorded test, vendor-disclosed judging panel, secrets scan, creator consent to the hashed preview) → `published` with a signed evidence record. Nothing is sold: published listings are forked free of charge, gated on that published evidence.
 
 ## Step 7 — Get your web address (1 min)
 

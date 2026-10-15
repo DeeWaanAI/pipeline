@@ -20,10 +20,10 @@
   "fallbackNote": "This page is not yet translated — showing the English version.",
   "landing": {
     "metaTitle": "DeeWaanAI — The certified AI-pipeline marketplace",
-    "metaDescription": "Create, discover, buy and sell AI workflows — from inside Claude, ChatGPT, Kimi, or any MCP client. Every listing published with the evidence behind it — inputs, outputs, judging prompts and results.",
+    "metaDescription": "Create, discover, and share AI workflows — from inside Claude, ChatGPT, Kimi, or any MCP client. Every listing published with the evidence behind it — inputs, outputs, judging prompts and results.",
     "hero": {
       "title": "Certified AI pipelines. Inside your chat.",
-      "subline": "Create, buy, and sell multi-step AI workflows from Claude, ChatGPT, Kimi, or any MCP client. Every listing carries the evidence behind it: inputs, outputs, the exact judging prompts, and results.",
+      "subline": "Create and share multi-step AI workflows from Claude, ChatGPT, Kimi, or any MCP client. Every listing carries the evidence behind it: inputs, outputs, the exact judging prompts, and results.",
       "primaryCta": "Join the Pioneer 100 →",
       "secondaryCta": "See how it works",
       "videoCaption": "Watch: using a certified pipeline inside a chat — 45 seconds.",
@@ -32,7 +32,13 @@
     "worksWith": {
       "label": "Connects to the tools you already use",
       "caption": "DeeWaanAI runs as an MCP server. One URL, pasted once — per person, in any app.",
-      "badges": ["Claude", "ChatGPT", "Kimi", "Cursor", "Any MCP client"]
+      "badges": [
+        "Claude",
+        "ChatGPT",
+        "Kimi",
+        "Cursor",
+        "Any MCP client"
+      ]
     },
     "problem": {
       "title": "Most marketplaces sell promises.",
@@ -55,21 +61,29 @@
     "howItWorks": {
       "title": "How it works",
       "steps": [
-        { "title": "Connect", "body": "Paste one MCP URL into your chat client. That's the whole install." },
-        { "title": "Create or discover", "body": "Build multi-step AI pipelines with your own prompts and models, or browse pipelines built by others." },
-        { "title": "Run & improve", "body": "Execute in your chat. Approval gates pause for your OK. Iterate on steps until the output passes." }
+        {
+          "title": "Connect",
+          "body": "Paste one MCP URL into your chat client. That's the whole install."
+        },
+        {
+          "title": "Create or discover",
+          "body": "Build multi-step AI pipelines with your own prompts and models, or browse pipelines built by others."
+        },
+        {
+          "title": "Run & improve",
+          "body": "Execute in your chat. Approval gates pause for your OK. Iterate on steps until the output passes."
+        }
       ]
     },
     "audiences": {
       "creators": {
         "title": "For creators",
-        "subtitle": "Build and sell certified pipelines",
+        "subtitle": "Build and share certified pipelines",
         "bullets": [
           "IF/WHILE loops and quality gates for sophisticated workflows",
           "AI Auto-Designer turns plain language into optimal pipelines",
           "Secret prompts stay encrypted — never shown to the judges, never published",
-          "Certified marketplace badge that actually means something",
-          "Pioneer creators lock in lifetime best commission rate"
+          "Certified marketplace badge that actually means something"
         ]
       },
       "users": {
@@ -84,26 +98,26 @@
       }
     },
     "capabilities": {
-      "title": "One plan. One price.",
-      "intro": "No tiers to upgrade out of, no seats to count, no metering per run. The subscription is the whole product.",
+      "title": "Free. Open source. Your keys.",
+      "intro": "The studio and the MCP server are free — deliberately, for adoption. Pipelines run on your own provider keys, so your provider bills you and we never charge per run. Marketplace listings are shared as open source: nothing is sold.",
       "plan": {
         "name": "DeeWaanAI",
-        "price": "$9.99",
-        "cadence": "per account, per month",
-        "badge": "Free during beta",
-        "description": "Everything included — create, run, certify, sell.",
+        "price": "$0",
+        "cadence": "free, during beta and after",
+        "badge": "Open source",
+        "description": "Everything included — create, run, certify, share.",
         "features": [
           "Custom pipeline designer with IF/WHILE loops and quality gates",
           "AI Auto-Designer — describe the goal, get a built pipeline",
           "Up to 3 of your own LLM providers in one pipeline",
           "Human-in-the-Loop approval gates",
-          "Publish and sell certified pipelines on the marketplace",
+          "Publish and share certified pipelines on the marketplace",
           "Run it all from Claude, ChatGPT, Kimi, Cursor or any MCP client",
           "Bring your own keys: your provider bills you, we never charge per run"
         ],
-        "betaNote": "During beta the full product is free and no card is taken. $9.99 a month starts at paid launch."
+        "betaNote": "DeeWaanAI is free — during beta and after. Pipeline runs are billed by your own LLM provider, never by us."
       },
-      "smallPrint": "Free during beta. Pioneer members keep the best terms we will ever offer at launch.",
+      "smallPrint": "Free and open source (AGPL-3.0). Marketplace listings are shared at no cost.",
       "cta": "Join the Pioneer 100 →"
     },
     "betaFeatures": {
@@ -128,9 +142,18 @@
       "title": "Proof you can read, not a badge.",
       "intro": "Anyone can upload a prompt. DeeWaanAI is built for the ones worth inspecting.",
       "layers": [
-        { "title": "Deterministic security scan", "body": "Code, not AI. Catches injection patterns, hidden Unicode tricks, and data-exfiltration attempts. Ungameable." },
-        { "title": "AI triage", "body": "A platform-controlled model scores quality and gives creators instant feedback. It advises — it never decides." },
-        { "title": "Published evidence", "body": "The seller's own judging panel — three judges from three different model developers, none of them a model that generated the answers — under three prompt framings. Every prompt, every score and every failure is published for you to read." }
+        {
+          "title": "Deterministic security scan",
+          "body": "Code, not AI. Catches injection patterns, hidden Unicode tricks, and data-exfiltration attempts. Ungameable."
+        },
+        {
+          "title": "AI triage",
+          "body": "A platform-controlled model scores quality and gives creators instant feedback. It advises — it never decides."
+        },
+        {
+          "title": "Published evidence",
+          "body": "The seller's own judging panel — three judges from three different model developers, none of them a model that generated the answers — under three prompt framings. Every prompt, every score and every failure is published for you to read."
+        }
       ],
       "closing": "Fail-closed by design: an incomplete plan, a self-graded panel or a leaked secret leaves the listing unpublished.",
       "link": "Read how the evidence works →"
@@ -140,7 +163,6 @@
       "perks": [
         "Pioneer badge on your profile — permanent",
         "Everything in the product during beta, at no cost",
-        "Lifetime discounted commission as a creator",
         "3 invites to bring people you trust",
         "Direct line to the founder — your feedback ships"
       ],
@@ -149,7 +171,7 @@
       "emailLabel": "Email address",
       "emailPlaceholder": "you@example.com",
       "roleLabel": "I want to…",
-      "roleCreator": "Build & sell pipelines",
+      "roleCreator": "Build & share pipelines",
       "roleUser": "Use pipelines",
       "roleBoth": "Both",
       "submit": "Request my spot",
@@ -158,7 +180,7 @@
       "shareLabel": "Share your link to move up:",
       "copyButton": "Copy",
       "copied": "Copied!",
-      "shareTextTemplate": "Just joined the DeeWaanAI Pioneer 100 waitlist — the AI-pipeline marketplace where you can read the evidence before you buy. {referralUrl}",
+      "shareTextTemplate": "Just joined the DeeWaanAI Pioneer 100 waitlist — the AI-pipeline marketplace where you can read the evidence before you run anything. {referralUrl}",
       "shareOnX": "Share on X",
       "shareOnLinkedIn": "Share on LinkedIn",
       "smallPrint": "Free during beta. Beta perks are promotional benefits and do not constitute equity or ownership.",
@@ -172,7 +194,7 @@
       "items": [
         {
           "q": "What is DeeWaanAI?",
-          "a": "DeeWaanAI is a marketplace for AI pipelines — multi-step AI workflows you can create, buy, and sell. Before a listing can be bought, its evidence has to pass structural checks: a completed test recorded by the platform, a judging panel that could not have graded its own work, a scan of the disclosed text for secrets, and the seller's consent to the exact preview that went public."
+          "a": "DeeWaanAI is a marketplace for AI pipelines — multi-step AI workflows you can create, share, and fork. Before a listing can be forked, its evidence has to pass structural checks: a completed test recorded by the platform, a judging panel that could not have graded its own work, a scan of the disclosed text for secrets, and the author's consent to the exact preview that went public."
         },
         {
           "q": "What is a certified AI pipeline?",
@@ -187,16 +209,16 @@
           "a": "You bring your own LLM provider keys. Your pipeline runs go to your providers under your keys — DeeWaanAI orchestrates, it doesn't intercept."
         },
         {
-          "q": "Is my pipeline IP protected if I sell it?",
-          "a": "Yes. Secret prompts are encrypted, never sent to the judging panel — the judges receive the published test inputs and outputs only — never used for training, and the buyer receives usage rights, not your source prompts."
+          "q": "Is my pipeline IP protected if I share it?",
+          "a": "During evaluation, yes: the judging panel only ever receives the published test inputs and outputs, never your prompts, and nothing is used for training. But sharing itself is open source in the literal sense — anyone who forks your listing receives the pipeline definition itself. Publish only work you are willing to give away."
         },
         {
           "q": "What does beta cost?",
-          "a": "Nothing. During beta everything is free and marketplace listings are in free preview. At launch it is one flat $9.99 monthly subscription per account — no tiers, no seats, no per-run metering — and Pioneers keep the best terms we will ever offer."
+          "a": "Nothing — during beta and after. DeeWaanAI is free and open source, and marketplace listings are shared free of charge. Your only cost is your own LLM provider usage: runs go out under your keys, so your provider bills you directly."
         },
         {
           "q": "What is the Pioneer 100?",
-          "a": "Our first 100 beta members. Pioneers get a permanent badge, free access to the full product during beta, a lifetime discounted creator commission, and 3 invites each. Spots are capped at 100 because we read and answer every piece of feedback ourselves — the scarcity is real, not marketing."
+          "a": "Our first 100 beta members. Pioneers get a permanent badge, free access to the full product, and 3 invites each. Spots are capped at 100 because we read and answer every piece of feedback ourselves — the scarcity is real, not marketing."
         },
         {
           "q": "Can I share a pipeline with someone who uses a different AI app?",
@@ -212,11 +234,11 @@
         },
         {
           "q": "What are IF/WHILE loops?",
-          "a": "IF/WHILE loops let you build conditional and repeating workflow logic — included in the one subscription, not a paid extra. A quality gate can check an agent's output and automatically loop back until it passes — or route to a different step based on the result."
+          "a": "IF/WHILE loops let you build conditional and repeating workflow logic — included free, not a paid extra. A quality gate can check an agent's output and automatically loop back until it passes — or route to a different step based on the result."
         },
         {
           "q": "What is the AI Auto-Designer?",
-          "a": "The AI Auto-Designer lets you describe your goal in plain language — for example, 'turn a product idea into a launch plan' — and the platform automatically generates the optimal pipeline with agents, prompts, quality gates, and approvals. It is included in the one subscription."
+          "a": "The AI Auto-Designer lets you describe your goal in plain language — for example, 'turn a product idea into a launch plan' — and the platform automatically generates the optimal pipeline with agents, prompts, quality gates, and approvals. It is included free, like everything else."
         }
       ]
     }
@@ -281,14 +303,14 @@
     "metaTitle": "How certification works — DeeWaanAI",
     "metaDescription": "Every DeeWaanAI listing is published with its full test record — inputs, outputs, the exact judging prompts, every score and every failure — and the checks are structural: a completed platform-recorded plan and a panel that could not have graded its own work. Fail-closed by design.",
     "title": "How DeeWaanAI evidence works",
-    "intro": "Most AI marketplaces sell promises. DeeWaanAI sells a record you can read. This page explains exactly what has to be true before a pipeline can be sold — and what you can check afterwards.",
+    "intro": "Most AI marketplaces sell promises. DeeWaanAI publishes a record you can read. This page explains exactly what has to be true before a pipeline can be shared — and what you can check afterwards.",
     "sections": [
       {
         "h": "The problem with prompt marketplaces",
         "paragraphs": [
-          "Every AI marketplace has the same structural flaw: anyone can upload anything. A listing is a title, a description, and a promise. The buyer has no way to know whether the prompts are well-engineered, quietly broken, or actively malicious — until after they have paid.",
+          "Every AI marketplace has the same structural flaw: anyone can upload anything. A listing is a title, a description, and a promise. The buyer has no way to know whether the prompts are well-engineered, quietly broken, or actively malicious — until after they have run it.",
           "Some platforms add AI judges. That helps, but an AI grading its peers is gameable: prompt-injection tricks and evaluator-pleasing fluff score well without being good. Others rely on creator self-reviews and star ratings, which measure popularity, not quality.",
-          "DeeWaanAI was designed around a different premise: trust must be earned by the pipeline, in layers you can inspect, before money can change hands."
+          "DeeWaanAI was designed around a different premise: trust must be earned by the pipeline, in layers you can inspect, before anyone is asked to build on it."
         ]
       },
       {
@@ -299,46 +321,45 @@
         ]
       },
       {
-        "h": "Layer 2 — AI triage that advises, never decides",
+        "h": "Layer 2 — Test runs the creator pays for",
         "paragraphs": [
-          "Next, the platform — not the creator, not the buyer — runs the pipeline against a suite of generated test inputs on a platform-controlled model. The triage scores quality across six dimensions and gives the creator fast, concrete feedback.",
-          "Crucially, the AI triage is non-gating by design. It exists to give the creator fast, concrete feedback. It can never approve a listing for sale. AI advises; it never decides. This removes the entire class of ‘game the judge’ attacks that plague AI-only review systems."
+          "Next, the pipeline is run against a suite of generated test inputs — on the creator's own provider account, under their own keys. The platform pays for zero model calls: whoever submits a listing funds its evaluation, so evaluation can never become a hidden cost passed back to users.",
+          "Every attempt — including the failures — is recorded to a ledger as it happens. The record that later goes public is assembled from what was actually observed, not reconstructed after the fact."
         ]
       },
       {
         "h": "Layer 3 — The published evidence record",
         "paragraphs": [
-          "The final gate is structural, and it is the one that actually matters. Before anything can be sold, the pipeline is run on a frozen plan of approved test inputs, and its real outputs — not its prompts, not its marketing copy — are scored by a judging panel: three judges from three different model developers, under three different prompt framings, with none of the judges sharing a developer with any model that generated the answers. Self-grading is refused by the gate itself.",
-          "Then the record goes public: the exact test inputs, the outputs, the full text of every judging prompt, every score with its rationale, every judgment that failed to parse, what the run cost, and which pieces of cost are still unknown. You are not asked to trust a badge. You are handed the evidence and told what was withheld, if anything — and a listing whose evidence is incomplete, self-graded or leaking a secret simply does not become sellable."
+          "The final gate is structural, and it is the one that actually matters. Before a listing can be forked, the pipeline is run on a frozen plan of approved test inputs, and its real outputs — not its prompts, not its marketing copy — are scored by a judging panel: three judges from three different model developers, under three different prompt framings, with none of the judges sharing a developer with any model that generated the answers. Self-grading is refused by the gate itself.",
+          "Then the record goes public: the exact test inputs, the outputs, the full text of every judging prompt, every score with its rationale, every judgment that failed to parse, what the run cost, and which pieces of cost are still unknown. You are not asked to trust a badge. You are handed the evidence and told what was withheld, if anything — and a listing whose evidence is incomplete, self-graded or leaking a secret simply does not get published."
         ]
       },
       {
         "h": "Fail-closed by design",
         "paragraphs": [
-          "Every layer errs in the same direction: if anything goes wrong — a scan error, a triage timeout, a missing review quorum — the listing simply stays unpublished. There is no failure mode in which a pipeline accidentally becomes sellable.",
+          "Every layer errs in the same direction: if anything goes wrong — a scan error, a failed run, an incomplete record — the listing simply stays unpublished. There is no failure mode in which a pipeline accidentally becomes sellable.",
           "This is the opposite of how most platforms treat errors, and it is deliberate. Trust compounds slowly and collapses fast; the system is built to never spend trust it hasn't earned."
         ]
       },
       {
         "h": "What this means for creators' IP",
         "paragraphs": [
-          "Publication never exposes the creator's work. Secret prompts are encrypted at rest, are never sent to the judges (they receive the published test inputs and outputs only), and are never used to train models. What a buyer purchases is the right to run the pipeline — not the source prompts behind it.",
-          "The result is a marketplace where creators can sell their best work without giving it away, and buyers can purchase with something no other prompt marketplace offers: evidence."
+          "During evaluation, secret prompts are never sent to the judges — they receive the published test inputs and outputs only — and they are never used for training. Sharing itself is a choice with no take-backs: a forked listing delivers the pipeline definition itself, open-source. Publish only work you are willing to give away.",
+          "The result is a marketplace where creators share work they are proud to stand behind, and anyone who forks a listing gets something no other prompt marketplace offers: the full, signed evidence record behind it — verifiable offline, against the exact version they received."
         ]
       }
     ]
   },
   "docsNav": {
     "metaTitle": "Docs — DeeWaanAI",
-    "metaDescription": "The DeeWaanAI user manual: connect your chat client, create and run pipelines, manage API keys, buy and sell on the certified marketplace, and review listings.",
+    "metaDescription": "The DeeWaanAI user manual: connect your chat client, create and run pipelines, manage API keys, share and fork pipelines on the marketplace, and read evidence records.",
     "quickstart": "Quickstart",
     "pipelines": "Creating & running pipelines",
     "researchMode": "Research Mode: batch & chaining",
     "sharing": "Sharing pipelines",
     "providers": "Models & API keys",
-    "selling": "Selling on the marketplace",
-    "buying": "Discovering & buying",
-    "reviewing": "Being a reviewer",
+    "selling": "Sharing on the marketplace",
+    "buying": "Discovering & forking",
     "troubleshooting": "Troubleshooting",
     "onThisPage": "On this page",
     "docsHome": "Docs",
@@ -370,7 +391,7 @@
           "h": "2. Beta terms",
           "paragraphs": [
             "The Service is currently in beta. During the beta period the Service is provided free of charge, and marketplace listings are in free preview. Features, limits, and certification criteria may change at any time.",
-            "Beta perks — including Pioneer badges, free full-product access during beta, discounted commission rates, and invite allocations — are promotional benefits only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
+            "Beta perks — including Pioneer badges, free full-product access during beta, and invite allocations — are promotional benefits only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
           ]
         },
         {
@@ -382,7 +403,7 @@
         {
           "h": "4. Intellectual property",
           "paragraphs": [
-            "Creators retain all intellectual property rights in the pipelines they create, including prompts, step definitions, and configurations. Selling or licensing a pipeline on the marketplace grants the buyer a usage right to run the pipeline; it does not transfer ownership of, or source access to, the underlying prompts.",
+            "Creators retain all intellectual property rights in the pipelines they create, including prompts, step definitions, and configurations. Sharing a pipeline on the marketplace grants anyone who forks it a copy of the pipeline definition to run and modify; it does not transfer ownership of the work.",
             "You grant us the limited rights needed to operate the Service: to store, encrypt, execute on your behalf, and — for marketplace listings — to evaluate your pipeline through our certification process. We do not use your prompts to train models."
           ]
         },
@@ -394,9 +415,9 @@
           ]
         },
         {
-          "h": "6. Marketplace purchases and refunds",
+          "h": "6. Marketplace sharing",
           "paragraphs": [
-            "While listings are in free preview, no payment is taken. When paid purchases begin, the pricing, commission, and refund terms presented at checkout will apply. Certification reflects our review process at a point in time; it is not a warranty of fitness for a particular purpose."
+            "Marketplace listings are shared free of charge: no payment is taken, and there are no refunds because nothing is sold. Certification reflects our review process at a point in time; it is not a warranty of fitness for a particular purpose."
           ]
         },
         {

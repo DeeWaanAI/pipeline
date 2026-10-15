@@ -319,7 +319,6 @@ export default function CreatorDashboard() {
   const [outputFormat, setOutputFormat] = useState("");
   const [remarks, setRemarks] = useState("");
   const [category, setCategory] = useState("other");
-  const [price, setPrice] = useState("29");
 
   // Submit warning (Gitee token missing, etc.)
   const [submitWarning, setSubmitWarning] = useState<string | null>(null);
@@ -359,7 +358,6 @@ export default function CreatorDashboard() {
       setInputFormat("");
       setOutputFormat("");
       setRemarks("");
-      setPrice("29");
       window.location.reload();
     },
   });
@@ -371,7 +369,7 @@ export default function CreatorDashboard() {
   });
 
   const handleCreate = () => {
-    if (!selectedTemplate || !title || !price) return;
+    if (!selectedTemplate || !title) return;
     createMutation.mutate({
       templateId: Number(selectedTemplate),
       title,
@@ -381,7 +379,9 @@ export default function CreatorDashboard() {
       outputFormat: outputFormat || undefined,
       remarks: remarks || undefined,
       category: category as "translation" | "writing" | "code" | "analysis" | "creative" | "other",
-      price: Number(price),
+      // The marketplace shares open-source listings for free; the column stays
+      // because historical rows have prices and the schema is additive-only.
+      price: 0,
     });
   };
 
@@ -517,17 +517,6 @@ export default function CreatorDashboard() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm text-neutral-400 mb-1 block">{t("pages:marketplace.creator.priceLabel")}</label>
-                      <input
-                        type="number"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        className="w-full bg-neutral-800 border border-neutral-700 rounded-md px-3 py-2 text-sm text-neutral-100"
-                        min={0}
-                        max={9999}
-                      />
                     </div>
                   </div>
                   <Button

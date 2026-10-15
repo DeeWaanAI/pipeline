@@ -163,7 +163,7 @@ Stripe → POST /api/billing/stripe-webhook (raw body)
   → charge.refunded → entitlementSync.revoke
 ```
 
-### 2.5 Marketplace certification (trust flow, spec Phase 0)
+### 2.5 Marketplace certification (trust flow, v3)
 
 ```
 submitForReview (creator, draft/rejected listing)
@@ -171,26 +171,24 @@ submitForReview (creator, draft/rejected listing)
         hygiene, injection phrases, exfiltration, secrets/PII; decrypts
         prompts in-memory, never logs them; fail-closed)
         fail → status=rejected, aiFeedback='[SECURITY] …'
-  → [2] test-data generation (creator's own provider — unchanged)
-  → [3] runAiTriage (flag marketplace_ai_triage + AI_TRIAGE_* env; platform
-        model, test I/O only, score computed in code, null=skip; NON-GATING
-        except floor: score < 2.5 → rejected) → status=certifying
-  → enqueueBlindReviewTasks: MIN_UNIQUE_REVIEWERS pooled copies per prompt
-certifying = VISIBLE in browse, NOT buyable (purchase + Stripe-fulfillment
-  both re-check status='published', fail-closed)
-getNextReviewTask / submitReviewTask (tRPC + MCP get_next_review_task /
-  submit_review_task): active reviewers only; self-review ban + no
-  clustering + never-same-prompt-twice enforced server-side via the hidden
-  listingId; payload is ONLY {taskId, inputText, actualOutput, rubric}
-quorum: ≥ MARKETPLACE_MIN_REVIEWERS distinct reviewers ×
-  MARKETPLACE_MIN_REVIEWS_PER_REVIEWER each → avg ≥ 3.5 && kappa > 0.60
-  → published + certifiedAt (+ marketplace.certify.outcome log), else
-  rejected; no quorum → stays certifying
+  → [2] test-data generation and all test runs on the creator's OWN provider
+        keys — the platform pays for zero model calls (v3, 88748fd: the
+        platform-paid AI triage and the human reviewer pool are removed)
+  → status=certifying → publish requires the evidence gate: a completed
+    recorded test on a frozen plan, a vendor-disjoint three-judge panel,
+    a secrets scan of the disclosed text, and the creator's consent to the
+    exact hashed preview. Published evidence carries an Ed25519 attestation
+    (evidenceSigning) verifiable offline.
+certifying = VISIBLE in browse, NOT forkable. Forking (free — nothing is
+  sold) requires status='published' plus a published evidence record naming
+  exactly that workflow version (pipelineDelivery.forkPublicListing).
 ```
 
-Invariants: AI never sets `published`; `encryptedPrompts` never reach triage,
-reviewers, or free tiers; every error/missing-config path fails closed. The
-legacy `submitReview` 5×3+kappa path is kept intact as the anchor.
+Invariants: no AI or human gate sets `published` outside the evidence path;
+`encryptedPrompts` never reach judges or free tiers; every
+error/missing-config path fails closed. The v3 marketplace sells nothing:
+listings are shared as open source and forked into the recipient's account.
+
 
 ---
 

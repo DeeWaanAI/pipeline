@@ -21,7 +21,7 @@ import { withTimeout } from "../lib/withTimeout";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
 import { assertOriginalCreatorMayList } from "../services/workflowLineage";
-import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema } from "../services/pipelineDelivery";
+import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema, forkPublicListing, forkPublicListingInputSchema } from "../services/pipelineDelivery";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
   getEvidenceForViewer, getPurchasedEvidenceForListing,
@@ -1438,6 +1438,14 @@ export const marketplaceRouter = createRouter({
   deliverCopy: authedQuery
     .input(deliverPurchasedCopyInputSchema)
     .mutation(async ({ input, ctx }) => deliverPurchasedCopy(ctx.user.id, input)),
+
+  // ── Buyer: Fork a public listing (free, open-source sharing) ─────
+  // The marketplace sells nothing: a published listing with published
+  // evidence may be forked into anyone's account at no cost. The service
+  // enforces the evidence gate and attribution.
+  forkListing: authedQuery
+    .input(forkPublicListingInputSchema)
+    .mutation(async ({ input, ctx }) => forkPublicListing(ctx.user.id, input)),
 
   // ── Buyer: Purchase listing ────────────────────────────────────
   // ── Buyer: Purchase a listing via Stripe Checkout (Phase 1) ─────

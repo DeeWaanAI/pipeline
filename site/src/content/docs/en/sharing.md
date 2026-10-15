@@ -61,11 +61,11 @@ stops before its first provider call. Runs the recipient already completed stay 
 and the grant row is flipped to "revoked" rather than deleted — the record that access
 existed is kept.
 
-## What a share never buys
+## What a share never grants
 
 No share, at any privilege, grants the right to publish. Listing work on the marketplace is
 reserved to the account that originally created it, checked against the recorded lineage —
-so improving borrowed work cannot turn it into work you may sell.
+so improving borrowed work cannot turn it into work you may publish as your own.
 
 See also: [Creating and running pipelines](/docs/pipelines),
-[Selling on the marketplace](/docs/selling).
+[Sharing on the marketplace](/docs/selling).

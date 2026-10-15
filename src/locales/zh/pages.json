@@ -496,8 +496,8 @@
     },
     "browse": {
       "title": "市场",
-      "subtitle": "社区审核的精选 AI 智能体流水线",
-      "sellPipeline": "出售流水线",
+      "subtitle": "开源 AI 智能体流水线，附带可查验的签名证据",
+      "sellPipeline": "分享流水线",
       "review": "审核",
       "searchPlaceholder": "搜索流水线…",
       "categories": {
@@ -512,22 +512,18 @@
       "sort": {
         "newest": "最新",
         "popular": "最受欢迎",
-        "grade": "评分最高",
-        "priceAsc": "价格：从低到高",
-        "priceDesc": "价格：从高到低"
+        "grade": "评分最高"
       },
       "noPipelines": "未找到流水线",
       "noPipelinesDesc": "请尝试调整筛选条件或稍后再来",
       "noDescription": "暂无描述",
-      "sales": "次购买",
       "reviews": "条评价",
-      "perMonth": "/月"
+      "freeLabel": "免费"
     },
     "detail": {
       "notFound": "未找到商品",
       "backToMarketplace": "返回市场",
       "by": "作者：{{name}}",
-      "perMonth": "/月",
       "aboutPipeline": "关于此流水线",
       "noDescription": "暂无描述。",
       "qualityVerification": "质量验证",
@@ -551,24 +547,22 @@
       "youOwnThis": "您已拥有此流水线",
       "createToUse": "创建一个新项目即可开始使用",
       "usePipeline": "使用流水线",
-      "oneTimePurchase": "一次性购买，无循环收费。",
+      "freeLabel": "免费",
+      "freeNote": "以开源方式共享。Fork 到您的账户，用您自己的模型密钥运行。",
+      "forkNow": "Fork 到我的账户",
+      "forkSuccess": "已 Fork 为「{{name}}」— 可在您的项目中查看。",
       "youCreatedThis": "您是创建者",
       "processing": "处理中…",
-      "buyNow": "立即购买",
-      "revenueSplit": "70% 归创作者，30% 归平台",
-      "purchases_one": "{{count}} 次购买",
-      "purchases_other": "{{count}} 次购买",
       "statsTitle": "统计",
-      "sales": "销量",
       "gradePending": "待评",
       "kappaPending": "待评",
-      "certifyingNotice": "此流水线仍在认证中，暂时无法购买。",
+      "certifyingNotice": "此流水线仍在认证中，暂时无法 Fork。",
       "becomeReviewerCta": "帮助认证 — 成为审核者"
     },
     "creator": {
       "title": "创作者面板",
       "newListing": "新建商品",
-      "sellDialogTitle": "出售流水线",
+      "sellDialogTitle": "分享流水线",
       "pipelineTemplate": "流水线模板",
       "selectPipeline": "选择一条流水线…",
       "titleLabel": "标题",
@@ -584,7 +578,6 @@
       "remarksLabel": "审核备注",
       "remarksPlaceholder": "给审核者的备注（例如已知限制、特殊情况）",
       "categoryLabel": "分类",
-      "priceLabel": "价格（$）",
       "createListing": "创建商品",
       "giteeBackupSkipped": "Gitee 备份已跳过",
       "stats": {

@@ -55,10 +55,6 @@ refuses to boot without the required ones — or with a known dev default secret
 | `SENTRY_DSN` | no | Sentry error reporting. Empty = disabled |
 | `BACKUP_TOKEN` | no | Bearer token for `POST /api/admin/backup` (GitHub Actions cron). Requires `S3_*`; empty = backups disabled (503) |
 | `TRUSTED_PROXY` | no | `false` = ignore `x-forwarded-for`, rate-limit by direct socket IP. Default `true` (safe behind Railway's edge) |
-| `AI_TRIAGE_SLUG` | no | Provider slug for the platform AI triage model (e.g. `openai` for OpenAI-compatible endpoints). Empty = triage skipped (non-gating) |
-| `AI_TRIAGE_MODEL` | no | Triage model name (e.g. `qwen3.6-flash` on Alibaba Cloud Model Studio). Required with `AI_TRIAGE_SLUG` to enable triage |
-| `AI_TRIAGE_API_KEY` | no | API key for the triage endpoint. Optional — self-hosted endpoints may not need one |
-| `AI_TRIAGE_BASE_URL` | no | Triage endpoint base URL, e.g. Model Studio `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` |
 | `PUBLIC_APP_URL` | no | Public origin used for absolute links. Empty = Railway production URL fallback |
 
 Additional variables read directly from `process.env` (not in `.env.example`):

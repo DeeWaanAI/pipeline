@@ -496,8 +496,8 @@
     },
     "browse": {
       "title": "Marketplace",
-      "subtitle": "Curated AI agent pipelines, reviewed by the community",
-      "sellPipeline": "Sell Pipeline",
+      "subtitle": "Open-source AI agent pipelines with signed, inspectable evidence",
+      "sellPipeline": "Share Pipeline",
       "review": "Review",
       "searchPlaceholder": "Search pipelines...",
       "categories": {
@@ -512,22 +512,18 @@
       "sort": {
         "newest": "Newest",
         "popular": "Most Popular",
-        "grade": "Highest Rated",
-        "priceAsc": "Price: Low to High",
-        "priceDesc": "Price: High to Low"
+        "grade": "Highest Rated"
       },
       "noPipelines": "No pipelines found",
       "noPipelinesDesc": "Try adjusting your filters or check back later",
       "noDescription": "No description provided",
-      "sales": "sales",
       "reviews": "reviews",
-      "perMonth": "/mo"
+      "freeLabel": "Free"
     },
     "detail": {
       "notFound": "Listing not found",
       "backToMarketplace": "Back to Marketplace",
       "by": "by {{name}}",
-      "perMonth": "/month",
       "aboutPipeline": "About this Pipeline",
       "noDescription": "No description provided.",
       "qualityVerification": "Quality Verification",
@@ -551,24 +547,22 @@
       "youOwnThis": "You own this pipeline",
       "createToUse": "Create a new project to start using it",
       "usePipeline": "Use Pipeline",
-      "oneTimePurchase": "One-time purchase. No recurring fees.",
+      "freeLabel": "Free",
+      "freeNote": "Shared as open source. Fork it into your account and run it with your own provider keys.",
+      "forkNow": "Fork to my account",
+      "forkSuccess": "Forked as \"{{name}}\" — find it in your projects.",
       "youCreatedThis": "You created this",
       "processing": "Processing...",
-      "buyNow": "Buy Now",
-      "revenueSplit": "70% to creator, 30% to platform",
-      "purchases_one": "{{count}} purchase",
-      "purchases_other": "{{count}} purchases",
       "statsTitle": "Stats",
-      "sales": "Sales",
       "gradePending": "Pending",
       "kappaPending": "Pending",
-      "certifyingNotice": "This pipeline is still being certified and cannot be purchased yet.",
+      "certifyingNotice": "This pipeline is still being certified and cannot be forked yet.",
       "becomeReviewerCta": "Help certify this — become a reviewer"
     },
     "creator": {
       "title": "Creator Dashboard",
       "newListing": "New Listing",
-      "sellDialogTitle": "Sell a Pipeline",
+      "sellDialogTitle": "Share a Pipeline",
       "pipelineTemplate": "Pipeline Template",
       "selectPipeline": "Select a pipeline...",
       "titleLabel": "Title",
@@ -584,7 +578,6 @@
       "remarksLabel": "Remarks for Reviewers",
       "remarksPlaceholder": "Notes for reviewers (e.g., known limitations, special cases)",
       "categoryLabel": "Category",
-      "priceLabel": "Price ($)",
       "createListing": "Create Listing",
       "giteeBackupSkipped": "Gitee Backup Skipped",
       "stats": {

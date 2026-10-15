@@ -40,11 +40,10 @@ export default function MarketplaceDetail() {
     { enabled: !!user && !isNaN(listingId) },
   );
 
-  const purchaseMutation = trpc.marketplace.purchase.useMutation({
+  const forkMutation = trpc.marketplace.forkListing.useMutation({
     onSuccess: (data) => {
-      // Stripe Checkout redirect (Phase 1): the purchase completes via
-      // webhook; the success URL brings the buyer back to this page.
-      window.location.href = data.checkoutUrl;
+      setPurchasing(false);
+      toast.success(t("pages:marketplace.detail.forkSuccess", { name: data.projectName }));
     },
     onError: (err) => {
       setPurchasing(false);
@@ -58,7 +57,7 @@ export default function MarketplaceDetail() {
       return;
     }
     setPurchasing(true);
-    purchaseMutation.mutate({ listingId });
+    forkMutation.mutate({ listingId });
   };
 
   if (isLoading) {
@@ -123,12 +122,7 @@ export default function MarketplaceDetail() {
               </p>
             </div>
             <div className="text-right">
-              <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-neutral-100">${listing.price}</span>
-                {listing.isSubscription && (
-                  <span className="text-sm text-neutral-500">{t("pages:marketplace.detail.perMonth")}</span>
-                )}
-              </div>
+              <span className="text-3xl font-bold text-emerald-400">{t("pages:marketplace.detail.freeLabel")}</span>
             </div>
           </div>
         </div>
@@ -270,12 +264,9 @@ export default function MarketplaceDetail() {
               ) : (
                 <>
                   <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-3xl font-bold text-neutral-100">${listing.price}</span>
-                    {listing.isSubscription && (
-                      <span className="text-sm text-neutral-500">{t("pages:marketplace.detail.perMonth")}</span>
-                    )}
+                    <span className="text-3xl font-bold text-emerald-400">{t("pages:marketplace.detail.freeLabel")}</span>
                   </div>
-                  <p className="text-xs text-neutral-500 mb-4">{t("pages:marketplace.detail.oneTimePurchase")}</p>
+                  <p className="text-xs text-neutral-500 mb-4">{t("pages:marketplace.detail.freeNote")}</p>
                   <Button
                     className="w-full bg-blue-600 hover:bg-blue-700"
                     onClick={handlePurchase}
@@ -289,7 +280,7 @@ export default function MarketplaceDetail() {
                     ) : (
                       <ShoppingCart className="w-4 h-4 mr-1.5" />
                     )}
-                    {isOwner ? t("pages:marketplace.detail.youCreatedThis") : purchasing ? t("pages:marketplace.detail.processing") : t("pages:marketplace.detail.buyNow")}
+                    {isOwner ? t("pages:marketplace.detail.youCreatedThis") : purchasing ? t("pages:marketplace.detail.processing") : t("pages:marketplace.detail.forkNow")}
                   </Button>
                   {isCertifying && (
                     <div className="mt-3 rounded-md bg-blue-500/5 border border-blue-500/10 px-3 py-2.5">
@@ -298,15 +289,6 @@ export default function MarketplaceDetail() {
                       </p>
                     </div>
                   )}
-                  <div className="mt-3 flex items-center justify-center gap-1 text-xs text-neutral-500">
-                    <Shield className="w-3 h-3" />
-                    <span>{t("pages:marketplace.detail.revenueSplit")}</span>
-                  </div>
-                  {listing.salesCount ? (
-                    <div className="mt-2 text-center text-xs text-neutral-500">
-                      {t("pages:marketplace.detail.purchases", { count: listing.salesCount })}
-                    </div>
-                  ) : null}
                 </>
               )}
             </div>
@@ -315,10 +297,6 @@ export default function MarketplaceDetail() {
             <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5">
               <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-3">{t("pages:marketplace.detail.statsTitle")}</h4>
               <div className="space-y-2.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-400">{t("pages:marketplace.detail.sales")}</span>
-                  <span className="text-neutral-200">{listing.salesCount}</span>
-                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-neutral-400">{t("pages:marketplace.detail.reviewsCount")}</span>
                   <span className="text-neutral-200">{listing.reviewCount}</span>
