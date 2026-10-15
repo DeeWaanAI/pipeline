@@ -25,7 +25,29 @@ import {
 } from "./benchmarkTypes";
 import { resolveModelVendors } from "../modelCatalogService";
 
-/** D12: an evidence-grade panel is exactly this shape. */
+/**
+ * D12: an evidence-grade panel is exactly this shape — three judges, each under a
+ * different frozen prompt variant, every generating model from a different
+ * developer than any judge.
+ *
+ * WHERE THESE NUMBERS COME FROM, because a reader must not "simplify" them:
+ *  - Three judges, drawn from different model families, is the Panel-of-LLM-
+ *    evaluators result: Verga et al. 2024, "Replacing judges with juries"
+ *    (arXiv:2404.18796) — a diverse panel tracked human judgement better than a
+ *    single large judge, for less. The COUNT is theirs, not a statistic's.
+ *  - Judges must not share a developer with anything that GENERATED an output
+ *    under review: that is self-enhancement bias, Zheng et al. 2023
+ *    (MT-Bench/Chatbot Arena, arXiv:2306.05685).
+ *  - ICC(3,1)/ICC(3,k) below is Shrout & Fleiss 1979 — it describes how the
+ *    agreement statistic is computed GIVEN three raters. It does not justify
+ *    three raters, and citing it as the reason would be a mistake.
+ *
+ * Vendor vs family: the paper says families; this checks `vendor` (the model's
+ * developer, from the reviewed catalog). For closed models the two coincide, and
+ * where they diverge this is STRICTER than the paper — it would refuse a
+ * same-developer, different-family judge. Deliberate: an unknown or uncatalogued
+ * model is treated as disjoint from nothing, so it can never fill a panel slot.
+ */
 export const EVIDENCE_PANEL_JUDGES = 3;
 export const EVIDENCE_PANEL_VARIANTS = JUDGE_PROMPT_VARIANTS.length;
 export const EVIDENCE_PANEL_RATINGS_PER_OUTPUT = EVIDENCE_PANEL_JUDGES * EVIDENCE_PANEL_VARIANTS;
@@ -173,6 +195,8 @@ export async function assessBenchmarkPanel(
 }
 
 // ─── ICC(3,1) / ICC(3,k) — two-way mixed, absolute agreement ─────────
+// The k = 3 here is the panel mandated above (Verga et al. 2024); this section
+// only computes the reliability statistic, per Shrout & Fleiss 1979.
 //
 // Matrix convention: ROWS = cases (each distinct rating target: one executed
 // candidate output graded by the full panel), COLUMNS = judges (a column per
