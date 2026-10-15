@@ -24,7 +24,7 @@ const nav = [
       {nav.map((n) => (
         <a href={n.href} class="text-sm text-neutral-400 transition hover:text-white">{n.label}</a>
       ))}
-      <a href={`${p}/#waitlist`} class="btn-accent !px-4 !py-1.5">{s.nav.joinPioneer}</a>
+      <a href={`${p}/connect`} class="btn-accent !px-4 !py-1.5">{s.nav.getStarted}</a>
     </nav>
     <button id="nav-toggle" class="md:hidden p-2 text-neutral-400 hover:text-white" aria-label={s.nav.menu} aria-expanded="false" aria-controls="nav-mobile">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -37,7 +37,7 @@ const nav = [
       {nav.map((n) => (
         <a href={n.href} class="rounded-lg px-2 py-2 text-sm text-neutral-300 hover:bg-ink-800">{n.label}</a>
       ))}
-      <a href={`${p}/#waitlist`} class="btn-accent mt-1 justify-center">{s.nav.joinPioneer}</a>
+      <a href={`${p}/connect`} class="btn-accent mt-1 justify-center">{s.nav.getStarted}</a>
     </div>
   </nav>
 </header>

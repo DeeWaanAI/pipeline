@@ -4,9 +4,9 @@
     "trust": "Trust",
     "forCreators": "For creators",
     "blog": "Blog",
-    "joinPioneer": "Join the Pioneer 100",
     "mainNav": "Main navigation",
-    "menu": "Menu"
+    "menu": "Menu",
+    "getStarted": "Get started"
   },
   "footer": {
     "product": "Product",
@@ -19,19 +19,19 @@
   },
   "fallbackNote": "This page is not yet translated — showing the English version.",
   "landing": {
-    "metaTitle": "DeeWaanAI — The certified AI-pipeline marketplace",
+    "metaTitle": "DeeWaanAI — AI pipelines in your chat, running on your own computer",
     "metaDescription": "Create, discover, and share AI workflows — from inside Claude, ChatGPT, Kimi, or any MCP client. Every listing published with the evidence behind it — inputs, outputs, judging prompts and results.",
     "hero": {
-      "title": "Certified AI pipelines. Inside your chat.",
-      "subline": "Create and share multi-step AI workflows from Claude, ChatGPT, Kimi, or any MCP client. Every listing carries the evidence behind it: inputs, outputs, the exact judging prompts, and results.",
-      "primaryCta": "Join the Pioneer 100 →",
+      "title": "AI pipelines that run on your computer, inside your chat.",
+      "subline": "DeeWaanAI is a free, open-source MCP server you run locally. Build multi-step AI workflows from Claude, ChatGPT, Kimi, or any MCP client — with your own provider keys, so nothing ever runs on our servers. Share pipelines on the marketplace with signed proof that they work.",
+      "primaryCta": "Get started →",
       "secondaryCta": "See how it works",
       "videoCaption": "Watch: using a certified pipeline inside a chat — 45 seconds.",
       "videoPlaceholder": "Demo video coming soon"
     },
     "worksWith": {
       "label": "Connects to the tools you already use",
-      "caption": "DeeWaanAI runs as an MCP server. One URL, pasted once — per person, in any app.",
+      "caption": "DeeWaanAI runs as a local MCP server on your computer. Connect any client you already use — per person, per machine.",
       "badges": [
         "Claude",
         "ChatGPT",
@@ -50,7 +50,7 @@
         },
         {
           "title": "Your data goes who-knows-where",
-          "body": "No transparency on inference. No bring-your-own-keys. Your inputs, your outputs, and your API keys are handled by opaque middlemen with unclear data policies."
+          "body": "Most platforms run your work on their servers: your inputs, your outputs, and your API keys pass through opaque middlemen. DeeWaanAI runs only on your computer — execution never touches our servers."
         },
         {
           "title": "Locked into one chat app",
@@ -62,16 +62,16 @@
       "title": "How it works",
       "steps": [
         {
-          "title": "Connect",
-          "body": "Paste one MCP URL into your chat client. That's the whole install."
+          "title": "Install locally",
+          "body": "One setup command installs DeeWaanAI on your computer — no database server to manage, no cloud account needed to run pipelines."
         },
         {
-          "title": "Create or discover",
-          "body": "Build multi-step AI pipelines with your own prompts and models, or browse pipelines built by others."
+          "title": "Connect your chat",
+          "body": "Paste your local MCP URL into Claude, ChatGPT, Kimi, Cursor, or any MCP-compatible client. Your chat becomes the interface."
         },
         {
-          "title": "Run & improve",
-          "body": "Execute in your chat. Approval gates pause for your OK. Iterate on steps until the output passes."
+          "title": "Create, fork, run",
+          "body": "Build pipelines in chat or with the visual designer, or fork one from the marketplace. Every run goes to your providers under your keys — we never execute anything for you."
         }
       ]
     },
@@ -82,8 +82,8 @@
         "bullets": [
           "IF/WHILE loops and quality gates for sophisticated workflows",
           "AI Auto-Designer turns plain language into optimal pipelines",
-          "Secret prompts stay encrypted — never shown to the judges, never published",
-          "Certified marketplace badge that actually means something"
+          "Judges never see your prompts during certification — only the published inputs and outputs",
+          "A signed evidence record travels with your listing, verifiable offline"
         ]
       },
       "users": {
@@ -91,38 +91,39 @@
         "subtitle": "Pipelines that work, in the chat you already have",
         "bullets": [
           "Every listing is published with the full test record, not a badge",
-          "Runs with your own API keys — your data goes to your providers, not ours",
+          "Runs on your own computer with your own API keys — your data never touches our servers",
           "One-line setup in any MCP client — Claude, ChatGPT, Kimi, Cursor",
-          "Share a pipeline with one colleague — they run it on their own keys, your prompts stay yours"
+          "Fork a marketplace pipeline and it is yours: a local copy you can read, edit, and run"
         ]
       }
     },
     "capabilities": {
-      "title": "Free. Open source. Your keys.",
-      "intro": "The studio and the MCP server are free — deliberately, for adoption. Pipelines run on your own provider keys, so your provider bills you and we never charge per run. Marketplace listings are shared as open source: nothing is sold.",
+      "title": "Free. Open source. Yours.",
+      "intro": "DeeWaanAI is free and open source (AGPL-3.0). It runs on your computer, on your own provider keys — we never charge, and we never execute your pipelines. The hosted marketplace stores only listings and their evidence.",
       "plan": {
         "name": "DeeWaanAI",
         "price": "$0",
-        "cadence": "free, during beta and after",
-        "badge": "Open source",
+        "cadence": "forever — AGPL-3.0 open source",
+        "badge": "Free & open source",
         "description": "Everything included — create, run, certify, share.",
         "features": [
           "Custom pipeline designer with IF/WHILE loops and quality gates",
           "AI Auto-Designer — describe the goal, get a built pipeline",
           "Up to 3 of your own LLM providers in one pipeline",
           "Human-in-the-Loop approval gates",
-          "Publish and share certified pipelines on the marketplace",
+          "Share pipelines on the marketplace with signed evidence",
           "Run it all from Claude, ChatGPT, Kimi, Cursor or any MCP client",
-          "Bring your own keys: your provider bills you, we never charge per run"
+          "Bring your own keys: your provider bills you, we never charge per run",
+          "Runs entirely on your computer — nothing is executed on our servers"
         ],
-        "betaNote": "DeeWaanAI is free — during beta and after. Pipeline runs are billed by your own LLM provider, never by us."
+        "betaNote": "Your only cost is your own LLM provider usage, billed by your provider directly. There is no paid tier and none is planned."
       },
-      "smallPrint": "Free and open source (AGPL-3.0). Marketplace listings are shared at no cost.",
-      "cta": "Join the Pioneer 100 →"
+      "smallPrint": "Free and open source. The hosted marketplace never runs your pipelines — it stores listings and evidence records only.",
+      "cta": "Get started →"
     },
     "betaFeatures": {
-      "title": "Beta features — ask for early access",
-      "intro": "Powerful add-ons available behind a feature flag today.",
+      "title": "Power tools, included",
+      "intro": "Available behind feature flags while they mature — same price as everything else: free.",
       "items": [
         {
           "title": "Batch runs (Research Mode)",
@@ -134,7 +135,7 @@
         },
         {
           "title": "Pipeline sharing",
-          "body": "Lend one pipeline to one named account, from your chat. By default they can run it and keep the answer but never read your prompts — and their run bills to their own keys. Revoke it any time; a queued run stops before its first provider call."
+          "body": "Lend one pipeline to one named account, from your chat. By default they can run it and keep the answer but never read your prompts — and their run bills to their own keys. Revoke it any time."
         }
       ]
     },
@@ -147,47 +148,16 @@
           "body": "Code, not AI. Catches injection patterns, hidden Unicode tricks, and data-exfiltration attempts. Ungameable."
         },
         {
-          "title": "AI triage",
-          "body": "A platform-controlled model scores quality and gives creators instant feedback. It advises — it never decides."
+          "title": "Creator-funded test runs",
+          "body": "Evaluation runs on the creator's own provider keys — the platform pays for zero model calls, so testing can never become a hidden cost passed back to you."
         },
         {
           "title": "Published evidence",
-          "body": "The seller's own judging panel — three judges from three different model developers, none of them a model that generated the answers — under three prompt framings. Every prompt, every score and every failure is published for you to read."
+          "body": "The creator's own judging panel — three judges from three different model developers, none of them a model that generated the answers — under three prompt framings. Every prompt, every score and every failure is published for you to read."
         }
       ],
       "closing": "Fail-closed by design: an incomplete plan, a self-graded panel or a leaked secret leaves the listing unpublished.",
       "link": "Read how the evidence works →"
-    },
-    "waitlist": {
-      "title": "Be one of the first 100.",
-      "perks": [
-        "Pioneer badge on your profile — permanent",
-        "Everything in the product during beta, at no cost",
-        "3 invites to bring people you trust",
-        "Direct line to the founder — your feedback ships"
-      ],
-      "counterTemplate": "{N} of 100 Pioneer spots claimed",
-      "counterFallback": "Limited to 100 spots",
-      "emailLabel": "Email address",
-      "emailPlaceholder": "you@example.com",
-      "roleLabel": "I want to…",
-      "roleCreator": "Build & share pipelines",
-      "roleUser": "Use pipelines",
-      "roleBoth": "Both",
-      "submit": "Request my spot",
-      "submitting": "Requesting…",
-      "successTemplate": "You're in the queue at #{position}.",
-      "shareLabel": "Share your link to move up:",
-      "copyButton": "Copy",
-      "copied": "Copied!",
-      "shareTextTemplate": "Just joined the DeeWaanAI Pioneer 100 waitlist — the AI-pipeline marketplace where you can read the evidence before you run anything. {referralUrl}",
-      "shareOnX": "Share on X",
-      "shareOnLinkedIn": "Share on LinkedIn",
-      "smallPrint": "Free during beta. Beta perks are promotional benefits and do not constitute equity or ownership.",
-      "errorGeneric": "Something went wrong — please try again in a moment.",
-      "manualPrefix": "Or send it to us directly:",
-      "manualSubject": "DeeWaanAI Pioneer 100 — join the waitlist",
-      "manualBodyTemplate": "Email: {email}\nRole: {role}\n\n(The page could not submit this for me.)"
     },
     "faq": {
       "title": "Frequently asked questions",
@@ -202,7 +172,7 @@
         },
         {
           "q": "How do I use DeeWaanAI?",
-          "a": "Paste the DeeWaanAI MCP server URL into any MCP-compatible client — Claude, ChatGPT, Kimi, Cursor, and others. You then create and use pipelines directly from your chat."
+          "a": "Install DeeWaanAI on your computer (one setup command), then paste your local MCP URL into any MCP-compatible client — Claude, ChatGPT, Kimi, Cursor, and others. You then create and use pipelines directly from your chat, and everything runs locally on your machine."
         },
         {
           "q": "Do I need new API keys?",
@@ -213,12 +183,8 @@
           "a": "During evaluation, yes: the judging panel only ever receives the published test inputs and outputs, never your prompts, and nothing is used for training. But sharing itself is open source in the literal sense — anyone who forks your listing receives the pipeline definition itself. Publish only work you are willing to give away."
         },
         {
-          "q": "What does beta cost?",
-          "a": "Nothing — during beta and after. DeeWaanAI is free and open source, and marketplace listings are shared free of charge. Your only cost is your own LLM provider usage: runs go out under your keys, so your provider bills you directly."
-        },
-        {
-          "q": "What is the Pioneer 100?",
-          "a": "Our first 100 beta members. Pioneers get a permanent badge, free access to the full product, and 3 invites each. Spots are capped at 100 because we read and answer every piece of feedback ourselves — the scarcity is real, not marketing."
+          "q": "What does it cost?",
+          "a": "Nothing. DeeWaanAI is free and open source, and marketplace listings are shared free of charge. Your only cost is your own LLM provider usage: runs go out under your keys, so your provider bills you directly."
         },
         {
           "q": "Can I share a pipeline with someone who uses a different AI app?",
@@ -226,11 +192,11 @@
         },
         {
           "q": "What is Research Mode?",
-          "a": "Research Mode adds batch runs (up to 100 inputs in parallel) and pipeline chaining (feed one pipeline's output into another). It's available now behind a feature flag — request early access."
+          "a": "Research Mode adds batch runs (up to 100 inputs in parallel) and pipeline chaining (feed one pipeline's output into another). It ships in the box — turn it on with a feature flag in Settings."
         },
         {
-          "q": "What can I do without paying?",
-          "a": "Everything. Beta is the complete product at no cost: the custom pipeline designer with IF/WHILE loops and quality gates, Human-in-the-Loop approval gates, the AI Auto-Designer, up to 3 of your own LLM providers in one pipeline, and publishing to the marketplace. There is no trimmed tier to grow out of."
+          "q": "What can I do for free?",
+          "a": "Everything. DeeWaanAI is the complete product at no cost: the custom pipeline designer with IF/WHILE loops and quality gates, Human-in-the-Loop approval gates, the AI Auto-Designer, up to 3 of your own LLM providers in one pipeline, and publishing to the marketplace. There is no trimmed tier to grow out of."
         },
         {
           "q": "What are IF/WHILE loops?",
@@ -244,18 +210,18 @@
     }
   },
   "connect": {
-    "metaTitle": "Connect — DeeWaanAI",
-    "metaDescription": "Connect DeeWaanAI to Claude, ChatGPT, Cursor, or any MCP client with one URL. Setup guides for every major chat client.",
-    "title": "Connect DeeWaanAI to your chat client",
-    "intro": "One MCP URL, pasted once. Pick your client below:",
-    "urlLabel": "Your MCP server URL",
+    "metaTitle": "Get started — DeeWaanAI",
+    "metaDescription": "Install DeeWaanAI on your computer and connect it to Claude, ChatGPT, Cursor, or any MCP client. Setup guides for every major chat client.",
+    "title": "Run DeeWaanAI on your computer",
+    "intro": "Two steps: install DeeWaanAI locally, then point your chat client at your own local address. Pick your client below:",
+    "urlLabel": "Your local MCP server URL",
     "copy": "Copy",
     "copied": "Copied!",
     "clients": [
       {
         "name": "Claude Desktop",
         "steps": [
-          "Open Claude Desktop → Settings → Connectors → \"Add custom connector\".",
+          "Make sure DeeWaanAI is installed and running on your computer (Step 0 above).",
           "Paste the MCP URL above as the connector URL.",
           "Approve the sign-in in your browser when the OAuth window opens (use Chrome if Safari shows a localhost error).",
           "Ask Claude: \"What pipelines do I have?\" — it should call DeeWaanAI and answer."
@@ -264,7 +230,7 @@
       {
         "name": "Claude.ai (web)",
         "steps": [
-          "Open claude.ai → Settings → Connectors.",
+          "Make sure DeeWaanAI is installed and running on your computer (Step 0 above).",
           "Choose \"Add custom connector\" and paste the MCP URL.",
           "Complete the OAuth approval in the browser tab that opens.",
           "Start a chat and ask about your pipelines to verify the connection."
@@ -273,7 +239,7 @@
       {
         "name": "ChatGPT",
         "steps": [
-          "In ChatGPT, go to Settings → Connectors (or Developer mode, depending on your plan).",
+          "Make sure DeeWaanAI is installed and running on your computer (Step 0 above).",
           "Add a new MCP connector and paste the MCP URL.",
           "Approve access in the OAuth window.",
           "Verify by asking ChatGPT to list your DeeWaanAI pipelines."
@@ -282,7 +248,7 @@
       {
         "name": "Cursor",
         "steps": [
-          "Open Cursor Settings → MCP.",
+          "Make sure DeeWaanAI is installed and running on your computer (Step 0 above).",
           "Add a new MCP server with the URL above (streamable HTTP).",
           "Complete OAuth in the browser when prompted.",
           "Ask the agent about your pipelines to confirm it works."
@@ -291,13 +257,21 @@
       {
         "name": "Generic MCP client",
         "steps": [
-          "Any MCP-compatible client that supports streamable HTTP works.",
+          "Make sure DeeWaanAI is installed and running on your computer (Step 0 above).",
           "Add the MCP URL as a remote server; the server speaks OAuth 2.1 with dynamic client registration.",
           "Approve the consent screen once — tokens refresh automatically afterwards."
         ]
       }
     ],
-    "cta": "Don't have access yet? Join the Pioneer 100 →"
+    "cta": "Read the quickstart in the docs →",
+    "install": {
+      "title": "Step 0 — Install (once)",
+      "steps": [
+        "Download or clone the DeeWaanAI repository and run the setup command from the README.",
+        "Start DeeWaanAI — it runs entirely on your machine and stores its data locally.",
+        "The visual designer opens as a local web page if you want to edit a pipeline by hand."
+      ]
+    }
   },
   "trust": {
     "metaTitle": "How certification works — DeeWaanAI",
@@ -374,11 +348,11 @@
     "readMore": "Read →"
   },
   "legal": {
-    "reviewNote": "Draft for beta — pending legal review.",
+    "reviewNote": "Draft — pending legal review.",
     "lastUpdatedTemplate": "Last updated: {date}",
     "terms": {
       "metaTitle": "Terms of Service — DeeWaanAI",
-      "metaDescription": "The terms that govern use of the DeeWaanAI platform and marketplace during the beta period.",
+      "metaDescription": "The terms that govern use of the DeeWaanAI platform and marketplace.",
       "title": "Terms of Service",
       "sections": [
         {
@@ -388,10 +362,10 @@
           ]
         },
         {
-          "h": "2. Beta terms",
+          "h": "2. Free and open source",
           "paragraphs": [
-            "The Service is currently in beta. During the beta period the Service is provided free of charge, and marketplace listings are in free preview. Features, limits, and certification criteria may change at any time.",
-            "Beta perks — including Pioneer badges, free full-product access during beta, and invite allocations — are promotional benefits only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
+            "The Service is free and open source (AGPL-3.0). Marketplace listings are shared free of charge. Features, limits, and certification criteria may change at any time.",
+            "Promotional benefits (such as badges or invite allocations) are promotional only. They do not constitute equity, ownership, profit-sharing rights, or any other security or financial interest in {{COMPANY_LEGAL_NAME}}."
           ]
         },
         {
@@ -423,7 +397,7 @@
         {
           "h": "7. Disclaimers and liability",
           "paragraphs": [
-            "The Service is provided \"as is\" and \"as available\" during beta, without warranties of any kind. To the maximum extent permitted by law, {{COMPANY_LEGAL_NAME}} is not liable for indirect, incidental, or consequential damages, or for outputs produced by AI pipelines created by third parties."
+            "The Service is provided \"as is\" and \"as available\" without warranties of any kind. To the maximum extent permitted by law, {{COMPANY_LEGAL_NAME}} is not liable for indirect, incidental, or consequential damages, or for outputs produced by AI pipelines created by third parties."
           ]
         },
         {
@@ -454,7 +428,7 @@
         {
           "h": "2. What we collect",
           "paragraphs": [
-            "Account data: your email address, username, and authentication identifiers. Configuration data: pipelines, agents, and settings you create. Credentials: LLM provider API keys you choose to store, which are encrypted at rest and used only to call your providers on your behalf. Usage data: run logs, audit events, and technical telemetry needed to operate and secure the Service. Waitlist data: email address, selected role, and referral attribution when you join the Pioneer 100 waitlist."
+            "Account data: your email address, username, and authentication identifiers. Configuration data: pipelines, agents, and settings you create. Credentials: LLM provider API keys you choose to store, which are encrypted at rest and used only to call your providers on your behalf. Usage data: run logs, audit events, and technical telemetry needed to operate and secure the Service."
           ]
         },
         {

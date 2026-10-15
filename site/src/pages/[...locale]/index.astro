@@ -3,7 +3,6 @@
 // per-locale string bundle; JSON-LD: Organization + SoftwareApplication +
 // FAQPage (built from the same FAQ strings — single source of truth).
 import Base from "../../layouts/Base.astro";
-import WaitlistSection from "../../components/landing/WaitlistSection.astro";
 import { getUiStrings } from "../../i18n/ui";
 import { isLocale, DEFAULT_LOCALE, localePrefix, type Locale } from "../../i18n/locales";
 import { localeStaticPaths } from "../../i18n/paths";
@@ -32,7 +31,7 @@ const jsonLd = [
     operatingSystem: "Any (MCP-compatible chat client)",
     url: `${origin}${p}/`,
     description: l.hero.subline,
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free during beta; one flat $9.99 monthly subscription at launch" },
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free and open source (AGPL-3.0), forever" },
     featureList: [
       ...l.capabilities.plan.features,
       ...l.betaFeatures.items.map((f) => f.title),
@@ -65,7 +64,7 @@ const jsonLd = [
       </h1>
       <p class="mx-auto mt-6 max-w-2xl text-lg text-neutral-400">{l.hero.subline}</p>
       <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <a href="#waitlist" class="btn-accent">{l.hero.primaryCta}</a>
+        <a href={`${p}/connect`} class="btn-accent">{l.hero.primaryCta}</a>
         <a href="#how-it-works" class="btn-ghost">{l.hero.secondaryCta}</a>
       </div>
       {/* Demo video slot — /media/demo.mp4 added later; styled placeholder meanwhile */}
@@ -193,22 +192,21 @@ const jsonLd = [
       </div>
       <p class="mx-auto mt-6 max-w-xl text-center text-xs text-neutral-500">{l.capabilities.smallPrint}</p>
       <p class="mt-8 text-center">
-        <a href="#waitlist" class="btn-accent">{l.capabilities.cta}</a>
+        <a href={`${p}/connect`} class="btn-accent">{l.capabilities.cta}</a>
       </p>
     </div>
   </section>
 
   {/* ── Beta Features ── */}
-  <section id="beta-features" aria-labelledby="beta-features-title" class="border-t border-ink-800 py-20">
+  <section id="power-tools" aria-labelledby="power-tools-title" class="border-t border-ink-800 py-20">
     <div class="container-page">
-      <h2 id="beta-features-title" class="text-center text-3xl font-bold text-white">{l.betaFeatures.title}</h2>
+      <h2 id="power-tools-title" class="text-center text-3xl font-bold text-white">{l.betaFeatures.title}</h2>
       <p class="mx-auto mt-4 max-w-xl text-center text-neutral-400">{l.betaFeatures.intro}</p>
       <div class="mt-12 grid gap-6 md:grid-cols-3">
         {l.betaFeatures.items.map((f) => (
           <article class="card">
             <div class="flex items-center gap-2">
               <h3 class="text-base font-semibold text-white">{f.title}</h3>
-              <span class="rounded-full border border-accent/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">Beta</span>
             </div>
             <p class="mt-3 text-sm leading-6 text-neutral-400">{f.body}</p>
           </article>
@@ -239,9 +237,6 @@ const jsonLd = [
       </p>
     </div>
   </section>
-
-  {/* ── 4.7 Pioneer 100 (conversion engine) ── */}
-  <WaitlistSection s={s} />
 
   {/* ── 4.8 FAQ (native <details> — no JS; doubles as GEO content) ── */}
   <section aria-labelledby="faq-title" class="border-t border-ink-800 py-20">

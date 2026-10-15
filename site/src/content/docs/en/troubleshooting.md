@@ -13,7 +13,7 @@ Most issues are connection or sign-in hiccups. Work through the relevant section
 **The client can't reach the MCP server.** Re-check the URL — it must be exactly:
 
 ```
-https://{{APP_DOMAIN}}/mcp
+http://localhost:3000/mcp
 ```
 
 Remove and re-add the connector, then restart the client. For Claude Desktop, a full quit (not just closing the window) is required to reload connector configuration.
