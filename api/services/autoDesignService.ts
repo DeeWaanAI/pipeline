@@ -60,16 +60,19 @@ export async function runAutoDesign(
     .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
   if (!project) throw new Error("Project not found");
 
-  // Resolve provider (unchanged semantics, incl. sampling best-effort path).
+  // Only use enabled providers owned by this caller; sampling remains best-effort.
   let providerId = providerIdInput ?? project.defaultProviderId ?? undefined;
   if (!providerId) {
-    const [fp] = await db.select().from(llmProviders).where(eq(llmProviders.userId, userId)).limit(1);
+    const [fp] = await db.select().from(llmProviders)
+      .where(and(eq(llmProviders.userId, userId), eq(llmProviders.isEnabled, true))).limit(1);
     if (!fp && !options?.chatFn) throw new Error("No LLM provider configured. Add one in Settings first.");
     providerId = fp?.id;
   }
   let adapter: ReturnType<typeof createProviderAdapter> | null = null;
   if (!options?.chatFn) {
-    const [provider] = await db.select().from(llmProviders).where(eq(llmProviders.id, providerId!));
+    // Enforce credential access here, even for an explicit or project-default ID.
+    const [provider] = await db.select().from(llmProviders)
+      .where(and(eq(llmProviders.id, providerId!), eq(llmProviders.userId, userId), eq(llmProviders.isEnabled, true)));
     if (!provider) throw new Error("Provider not found");
     const apiKey = decryptApiKey(provider.apiKeyRef);
     adapter = createProviderAdapter(provider.slug, apiKey, provider.baseUrl, provider.defaultModel);
