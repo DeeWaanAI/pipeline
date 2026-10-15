@@ -1068,7 +1068,13 @@ export const marketplaceRouter = createRouter({
         ));
 
       if (!listing) throw new Error("Listing not found");
-      if (listing.status !== "approved") throw new Error("Listing must be approved before publishing");
+      // Nothing grants `approved` any more — the reviewer quorum that wrote it
+      // was removed. A seller clicking this needs the door that exists, not a
+      // status that can never arrive.
+      if (listing.status !== "approved") throw new Error(
+        "publish_version is how a listing goes live: submit the benchmark evidence for this "
+        + `version (status is '${listing.status}'). There is no human approval step to wait for.`,
+      );
 
       await setLegacyListingStatus(input.id, { status: "published" }, { ownerId: ctx.user.id });
 

@@ -215,7 +215,11 @@ export const getListingStatus: McpTool = {
       title: listing.title,
       status: listing.status,
       grade: listing.grade,
-      canPublish: listing.status === "approved" || published,
+      // `approved` is a status nothing can grant any more: the human review
+      // quorum that wrote it was deleted, so a tool that reported "you can
+      // publish" on that basis would point at a door with nothing behind it.
+      // The real door is publishing the evidence record for this version.
+      canPublish: listing.status === "certifying",
       published,
       // The deterministic security scan writes its findings into aiFeedback on
       // rejection; surface it so a rejected seller knows what to fix. No AI
