@@ -202,6 +202,16 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Show my purchased pipelines.\"",
   },
   {
+    name: "download_shared_pipeline", group: "Marketplace", scopes: ["mcp:read"],
+    summary: "Take a shared pipeline home as one portable file — steps, prompts, origin, version hash and the platform's signed evidence attestation. It runs in your own desktop app on your own keys afterwards, with no call back to us.",
+    example: "\"Download the contract redliner so I can keep it in my project folder.\"",
+  },
+  {
+    name: "import_pipeline_bundle", group: "Marketplace", scopes: ["mcp:write"],
+    summary: "Import a pipeline bundle file into your account as a project you own and can edit. Verified before anything is written: the steps must match the declared hash and the evidence signature must name this exact pipeline; an unsigned file imports but is reported as unproven.",
+    example: "\"Import the bundle I just saved to my folder.\"",
+  },
+  {
     name: "fork_pipeline", group: "Marketplace", scopes: ["mcp:write"],
     summary: "Copy a publicly shared pipeline into your own account — the way a fork on GitHub works. Only listings whose benchmark evidence is published can be forked, so the inputs, outputs and judging prompts come with it; the copy runs on your keys and stays attributed to whoever made it.",
     example: "\"Fork the contract redliner from the gallery into my account.\"",

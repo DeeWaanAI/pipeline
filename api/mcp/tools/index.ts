@@ -35,6 +35,7 @@ import { exportRun } from "./exportRun";
 import { PUBLICATION_TOOLS } from "./publicationTools";
 import { EXTERNAL_EVIDENCE_TOOLS } from "./externalEvidenceTools";
 import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
+import { PIPELINE_BUNDLE_TOOLS } from "./pipelineBundleTools";
 
 export const TOOLS: McpTool[] = [
   runPipeline,
@@ -67,6 +68,7 @@ export const TOOLS: McpTool[] = [
   // v2ProtectedExecution). Buyer-side half of §8.
   // Offering redesign v2 — model release awareness (§12.1). Suggestions only:
   // no public tool can record a model or fan out notices.
+  ...PIPELINE_BUNDLE_TOOLS,
   ...MODEL_CATALOG_TOOLS,
   // D11 (ticket #22): feedback with the object it is about attached, per item,
   // under an explicit consent. Not flag-gated — it is an account-scoped write

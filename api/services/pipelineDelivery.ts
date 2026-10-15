@@ -33,9 +33,12 @@ import { createHash } from "crypto";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { marketplaceListingV2, marketplaceListings, pipelineSteps, pipelineTemplates, projects } from "@db/schema";
+import { evidencePublications, marketplaceListingV2, marketplaceListings, pipelineSteps, pipelineTemplates, projects, users } from "@db/schema";
 import { logger } from "../lib/logger";
+import { buildPipelineBundle, bundleIntegrityHash, verifyPipelineBundle, type PipelineBundle } from "./pipelineBundle";
+import { signingPublicKeyPem, type EvidenceAttestation } from "./evidenceSigning";
 import { resolveProtectedExecutionRight } from "./executionRight";
+import type { VersionDefinition } from "./benchmark/benchmarkTypes";
 import {
   captureVersionFromProject,
   loadVersionDefinition,
@@ -94,6 +97,89 @@ interface MaterializeArgs {
 }
 
 /**
+ * The one implementation of "write this certified definition into that account".
+ * Both doors reach it — a purchase, a public fork, and an imported bundle — so
+ * the rules cannot drift between them: the origin account stays attributed as
+ * data, the author's provider and agent bindings are dropped rather than
+ * inherited, and the copy gets a template and a first immutable version so it is
+ * a complete runnable object rather than a pile of rows.
+ */
+async function writeCopyIntoAccount(args: {
+  userId: number;
+  listing: { id: number; title: string; description: string | null };
+  sellerId: number;
+  steps: VersionDefinition["steps"];
+  sourceVersionId: number;
+  sourceVersionNumber: number;
+  via: "purchase" | "fork" | "import";
+  name?: string;
+}): Promise<{ projectId: number; projectName: string; templateId: number; versionId: number }> {
+  const db = getDb();
+  const projectName = (args.name ?? `${args.listing.title} (copy)`).slice(0, 200);
+
+  const [insertedProject] = await db.insert(projects).values({
+    userId: args.userId,
+    name: projectName,
+    description: args.listing.description,
+    // PROVENANCE AS DATA: the copy is owned and editable by the buyer, and it
+    // stays attributed to the account that originally made the work — which is
+    // also what refuses a reseller at the publish gate.
+    originCreatorId: args.sellerId,
+  });
+  const projectId = Number((insertedProject as { insertId: number }).insertId);
+
+  // (3) The seller's bindings are dropped, not inherited.
+  for (const step of args.steps) {
+    await db.insert(pipelineSteps).values({
+      projectId,
+      stepOrder: step.stepOrder,
+      agentId: null,
+      stepType: step.stepType ?? "agent",
+      name: step.name,
+      role: step.role,
+      systemPrompt: step.systemPrompt,
+      providerId: null,
+      model: step.model ?? null,
+      temperature: step.temperature ?? "0.7",
+      maxTokens: step.maxTokens ?? 4096,
+      ifConfig: step.ifConfig ?? null,
+      whileConfig: step.whileConfig ?? null,
+      isEnabled: true,
+    });
+  }
+
+  const [insertedTemplate] = await db.insert(pipelineTemplates).values({
+    userId: args.userId,
+    name: `${projectName} template`.slice(0, 200),
+    description: `${args.via === "purchase" ? "Delivered" : args.via === "fork" ? "Forked" : "Imported"} from marketplace listing ${args.listing.id} (workflow version ${args.sourceVersionNumber})`,
+    isAuto: false,
+    sourceProjectId: projectId,
+    steps: args.steps.map((s) => ({
+      name: s.name,
+      role: s.role,
+      systemPrompt: s.systemPrompt,
+      stepType: s.stepType ?? "agent",
+      ifConfig: s.ifConfig ?? null,
+      whileConfig: s.whileConfig ?? null,
+      providerId: null,
+      model: s.model ?? null,
+      temperature: s.temperature ?? "0.7",
+      maxTokens: s.maxTokens ?? 4096,
+    })),
+  });
+  const templateId = Number((insertedTemplate as { insertId: number }).insertId);
+  await db.update(projects).set({ pipelineTemplateId: templateId }).where(eq(projects.id, projectId));
+
+  // The copy gets a version row of its own, parented to the certified one, so
+  // the seller's account survives in lineage and the buyer's edits start from a
+  // known hash rather than from nothing.
+  const { versionId } = await captureVersionFromProject(args.userId, projectId, {
+    parentVersionId: args.sourceVersionId > 0 ? args.sourceVersionId : null,
+  });
+  return { projectId, projectName, templateId, versionId };
+}
+
+/**
  * The one materializer behind both doors: it writes a listing's certified
  * workflow version into the recipient's OWN account — a project they own, steps
  * they can edit, a template so the copy is a complete runnable object, and a
@@ -131,68 +217,13 @@ async function materializeCertifiedVersion(args: MaterializeArgs): Promise<Deliv
     );
   }
 
-  const db = getDb();
-  const projectName = (args.name ?? `${listing.title} (copy)`).slice(0, 200);
-
-  const [insertedProject] = await db.insert(projects).values({
-    userId,
-    name: projectName,
-    description: listing.description,
-    // PROVENANCE AS DATA: the copy is owned and editable by the buyer, and it
-    // stays attributed to the account that originally made the work — which is
-    // also what refuses a reseller at the publish gate.
-    originCreatorId: sellerId,
+  const written = await writeCopyIntoAccount({
+    userId, listing, sellerId, steps: definition.steps,
+    sourceVersionId: args.soldVersionId, sourceVersionNumber: Number(version.versionNumber),
+    via: args.via, name: args.name,
   });
-  const projectId = Number((insertedProject as { insertId: number }).insertId);
-
-  // (3) The seller's bindings are dropped, not inherited.
-  for (const step of definition.steps) {
-    await db.insert(pipelineSteps).values({
-      projectId,
-      stepOrder: step.stepOrder,
-      agentId: null,
-      stepType: step.stepType ?? "agent",
-      name: step.name,
-      role: step.role,
-      systemPrompt: step.systemPrompt,
-      providerId: null,
-      model: step.model ?? null,
-      temperature: step.temperature ?? "0.7",
-      maxTokens: step.maxTokens ?? 4096,
-      ifConfig: step.ifConfig ?? null,
-      whileConfig: step.whileConfig ?? null,
-      isEnabled: true,
-    });
-  }
-
-  const [insertedTemplate] = await db.insert(pipelineTemplates).values({
-    userId,
-    name: `${projectName} template`.slice(0, 200),
-    description: `${args.via === "fork" ? "Forked" : "Delivered"} from marketplace listing ${listing.id} (workflow version ${version.versionNumber})`,
-    isAuto: false,
-    sourceProjectId: projectId,
-    steps: definition.steps.map((s) => ({
-      name: s.name,
-      role: s.role,
-      systemPrompt: s.systemPrompt,
-      stepType: s.stepType ?? "agent",
-      ifConfig: s.ifConfig ?? null,
-      whileConfig: s.whileConfig ?? null,
-      providerId: null,
-      model: s.model ?? null,
-      temperature: s.temperature ?? "0.7",
-      maxTokens: s.maxTokens ?? 4096,
-    })),
-  });
-  const templateId = Number((insertedTemplate as { insertId: number }).insertId);
-  await db.update(projects).set({ pipelineTemplateId: templateId }).where(eq(projects.id, projectId));
-
-  // The copy gets a version row of its own, parented to the certified one, so
-  // the seller's account survives in lineage and the buyer's edits start from a
-  // known hash rather than from nothing.
-  const { versionId: recipientVersionId } = await captureVersionFromProject(userId, projectId, {
-    parentVersionId: args.soldVersionId,
-  });
+  const { projectId, projectName, templateId } = written;
+  const recipientVersionId = written.versionId;
 
   logger.info("Marketplace copy handed over", {
     userId,
@@ -293,4 +324,145 @@ export async function forkPublicListing(
     soldVersionId: v2.currentWorkflowVersionId, versionBinding: "public_fork",
     via: "fork", name: input.name,
   });
+}
+
+/**
+ * The file a share actually is: the certified definition, who made it, and the
+ * signed evidence record proving the benchmark ran against THIS version. Built
+ * from the platform's own rows, so the hash and the attestation cannot drift
+ * from what was published.
+ *
+ * Two kinds of caller may ask for it. An entitled buyer, because a purchase
+ * entitles them to the artifact they paid for. Anyone, when the listing is
+ * published with evidence — that is what "shared" means here.
+ */
+export async function exportListingBundle(
+  userId: number,
+  listingId: number,
+): Promise<PipelineBundle> {
+  const db = getDb();
+  const [listing] = await db.select().from(marketplaceListings)
+    .where(eq(marketplaceListings.id, listingId)).limit(1);
+  const [v2] = await db.select().from(marketplaceListingV2)
+    .where(eq(marketplaceListingV2.listingId, listingId)).limit(1);
+
+  const entitled = await resolveProtectedExecutionRight({
+    buyerId: userId, listingId, purpose: "buyer_execution",
+  }).catch(() => null);
+  const isPublic = Boolean(
+    listing && listing.status === "published" && v2
+    && v2.publicationMode === "v2" && v2.currentWorkflowVersionId && v2.currentEvidencePublicationId,
+  );
+  // A listing that is neither yours by right nor published for sharing answers
+  // the same way a nonexistent one does: nothing may be probed for what exists.
+  if (!entitled && !isPublic) {
+    throw new PipelineDeliveryError(
+      "not_available",
+      "this pipeline is not published with evidence and you hold no right to it, so there is no bundle to hand over",
+    );
+  }
+
+  const versionId = entitled?.soldVersionId ?? v2!.currentWorkflowVersionId!;
+  const sellerId = listing!.creatorId;
+  const { version, definition } = await loadVersionDefinition(versionId);
+  const [author] = await db.select({ name: users.name }).from(users).where(eq(users.id, sellerId)).limit(1);
+
+  let manifestHash: string | null = null;
+  let attestation: EvidenceAttestation | null = null;
+  if (v2?.currentEvidencePublicationId) {
+    const [pub] = await db.select({
+      manifestHash: evidencePublications.manifestHash,
+      publicManifest: evidencePublications.publicManifest,
+    }).from(evidencePublications)
+      .where(eq(evidencePublications.id, v2.currentEvidencePublicationId)).limit(1);
+    if (pub) {
+      manifestHash = pub.manifestHash;
+      try {
+        attestation = (JSON.parse(String(pub.publicManifest)) as { attestation?: EvidenceAttestation }).attestation ?? null;
+      } catch {
+        // A stored manifest that will not parse is reported by its absence: the
+        // bundle still carries the work, and the evidence section says there is
+        // nothing verified to attach.
+        attestation = null;
+      }
+    }
+  }
+
+  return buildPipelineBundle({
+    pipelineName: listing!.title,
+    pipelineDescription: listing!.description ?? null,
+    steps: definition.steps.map((st) => ({
+      stepOrder: st.stepOrder,
+      name: st.name,
+      role: st.role,
+      systemPrompt: st.systemPrompt,
+      stepType: st.stepType,
+      model: st.model ?? null,
+      temperature: st.temperature ?? null,
+      maxTokens: st.maxTokens ?? null,
+      ifConfig: st.ifConfig ?? null,
+      whileConfig: st.whileConfig ?? null,
+    })),
+    listingId: listing!.id,
+    workflowVersionId: version.id,
+    schemaVersion: Number(definition.schemaVersion ?? 1),
+    pipelineConfig: definition.pipelineConfig ?? null,
+    originCreatorId: sellerId,
+    originAccountName: author?.name ?? null,
+    workflowVersionNumber: Number(version.versionNumber),
+    definitionHash: String(version.definitionHash),
+    bundleHash: bundleIntegrityHash({
+      steps: definition.steps.map((st) => ({
+        stepOrder: st.stepOrder, name: st.name, role: st.role, systemPrompt: st.systemPrompt,
+        stepType: st.stepType, model: st.model ?? null, temperature: st.temperature ?? null,
+        maxTokens: st.maxTokens ?? null, ifConfig: st.ifConfig ?? null, whileConfig: st.whileConfig ?? null,
+      })),
+      schemaVersion: Number(definition.schemaVersion ?? 1),
+      pipelineConfig: definition.pipelineConfig ?? null,
+    }),
+    manifestHash,
+    attestation,
+  });
+}
+
+export const importPipelineBundleInputSchema = z.object({
+  bundle: z.unknown(),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+/**
+ * Bring a bundle home: verify it against the platform's own key, then write it
+ * into the importer's account with the same rules a fork follows. An intact but
+ * unsigned bundle still imports — it is somebody's pipeline, and refusing to
+ * move their own work would be worse — but the answer says the benchmark claim
+ * is unproven.
+ */
+export async function importPipelineBundle(
+  userId: number,
+  input: { bundle: unknown; name?: string },
+): Promise<{ projectId: number; projectName: string; verification: ReturnType<typeof verifyPipelineBundle>; meaning: string }> {
+  const candidate = input.bundle as PipelineBundle;
+  const pinned = signingPublicKeyPem();
+  const verification = verifyPipelineBundle(candidate, pinned ?? undefined);
+  if (!verification.valid) {
+    throw new PipelineDeliveryError(
+      `bundle_${verification.reason}`,
+      "the bundle was not imported: " + verification.reason,
+    );
+  }
+  const p = candidate.provenance;
+  const written = await writeCopyIntoAccount({
+    userId,
+    listing: { id: p.listingId ?? 0, title: candidate.pipeline.name, description: candidate.pipeline.description ?? null },
+    sellerId: p.originCreatorId,
+    steps: candidate.pipeline.steps as unknown as VersionDefinition["steps"],
+    sourceVersionId: p.workflowVersionId ?? 0,
+    sourceVersionNumber: p.workflowVersionNumber ?? 0,
+    via: "import",
+    name: input.name,
+  });
+  const meaning = verification.evidenceState === "verified"
+    ? `Imported and attributed to ${p.originAccountName ?? "account " + p.originCreatorId}. The published benchmark evidence verifies against the platform's signing key and names this exact definition hash (${verification.definitionHash}) — edit the steps and it stops describing your copy.`
+    : `Imported. The file is intact and hashes to ${verification.definitionHash}, but its benchmark claim is ${verification.evidenceState}: nothing here proves DeeWaanAI issued it. Treat the scores as the author's assertion, not as verified evidence.`;
+  return { ...written, verification, meaning };
 }

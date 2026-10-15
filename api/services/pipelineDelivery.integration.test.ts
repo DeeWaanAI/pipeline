@@ -391,4 +391,75 @@ describe("Class A marketplace delivery (DB-backed)", () => {
       expect(project.originCreatorId).toBe(f.sellerId);
     });
   });
+
+  describe("the portable bundle", () => {
+    async function makeStranger(tag: string) {
+      const d = await db();
+      const [u] = await d.insert(schema.users).values({ name: "Stranger", email: `x-${tag}@example.test`, tier: "standard" });
+      return Number((u as { insertId: number }).insertId);
+    }
+
+    it("exports a published listing as a file with no database wiring in it", async () => {
+      const f = await seed();
+      await publishEvidenceFor(f);
+      const bundle = await delivery.exportListingBundle(f.buyerId, f.listingId);
+      const text = JSON.stringify(bundle);
+      expect(bundle.provenance.definitionHash).toBe(f.definitionHash);
+      expect(bundle.provenance.originCreatorId).toBe(f.sellerId);
+      expect(bundle.pipeline.steps).toHaveLength(2);
+      expect(text.includes("SELLER SECRET SYSTEM PROMPT")).toBe(true);
+      for (const forbidden of ["providerId", "agentId", '"projectId"', '"userId"', '"id":']) {
+        expect(text.includes(forbidden), forbidden).toBe(false);
+      }
+    });
+
+    it("imports into a different account as an owned, attributed, key-free copy", async () => {
+      const f = await seed();
+      await publishEvidenceFor(f);
+      const bundle = await delivery.exportListingBundle(f.buyerId, f.listingId);
+      const stranger = await makeStranger(`${Date.now()}`);
+
+      const imported = await delivery.importPipelineBundle(stranger, { bundle });
+      expect(imported.verification.valid).toBe(true);
+      // The seeded publication was written straight into the table, so it carries
+      // no attestation: the import must say the benchmark is unproven rather than
+      // quietly treating a file as verified.
+      expect(imported.verification.evidenceState).toBe("unsigned");
+      expect(imported.meaning).toContain("nothing here proves DeeWaanAI issued it");
+
+      const d = await db();
+      const [project] = await d.select().from(schema.projects).where(eq(schema.projects.id, imported.projectId)).limit(1);
+      expect(project.userId).toBe(stranger);
+      expect(project.originCreatorId).toBe(f.sellerId);
+      const steps = await d.select().from(schema.pipelineSteps)
+        .where(eq(schema.pipelineSteps.projectId, imported.projectId));
+      expect(steps).toHaveLength(2);
+      expect(steps.every((x) => x.providerId === null && x.agentId === null)).toBe(true);
+    });
+
+    it("refuses a bundle whose steps were edited, and writes nothing", async () => {
+      const f = await seed();
+      await publishEvidenceFor(f);
+      const bundle = await delivery.exportListingBundle(f.buyerId, f.listingId);
+      const stranger = await makeStranger(`t-${Date.now()}`);
+      const before = await projectCount(stranger);
+
+      const tampered = {
+        ...bundle,
+        pipeline: { ...bundle.pipeline, steps: [{ ...bundle.pipeline.steps[0], systemPrompt: "TAMPERED" }, ...bundle.pipeline.steps.slice(1)] },
+      };
+      await expect(delivery.importPipelineBundle(stranger, { bundle: tampered }))
+        .rejects.toThrow(/bundle_steps_do_not_match_the_declared_hash/);
+      expect(await projectCount(stranger)).toBe(before);
+    });
+
+    it("refuses to export a listing that is neither entitled nor publicly evidenced", async () => {
+      const f = await seed({ purchase: false });
+      const stranger = await makeStranger(`n-${Date.now()}`);
+      const hidden = await delivery.exportListingBundle(stranger, f.listingId).catch((e: Error) => e.message);
+      const missing = await delivery.exportListingBundle(stranger, 987_654).catch((e: Error) => e.message);
+      expect(hidden).toBe(missing);
+      expect(String(hidden)).toMatch(/not_available/);
+    });
+  });
 });
