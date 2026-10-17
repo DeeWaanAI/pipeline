@@ -228,3 +228,10 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 
 - **deewaanai.com now serves the new local-first, free/open-source copy.** Root cause of the stale site: both Railway services (`site`, `deewaanai`) were still connected to the OLD repo `youssef-hariri/deewaanai` @ ee01f075 — pushes to `deewaanai-v2` never triggered a deploy. The project token in `.env` (`RAILWAY_TOKEN`) authorizes CLI status/logs/redeploy/up but NOT `serviceConnect` (repo switch needs dashboard or account token). Deployed via `railway up` from the repo ROOT (rootDirectory `site/` must resolve; uploading from `site/` fails with "railpack prepare" error). Verified live: zero Pioneer/waitlist mentions, AGPL/open-source copy present, /connect shows the local `http://localhost:3000/mcp` URL, /pricing is gone (404 by design — nothing is sold).
 - **Owner action still needed (once):** Railway dashboard → `site` service → Settings → Source → reconnect to `youssef-hariri/deewaanai-v2` (branch main), so future pushes auto-deploy again. Same for the `deewaanai` app service when the hosted marketplace deploy is due (L4).
+
+## v3 — 2026-10-17 session, part 4 (commit 4b94ca5, pushed)
+
+- **L2 done: `npx deewaanai` packaging.** `node scripts/pack-local.mjs` produces a 5.4 MB tarball (`dist-pkg/deewaanai-0.3.0.tgz`): bundled server + built web app + SQLite migrations, with exactly one runtime dependency (better-sqlite3, pinned to the lockfile version). The launcher auto-generates and persists local secrets in `~/.deewaanai/env` (0600) — a user needs Node 20+ and nothing else: no env vars, no database, no repo.
+- **Gate passed:** `scripts/smoke-npx-install.mts` installs the tarball into a throwaway dir from the npm registry (like a real user), boots with a completely clean environment, and verifies sign-in URL, owner auth, health, and the web app being served.
+- **Publishing note:** the package is NOT on npm yet — `npm publish` from dist-pkg when the owner wants public availability (name `deewaanai` must be claimed).
+- **Next:** L3 device-flow account linking + publish/fork between a local install and the hosted marketplace.
