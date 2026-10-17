@@ -1,0 +1,21 @@
+{
+  "name": "deewaanai",
+  "version": "0.3.0",
+  "description": "DeeWaanAI — local-first MCP server and visual pipeline designer. Runs entirely on your machine; your keys, your data, your models.",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "bin": {
+    "deewaanai": "bin/deewaanai.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "db"
+  ],
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

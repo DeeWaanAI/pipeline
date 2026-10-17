@@ -47,3 +47,4 @@ feedback-screenshots/
 
 # Astro generated type cache (site/)
 .astro
+dist-pkg/
