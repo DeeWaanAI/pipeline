@@ -45,6 +45,6 @@ describe("schema parity: mysql source vs generated sqlite mirror", () => {
   it("table count matches the hand-audited figure", () => {
     // Update this number deliberately when a table is added or dropped — it is
     // the tripwire that forces a conscious regen, not a silent drift.
-    expect(a.size).toBe(88);
+    expect(a.size).toBe(89);
   });
 });

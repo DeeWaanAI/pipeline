@@ -126,5 +126,16 @@
     "colOutput": "Out $/1M",
     "unit": "US dollars per 1 million tokens.",
     "empty": "No declared prices yet."
+  },
+  "marketplaceLink": {
+    "title": "Marketplace account",
+    "description": "Link this local install to your deewaanai.com account to publish your pipelines or fork shared ones. Everything still runs on this computer — the marketplace only stores listings and evidence.",
+    "linkButton": "Link account",
+    "codeInstruction": "Open the link below and approve this code:",
+    "waiting": "Waiting for approval…",
+    "linked": "Linked — publishing and forking are enabled.",
+    "linkedAt": "Linked at",
+    "unlink": "Unlink",
+    "linkFailed": "Could not reach the marketplace. Try again."
   }
 }

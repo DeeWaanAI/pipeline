@@ -38,9 +38,67 @@ export function getDb(): AppDb {
       // FK enforcement is OFF by default in SQLite — the MySQL schema relies on
       // onDelete cascade/restrict everywhere, so this must be unconditional.
       sqlite.pragma("foreign_keys = ON");
-      instance = drizzleSqlite(sqlite, {
+      const db = drizzleSqlite(sqlite, {
         schema: { ...schemaSqlite, ...relations },
-      }) as unknown as AppDb;
+      });
+
+      // ── mysql2-shaped write results ──────────────────────────────
+      // mysql2 returns writes as [ResultSetHeader, fields], and 30+ call
+      // sites destructure `const [r] = await db.insert(…)` then read
+      // `r.insertId`. better-sqlite3 returns a plain { changes,
+      // lastInsertRowid }. Patch prepared-statement run() so its result is
+      // iterable as a one-element tuple carrying both shapes.
+      const origPrepare = sqlite.prepare.bind(sqlite);
+      sqlite.prepare = ((sql: string) => {
+        const stmt = origPrepare(sql);
+        const origRun = stmt.run.bind(stmt);
+        stmt.run = ((...args: unknown[]) => {
+          const r = origRun(...args) as { changes: number; lastInsertRowid: number | bigint };
+          if (r && typeof r === "object" && "lastInsertRowid" in r) {
+            const header = Object.assign([] as unknown as unknown[] & {
+              changes: number; lastInsertRowid: number | bigint; insertId: number;
+            }, r, { insertId: Number(r.lastInsertRowid) });
+            header[0] = header;
+            return header;
+          }
+          return r;
+        }) as typeof stmt.run;
+        return stmt;
+      }) as typeof sqlite.prepare;
+
+      // ── Async-transaction emulation ──────────────────────────────
+      // The codebase's 20+ `db.transaction(async …)` sites target mysql2,
+      // whose driver is async. better-sqlite3 is synchronous and REJECTS an
+      // async transaction callback ("Transaction function cannot return a
+      // promise"). A local install is single-user, so we serialize explicit
+      // BEGIN/COMMIT blocks on a promise chain: every underlying drizzle op
+      // executes synchronously, the awaits just yield microtasks. A call
+      // made while a transaction is already open (nested or an interleaved
+      // request) runs its callback inside the open transaction — SQLite
+      // serializes the writes either way.
+      let txOpen = false;
+      let txChain: Promise<unknown> = Promise.resolve();
+      db.transaction = ((fn: (tx: unknown) => Promise<unknown> | unknown) => {
+        if (txOpen) return Promise.resolve(fn(db));
+        const run = txChain.then(async () => {
+          txOpen = true;
+          sqlite.exec("BEGIN");
+          try {
+            const result = await fn(db);
+            sqlite.exec("COMMIT");
+            return result;
+          } catch (err) {
+            sqlite.exec("ROLLBACK");
+            throw err;
+          } finally {
+            txOpen = false;
+          }
+        });
+        txChain = run.catch(() => { /* queue survives failures */ });
+        return run;
+      }) as typeof db.transaction;
+
+      instance = db as unknown as AppDb;
     } else {
       instance = drizzleMysql(env.databaseUrl, {
         mode: "default",

@@ -13,6 +13,7 @@ import { registerProjectImportRoute } from "./project-import-route";
 import { registerBeaconSaveRoute } from "./beacon-save-route";
 import { registerBackupRoute } from "./backup-route";
 import { registerWaitlistRoute } from "./waitlist-route";
+import { registerDeviceRoutes } from "./device-route";
 import { registerTestFixtureRoute } from "./test-fixture-route";
 import { registerBillingWebhookRoute } from "./billing-webhook-route";
 import { registerCertificationBadgeRoute } from "./certification-badge-route";
@@ -192,6 +193,7 @@ registerBackupRoute(app);
 
 // Register public waitlist contract (Pioneer 100, consumed by the marketing site).
 registerWaitlistRoute(app);
+registerDeviceRoutes(app);
 
 // Register Companion MCP server (OAuth + streamable HTTP + legacy SSE).
 // Guarded so a registration failure can never prevent the app from booting.

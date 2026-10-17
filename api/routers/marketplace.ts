@@ -10,6 +10,8 @@ import {
   marketplacePurchases,
   encryptedPrompts,
   pipelineTemplates,
+  pipelineVersions,
+  projects,
 } from "@db/schema";
 import { encryptPipelineSteps } from "../lib/marketplaceCrypto";
 import { createProviderAdapter } from "../lib/providers";
@@ -21,7 +23,7 @@ import { withTimeout } from "../lib/withTimeout";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
 import { assertOriginalCreatorMayList } from "../services/workflowLineage";
-import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema, forkPublicListing, forkPublicListingInputSchema } from "../services/pipelineDelivery";
+import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema, forkPublicListing, forkPublicListingInputSchema, exportListingBundle, importPipelineBundle } from "../services/pipelineDelivery";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
   getEvidenceForViewer, getPurchasedEvidenceForListing,
@@ -1446,6 +1448,82 @@ export const marketplaceRouter = createRouter({
   forkListing: authedQuery
     .input(forkPublicListingInputSchema)
     .mutation(async ({ input, ctx }) => forkPublicListing(ctx.user.id, input)),
+
+  // ── Local install (device-linked, V3 L3): download a listing ────
+  // The fork transport between hosted and a local install is the signed
+  // bundle itself — the local app verifies it offline and imports it.
+  downloadBundle: authedQuery
+    .input(z.object({ listingId: z.number() }))
+    .mutation(async ({ input, ctx }) => ({
+      bundle: await exportListingBundle(ctx.user.id, input.listingId),
+    })),
+
+  // ── Local install (device-linked, V3 L3): publish a pipeline ────
+  // The local install exports its own pipeline as a bundle and uploads it.
+  // Seller identity is the marketplace account (spec §4): the import is
+  // re-attributed to it, so the account can submit the draft for review
+  // through the normal hosted flow afterwards.
+  publishBundle: authedQuery
+    .input(z.object({
+      bundle: z.unknown(),
+      title: z.string().min(3).max(200),
+      description: z.string().max(2000).optional(),
+      category: z.enum(["translation", "writing", "code", "analysis", "creative", "other"]).default("other"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const imported = await importPipelineBundle(ctx.user.id, {
+        bundle: input.bundle, name: input.title,
+      });
+
+      const [project] = await db.select().from(projects)
+        .where(eq(projects.id, imported.projectId)).limit(1);
+      if (!project?.pipelineTemplateId) {
+        throw new Error("Publish failed: the bundle did not produce a template");
+      }
+      // Re-attribute: the marketplace account is the publishing author.
+      await db.update(projects)
+        .set({ originCreatorId: ctx.user.id })
+        .where(eq(projects.id, project.id));
+      await db.update(pipelineVersions)
+        .set({ originCreatorId: ctx.user.id })
+        .where(eq(pipelineVersions.sourceProjectId, project.id));
+
+      const [template] = await db.select().from(pipelineTemplates)
+        .where(eq(pipelineTemplates.id, project.pipelineTemplateId)).limit(1);
+
+      const [listing] = await db.insert(marketplaceListings).values({
+        creatorId: ctx.user.id,
+        templateId: project.pipelineTemplateId,
+        title: input.title,
+        description: input.description ?? template?.description,
+        category: input.category,
+        price: "0",
+        status: "draft",
+      });
+      const listingId = Number(listing.insertId);
+
+      if (template) {
+        for (const ep of encryptPipelineSteps(template.steps, listingId)) {
+          await db.insert(encryptedPrompts).values({
+            listingId,
+            agentIndex: ep.agentIndex,
+            encryptedPrompt: ep.encryptedPrompt,
+            iv: ep.iv,
+          });
+        }
+      }
+
+      logger.info("bundle published from a linked local install", {
+        userId: ctx.user.id, listingId, projectId: imported.projectId,
+      });
+      return {
+        id: listingId,
+        projectId: imported.projectId,
+        verification: imported.verification,
+        message: "Listing created as a draft. Submit it for review when ready.",
+      };
+    }),
 
   // ── Buyer: Purchase listing ────────────────────────────────────
   // ── Buyer: Purchase a listing via Stripe Checkout (Phase 1) ─────

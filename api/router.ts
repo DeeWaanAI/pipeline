@@ -1,5 +1,6 @@
 import { authRouter } from "./auth-router";
 import { localAuthRouter } from "./routers/localAuth";
+import { hostedLinkRouter } from "./routers/hostedLink";
 import { createRouter, publicQuery } from "./middleware";
 import { projectRouter } from "./routers/project";
 import { agentRouter } from "./routers/agent";
@@ -40,6 +41,7 @@ export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
   auth: authRouter,
   localAuth: localAuthRouter,
+  hostedLink: hostedLinkRouter,
   project: projectRouter,
   agent: agentRouter,
   customAgent: customAgentRouter,

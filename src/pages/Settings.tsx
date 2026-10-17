@@ -714,6 +714,97 @@ function GiteeTokenSection() {
 }
 
 // ─── Local Data Folder Section ───────────────────────────────────────
+function MarketplaceLinkSection() {
+  const { t } = useTranslation("settings");
+  const utils = trpc.useUtils();
+  const [linking, setLinking] = useState(false);
+  const statusQ = trpc.hostedLink.status.useQuery(undefined, {
+    refetchInterval: linking ? 3000 : false,
+  });
+  const begin = trpc.hostedLink.begin.useMutation({
+    onSuccess: () => setLinking(true),
+    onError: () => toast.error(t("marketplaceLink.linkFailed")),
+  });
+  const unlink = trpc.hostedLink.unlink.useMutation({
+    onSuccess: () => { setLinking(false); utils.hostedLink.status.invalidate(); },
+  });
+
+  const status = statusQ.data;
+  const waiting = linking && status?.state === "waiting";
+
+  // Stop polling once linked.
+  if (linking && status?.state === "linked") setLinking(false);
+
+  return (
+    <Card className="bg-neutral-900 border-neutral-800">
+      <CardHeader>
+        <CardTitle className="text-lg font-semibold text-neutral-200 flex items-center gap-2">
+          <Plug className="w-5 h-5 text-blue-400" />
+          {t("marketplaceLink.title")}
+        </CardTitle>
+        <CardDescription className="text-xs text-neutral-500">
+          {t("marketplaceLink.description")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {status?.state === "linked" ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              {t("marketplaceLink.linked")}
+            </div>
+            <div className="text-xs text-neutral-500">
+              {status.hostedUrl} · {t("marketplaceLink.linkedAt")} {new Date(status.linkedAt).toLocaleString()}
+            </div>
+            <Button
+              variant="outline" size="sm"
+              className="border-neutral-700 text-neutral-300"
+              onClick={() => unlink.mutate()}
+              disabled={unlink.isPending}
+            >
+              <Unlink className="w-4 h-4 mr-1" />
+              {t("marketplaceLink.unlink")}
+            </Button>
+          </div>
+        ) : waiting ? (
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-400">{t("marketplaceLink.codeInstruction")}</p>
+            {begin.data && (
+              <>
+                <div className="text-2xl font-mono font-bold tracking-widest text-neutral-100">
+                  {begin.data.userCode}
+                </div>
+                <a
+                  href={begin.data.verificationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-blue-400 underline break-all"
+                >
+                  {begin.data.verificationUrl}
+                </a>
+              </>
+            )}
+            <div className="flex items-center gap-2 text-sm text-neutral-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {t("marketplaceLink.waiting")}
+            </div>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => begin.mutate()}
+            disabled={begin.isPending}
+            className="bg-blue-600 hover:bg-blue-500 text-white"
+          >
+            {begin.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plug className="w-4 h-4 mr-1" />}
+            {t("marketplaceLink.linkButton")}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function LocalDataFolderSection() {
   const { t } = useTranslation("settings");
   const [localFolder, setLocalFolder] = useState<LocalFolderState | null>(null);
@@ -1075,6 +1166,7 @@ export default function SettingsPage() {
         <GiteeTokenSection />
         <div className="mt-4">
           <LocalDataFolderSection />
+          <MarketplaceLinkSection />
         </div>
         <div className="mt-4">
           <DataBackupSection />

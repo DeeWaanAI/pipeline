@@ -2361,3 +2361,23 @@ export const promotionRedemptions = mysqlTable("promotion_redemptions", {
 export type Promotion = typeof promotions.$inferSelect;
 export type InsertPromotion = typeof promotions.$inferInsert;
 export type PromotionRedemption = typeof promotionRedemptions.$inferSelect;
+
+// ─── DEVICE AUTHORIZATION (V3 local-first, L3) ──────────────────────
+// OAuth-style device flow for linking a local install to a marketplace
+// account: the local app shows a short user code, the user approves on the
+// hosted site while logged in, and the local install exchanges the device
+// code for a long-lived token. Codes expire quickly and are single-use.
+export const deviceCodes = mysqlTable("device_codes", {
+  id: int("id").autoincrement().primaryKey().notNull(),
+  deviceCode: varchar("device_code", { length: 64 }).notNull(),
+  userCode: varchar("user_code", { length: 12 }).notNull(),
+  userId: int("user_id").references(() => users.id, { onDelete: "cascade" }),
+  status: mysqlEnum("status", ["pending", "approved", "denied"]).default("pending").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  deviceCodeUq: uniqueIndex("uq_device_codes_device_code").on(table.deviceCode),
+  userCodeUq: uniqueIndex("uq_device_codes_user_code").on(table.userCode),
+}));
+
+export type DeviceCode = typeof deviceCodes.$inferSelect;

@@ -52,6 +52,7 @@ async function boot(home: string): Promise<{ child: ChildProcess; output: string
       PORT: String(PORT),
       START_WORKER: "false",
       APP_SECRET: "smoke-secret-not-real",
+      REDIS_URL: "", // isolate from the repo's .env
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

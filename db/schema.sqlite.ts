@@ -2328,3 +2328,23 @@ export const promotionRedemptions = sqliteTable("promotion_redemptions", {
 export type Promotion = typeof promotions.$inferSelect;
 export type InsertPromotion = typeof promotions.$inferInsert;
 export type PromotionRedemption = typeof promotionRedemptions.$inferSelect;
+
+// ─── DEVICE AUTHORIZATION (V3 local-first, L3) ──────────────────────
+// OAuth-style device flow for linking a local install to a marketplace
+// account: the local app shows a short user code, the user approves on the
+// hosted site while logged in, and the local install exchanges the device
+// code for a long-lived token. Codes expire quickly and are single-use.
+export const deviceCodes = sqliteTable("device_codes", {
+  id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
+  deviceCode: text("device_code").notNull(),
+  userCode: text("user_code").notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["pending", "approved", "denied"] }).default("pending").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).defaultNow().notNull(),
+}, (table) => ({
+  deviceCodeUq: uniqueIndex("uq_device_codes_device_code").on(table.deviceCode),
+  userCodeUq: uniqueIndex("uq_device_codes_user_code").on(table.userCode),
+}));
+
+export type DeviceCode = typeof deviceCodes.$inferSelect;

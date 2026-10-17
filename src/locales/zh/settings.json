@@ -126,5 +126,16 @@
     "colOutput": "输出 $/百万",
     "unit": "单位：每 100 万 token 的美元价格。",
     "empty": "目前还没有申报的价格。"
+  },
+  "marketplaceLink": {
+    "title": "市场账户",
+    "description": "将此本地安装关联到你的 deewaanai.com 账户，即可发布你的流水线或复刻共享流水线。所有运行仍在本机进行——市场仅存储上架信息和证据。",
+    "linkButton": "关联账户",
+    "codeInstruction": "打开下面的链接并批准此代码：",
+    "waiting": "等待批准中……",
+    "linked": "已关联——发布与复刻已启用。",
+    "linkedAt": "关联时间",
+    "unlink": "取消关联",
+    "linkFailed": "无法连接到市场，请重试。"
   }
 }

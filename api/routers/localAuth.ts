@@ -35,8 +35,13 @@ function dbErr(err: unknown): never {
   throw new Error(fullMsg);
 }
 
-export async function signLocalToken(userId: number, username: string, expiresIn = "7d"): Promise<string> {
-  return new jose.SignJWT({ userId, username, type: "local" })
+export async function signLocalToken(
+  userId: number,
+  username: string,
+  expiresIn = "7d",
+  tokenType: "local" | "device" = "local",
+): Promise<string> {
+  return new jose.SignJWT({ userId, username, type: tokenType })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(expiresIn)
@@ -46,7 +51,9 @@ export async function signLocalToken(userId: number, username: string, expiresIn
 export async function verifyLocalToken(token: string): Promise<{ userId: number; username: string } | null> {
   try {
     const { payload } = await jose.jwtVerify(token, SECRET(), { clockTolerance: 60 });
-    if (!payload.userId || payload.type !== "local") return null;
+    // "local" = interactive login (7d); "device" = device-flow link token
+    // issued to a local install (90d, V3 L3). Same trust domain, same secret.
+    if (!payload.userId || (payload.type !== "local" && payload.type !== "device")) return null;
     return { userId: payload.userId as number, username: payload.username as string };
   } catch {
     return null;
