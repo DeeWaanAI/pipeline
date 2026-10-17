@@ -1,6 +1,7 @@
 // Benchmark worker (offering redesign v2, spec §5.3 pattern applied to
 // evaluation jobs): queue carries identifiers only; DB is authoritative.
 
+import { assertExecutionAllowed } from "../lib/hostedGuards";
 import { createQueue, createWorker, getQueueBackend, type AppQueue, type AppWorker } from "../infra/queue";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
@@ -22,6 +23,7 @@ let worker: AppWorker | null = null;
 let healTimer: ReturnType<typeof setInterval> | null = null;
 
 export async function enqueueBenchmark(benchmarkId: number, opts?: { force?: boolean }): Promise<string> {
+  assertExecutionAllowed(); // V3 L4
   return benchmarkQueue.enqueue(BENCHMARK_JOB_RUN, { benchmarkId } satisfies BenchmarkJobPayload, {
     idempotencyKey: `benchmark-${benchmarkId}`,
     force: opts?.force,

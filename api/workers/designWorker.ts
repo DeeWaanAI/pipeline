@@ -4,6 +4,7 @@
 // Enqueue is driven by the transactional job_outbox, so a crash between
 // commit and dispatch is reconciled by startDesignOutboxReconciler().
 
+import { assertExecutionAllowed } from "../lib/hostedGuards";
 import { createQueue, createWorker, getQueueBackend, type AppQueue, type AppWorker } from "../infra/queue";
 import { logger } from "../lib/logger";
 import { env } from "../lib/env";
@@ -28,6 +29,7 @@ let worker: AppWorker | null = null;
 let reconcilerTimer: ReturnType<typeof setInterval> | null = null;
 
 async function enqueueDesignJob(designJobId: number, userId: number): Promise<string> {
+  assertExecutionAllowed(); // V3 L4
   return designQueue.enqueue(DESIGN_JOB_RUN, { designJobId, userId } satisfies DesignJobPayload, {
     idempotencyKey: `design-job-${designJobId}`,
     // Forced, and the same reasoning as the benchmark reconciler: every call

@@ -3,6 +3,7 @@
 // here in a single flat list; the server filters/authorizes per McpAuthContext.
 
 import type { McpTool } from "../types";
+import { env } from "../../lib/env";
 import { runPipeline } from "./runPipeline";
 import { listPipelines } from "./listPipelines";
 import { getPipeline } from "./getPipeline";
@@ -100,3 +101,30 @@ export const TOOLS: McpTool[] = [
   exportRun,
   // Research Mode — batch runs
 ];
+
+// ─── Hosted strip-down (V3 L4) ─────────────────────────────────────
+// A marketplace-only deployment answers exactly four needs over MCP:
+// search listings, read evidence, fork/download, publish. Execution tools
+// (run_pipeline, design, benchmarks, settings…) are not registered at all —
+// a tool that doesn't exist can't be invoked, whatever its scopes say.
+const MARKETPLACE_ONLY_TOOLS = new Set([
+  "deewaanai_help",
+  "search_marketplace",
+  "get_listing_status",
+  "my_marketplace_listings",
+  "fork_pipeline",
+  "deliver_purchased_copy",
+  "publish_to_marketplace",
+  "submit_for_review",
+  "download_shared_pipeline",
+  "import_pipeline_bundle",
+  "listing_model_freshness",
+  "get_public_evidence",
+  "listing_publication_state",
+  "get_external_evidence",
+  "list_external_evidence",
+]);
+
+export const ACTIVE_TOOLS: McpTool[] = env.marketplaceOnly
+  ? TOOLS.filter((tool) => MARKETPLACE_ONLY_TOOLS.has(tool.name))
+  : TOOLS;

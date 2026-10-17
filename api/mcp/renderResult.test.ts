@@ -8,16 +8,17 @@ import { createMcpServer } from "./server";
 const fixture = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock("./tools/index", async () => {
   const { z } = await import("zod");
-  return {
-    TOOLS: ["run_status", "benchmark_status", "export_run", "export_batch_results", "list_pipelines"].map((name) => ({
-      name,
-      description: "Local result rendering fixture",
-      inputSchema: z.object({}),
-      requiredScopes: ["mcp:read"],
-      annotations: { readOnlyHint: true },
-      handler: async () => fixture.value,
-    })),
-  };
+  const fixtureTools = ["run_status", "benchmark_status", "export_run", "export_batch_results", "list_pipelines"].map((name) => ({
+    name,
+    description: "Local result rendering fixture",
+    inputSchema: z.object({}),
+    requiredScopes: ["mcp:read"],
+    annotations: { readOnlyHint: true },
+    handler: async () => fixture.value,
+  }));
+  // server.ts consumes ACTIVE_TOOLS (V3 L4 marketplace filter); the mock
+  // fixture is dialect/flag-agnostic, so both names export the same list.
+  return { TOOLS: fixtureTools, ACTIVE_TOOLS: fixtureTools };
 });
 vi.mock("../queries/connection", () => ({
   getDb: () => ({ insert: () => ({ values: () => ({ onDuplicateKeyUpdate: async () => undefined }) }) }),

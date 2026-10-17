@@ -90,7 +90,7 @@ void initObservability();
 // worker, not in HTTP requests. Safe to call once at boot.
 // Set START_WORKER=false when running a dedicated worker process
 // (node dist/workerEntry.js) so the web dyno serves HTTP only — see DEPLOY.md.
-if (process.env.START_WORKER !== "false") {
+if (process.env.START_WORKER !== "false" && !env.marketplaceOnly) {
   startSwarmWorker();
   // v2 durable design jobs (offering redesign spec §5.3). The worker
   // consumes only when its feature flag gates producers; the reconciler is
@@ -99,10 +99,16 @@ if (process.env.START_WORKER !== "false") {
   startDesignWorker();
   startBenchmarkWorker();
 }
-startDesignOutboxReconciler();
-startBenchmarkReconciler();
+if (!env.marketplaceOnly) {
+  startDesignOutboxReconciler();
+  startBenchmarkReconciler();
+}
 
 // ─── Health Check (liveness) ───────────────────────────────────────
+// Public deployment mode for the SPA (V3 L4): the hosted web app reads this
+// to reduce itself to marketplace browse/evidence pages.
+app.get("/api/public-config", (c) => c.json({ marketplaceOnly: env.marketplaceOnly }));
+
 // 200 as long as the process is up and MySQL answers; degraded when the DB
 // is down. Docker/Railway healthchecks should target this endpoint.
 app.get("/api/health", async (c) => {

@@ -35,6 +35,11 @@ export const env = {
   // Optional MySQL read-replica (Phase 3). Empty = read-heavy queries use
   // the primary DATABASE_URL (zero behavior change when unconfigured).
   databaseReadUrl: process.env.DATABASE_READ_URL ?? "",
+  // V3 L4: hosted strip-down. When true, this deployment is marketplace +
+  // evidence ONLY — no execution: workers stay off, run/design/benchmark
+  // entry points refuse with a 410 pointer to the local install, and /mcp
+  // exposes just the marketplace tools (search, evidence, fork, publish).
+  marketplaceOnly: process.env.HOSTED_MARKETPLACE_ONLY === "true",
   ownerUnionId: process.env.OWNER_UNION_ID ?? "",
   masterKey: required("AI_SWARM_MASTER_KEY"),
   marketplaceKey: required("MARKETPLACE_MASTER_KEY"),

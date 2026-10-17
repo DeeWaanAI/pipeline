@@ -12,6 +12,7 @@ import { createProviderAdapter } from "../lib/providers";
 import { getMasterKey, encrypt } from "../services/cryptoService";
 import { loadPipelineSteps, callWithRetry, decryptApiKey, type SwarmRunParams } from "../services/swarmService";
 import { enqueueSwarmRun } from "../workers/swarmWorker";
+import { assertExecutionAllowed } from "../lib/hostedGuards";
 import { assertRunControlAllowed, canAccessRun } from "../services/runAccess";
 import { signStreamPath } from "../lib/streamToken";
 import { runAutoDesign } from "../services/autoDesignService";
@@ -107,6 +108,9 @@ export const swarmRouter = createRouter({
   execute: authedQuery
     .input(ExecuteSwarmSchema)
     .mutation(async ({ input, ctx }) => {
+      // V3 L4: refuse before any DB work so the answer is the 410 pointer,
+      // never a confusing "Project not found" on a marketplace-only deploy.
+      assertExecutionAllowed();
       const rl = await checkRateLimitAsync(`execute:${ctx.user.id}`, RATE_LIMITS.execute);
       if (!rl.allowed) {
         throw new Error(`Too many executions. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);

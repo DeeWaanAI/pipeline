@@ -31,7 +31,7 @@ import { upsertOnUniqueKey } from "../lib/upsert";
 import { logger } from "../lib/logger";
 import { msg } from "../lib/messages";
 import { isFeatureEnabled } from "../plugins/featureFlags";
-import { TOOLS } from "./tools/index";
+import { ACTIVE_TOOLS } from "./tools/index";
 import type { McpAuthContext, McpTool } from "./types";
 import { renderToolResult } from "./renderResult";
 
@@ -144,7 +144,7 @@ async function buildMcpServer(auth: McpAuthContext): Promise<McpServer> {
 
   // Defensive: a broken tools module must not break app boot or the
   // MCP handshake — an empty tool list is a valid, debuggable state.
-  const tools = Array.isArray(TOOLS) ? TOOLS : [];
+  const tools = Array.isArray(ACTIVE_TOOLS) ? ACTIVE_TOOLS : [];
   if (tools.length === 0) {
     logger.warn("MCP: no tools registered (tools/index missing or empty)");
   }

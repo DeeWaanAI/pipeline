@@ -4,6 +4,7 @@
 // With Redis: BullMQ-backed, multi-node. Without Redis: in-memory queue,
 // jobs run in-process (dev / single node).
 
+import { assertExecutionAllowed } from "../lib/hostedGuards";
 import { createQueue, createWorker, type AppQueue, type AppWorker } from "../infra/queue";
 import { executeSwarmRun } from "../services/swarmService";
 import { logger } from "../lib/logger";
@@ -27,6 +28,7 @@ export async function enqueueSwarmRun(
   userId: number,
   opts?: { bypassDedup?: boolean; delayMs?: number },
 ): Promise<string> {
+  assertExecutionAllowed(); // V3 L4: marketplace-only deploys never execute
   const payload: SwarmJobPayload = { swarmRunId, userId };
   return swarmQueue.enqueue(SWARM_JOB_EXECUTE, payload, {
     idempotencyKey: opts?.bypassDedup ? undefined : `run-${swarmRunId}`,
