@@ -216,3 +216,10 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 - **Guards:** `api/schemaParity.test.ts` pins mysql/sqlite table parity (88) so the schemas can't silently drift; `scripts/smoke-sqlite.mts` migrate+CRUD smoke on a temp file.
 - **Gates:** tsc clean; unit suite 491 passed on BOTH MySQL and `DB_DRIVER=sqlite`; production boot smoke on sqlite (`/api/health` db:connected, POST /mcp 401); i18n:check passed. (Lint's 115 findings are all pre-existing in untouched files — not part of the gate suite.)
 - **Next:** L1 first-run setup (`~/.deewaanai` bootstrap, local account, printed URLs) per spec §7.
+
+## v3 — 2026-10-17 session, part 2 (commit 1ebc223, pushed)
+
+- **L1 done: first-run setup.** A fresh local install now boots with zero setup: migrations run, a local owner account (admin) is created automatically, and the terminal prints a banner with a click-to-sign-in URL (`?auth_token=…`), the MCP URL for chat apps, and the data folder. The token lives in `~/.deewaanai/auth-token` (0600); later boots reprint it. No passwords, no signup screen — matches spec §8 recommendation 1. `npm run start:local` = local build + run.
+- **Real bug found & fixed:** drizzle was inlining MySQL's `now()` timestamp defaults into INSERTs when running on SQLite — every timestamped write would have failed in local mode. Fixed by module swap: `@db/schema` resolves to the generated SQLite mirror when `DB_DRIVER=sqlite` (vite, vitest, and the new `build:local` bundle). Two SQL-inspecting test doubles made dialect-aware; parity test now immune to the alias.
+- **Gates:** tsc clean; i18n green; unit suite green on BOTH dialects (only pre-existing env failures: docker-down integration setups, Redis-less timing test); `scripts/smoke-first-run.mts` (throwaway HOME end-to-end: banner token == 0600 file, token authenticates as owner/admin, second boot idempotent) PASS; smoke-sqlite PASS.
+- **Next:** L2 `npx deewaanai` packaging. Site redeploy still blocked on a Railway project token (owner to add `RAILWAY_TOKEN` to `.env`).

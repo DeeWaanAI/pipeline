@@ -94,7 +94,7 @@ else about a pipeline lives locally.
 | Phase | Deliverable | Gate |
 |---|---|---|
 | L0 ✅ (b2e8907, 2026-10-17) | SQLite dialect + dual migrations + parity test; app boots end-to-end on SQLite | full test suite runs twice (mysql + sqlite) |
-| L1 | First-run setup (`~/.deewaanai`, auto-migrate, local account, printed URLs) | clean-machine install script smoke |
+| L1 ✅ (1ebc223, 2026-10-17) | First-run setup (`~/.deewaanai`, auto-migrate, local account, printed URLs) | clean-machine install script smoke |
 | L2 | `npx deewaanai` packaging (bundled server + static web) | install on a machine without the repo |
 | L3 | Device-flow account linking + publish/fork from a local install against hosted | end-to-end: local fork → run → publish |
 | L4 | Hosted strip-down flag + hosted UI reduction | hosted deploy refuses execution, marketplace intact |
