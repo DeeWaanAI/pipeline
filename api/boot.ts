@@ -25,12 +25,24 @@ import { closeAllQueues, getQueueBackend } from "./infra/queue";
 import { getRedis, isRedisEnabled } from "./infra/redis";
 import { logger } from "./lib/logger";
 import { initObservability } from "./lib/observability";
+import { migrate as migrateSqlite } from "drizzle-orm/better-sqlite3/migrator";
+import { getDb } from "./queries/connection";
 
 // Allow typed c.set("requestId", ...) / c.get("requestId") across the app.
 declare module "hono" {
   interface ContextVariableMap {
     requestId: string;
   }
+}
+
+// ─── Local-first installs (V3 spec): SQLite needs no external services, so
+// migrations run at boot — an end user never touches drizzle-kit. The MySQL
+// path stays operator-managed (drizzle-kit migrate against the server).
+// Static imports, no top-level await: the bundle must stay CJS-compatible
+// because better-sqlite3's native binding loader uses __dirname.
+if (env.dbDriver === "sqlite") {
+  migrateSqlite(getDb() as never, { migrationsFolder: "db/migrations-sqlite" });
+  logger.info("sqlite migrations applied (local-first mode)");
 }
 
 const app = new Hono<{ Bindings: HttpBindings }>();
@@ -85,9 +97,8 @@ startBenchmarkReconciler();
 app.get("/api/health", async (c) => {
   let dbOk = false;
   try {
-    const { getDb } = await import("./queries/connection");
-    const db = getDb();
-    await db.execute("SELECT 1");
+    const { getDb, pingDb } = await import("./queries/connection");
+    await pingDb(getDb());
     dbOk = true;
   } catch { /* db unavailable */ }
 
@@ -114,9 +125,8 @@ app.get("/api/health", async (c) => {
 app.get("/api/ready", async (c) => {
   let dbOk = false;
   try {
-    const { getDb } = await import("./queries/connection");
-    const db = getDb();
-    await db.execute("SELECT 1");
+    const { getDb, pingDb } = await import("./queries/connection");
+    await pingDb(getDb());
     dbOk = true;
   } catch { /* db unavailable */ }
 

@@ -17,7 +17,7 @@
 // none of them reach another account's work.
 
 import { sql } from "drizzle-orm";
-import { getDb } from "../queries/connection";
+import { getDb, isSqlite } from "../queries/connection";
 import { logger } from "../lib/logger";
 
 export type HoldingGroup = "live-work" | "research" | "hosted-for-others";
@@ -139,7 +139,10 @@ export async function accountHoldings(userId: number): Promise<{
   for (const probe of probes(userId)) {
     // drizzle's raw execute returns [rows, fields] on mysql2; the guard keeps a
     // driver difference from turning the whole inventory into zeros silently.
-    const result = await db.execute(probe.query) as unknown;
+    // better-sqlite3 has no .execute — .all() returns the row list directly.
+    const result = (isSqlite()
+      ? await (db as unknown as { all: (q: unknown) => Promise<unknown> }).all(probe.query)
+      : await db.execute(probe.query)) as unknown;
     const rowList = (Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result) as
       Array<{ rows_?: number | string; bytes_?: number | string; bytes?: number | string }> | undefined;
     const first = rowList?.[0];

@@ -1,8 +1,8 @@
 import "dotenv/config";
 
-function required(name: string): string {
+function required(name: string, opts?: { unless?: boolean }): string {
   const value = process.env[name];
-  if (!value && process.env.NODE_ENV === "production") {
+  if (!value && process.env.NODE_ENV === "production" && !opts?.unless) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value ?? "";
@@ -26,7 +26,12 @@ export const env = {
   appSecret,
   isProduction: process.env.NODE_ENV === "production",
   isDevelopment: process.env.NODE_ENV !== "production",
-  databaseUrl: required("DATABASE_URL"),
+  databaseUrl: required("DATABASE_URL", { unless: process.env.DB_DRIVER === "sqlite" }),
+  // Local-first installs (V3 spec): "sqlite" stores everything in one local
+  // file and needs no database server; "mysql" is the hosted path.
+  // DATABASE_URL is ignored when sqlite is selected.
+  dbDriver: (process.env.DB_DRIVER ?? "mysql") as "mysql" | "sqlite",
+  sqlitePath: process.env.SQLITE_PATH ?? "",
   // Optional MySQL read-replica (Phase 3). Empty = read-heavy queries use
   // the primary DATABASE_URL (zero behavior change when unconfigured).
   databaseReadUrl: process.env.DATABASE_READ_URL ?? "",

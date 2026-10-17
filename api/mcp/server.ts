@@ -26,6 +26,8 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { mcpAuditLog, usageCounters } from "@db/schema";
+import { usageCounters as sqliteUsageCounters } from "@db/schema.sqlite";
+import { upsertOnUniqueKey } from "../lib/upsert";
 import { logger } from "../lib/logger";
 import { msg } from "../lib/messages";
 import { isFeatureEnabled } from "../plugins/featureFlags";
@@ -66,16 +68,19 @@ function recordToolCall(
       logger.warn("MCP audit insert failed", { toolName, error: (err as Error).message });
     }
     try {
-      await getDb().insert(usageCounters)
-        .values({
+      await upsertOnUniqueKey({
+        db: getDb(),
+        mysqlTable: usageCounters,
+        sqliteTable: sqliteUsageCounters,
+        values: {
           subjectId: auth.userId,
           metric: USAGE_METRIC,
           period: currentPeriod(),
           count: 1,
-        })
-        .onDuplicateKeyUpdate({
-          set: { count: sql`${usageCounters.count} + 1` },
-        });
+        },
+        conflictTarget: (t) => [t.subjectId, t.metric, t.period],
+        set: (t) => ({ count: sql`${t.count} + 1` }),
+      });
     } catch (err) {
       logger.warn("MCP usage counter increment failed", { toolName, error: (err as Error).message });
     }

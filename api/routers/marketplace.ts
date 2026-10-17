@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery, authedQuery } from "../middleware";
 import { eq, and, desc, sql, count, inArray } from "drizzle-orm";
-import { getDb, getReadDb } from "../queries/connection";
+import { getDb, getReadDb, randomOrderSql } from "../queries/connection";
 import {
   marketplaceListings,
   marketplaceListingV2,
@@ -500,7 +500,7 @@ export const marketplaceRouter = createRouter({
         })
         .from(testPrompts)
         .where(eq(testPrompts.listingId, input.id))
-        .orderBy(sql`RAND()`)
+        .orderBy(sql.raw(randomOrderSql()))
         .limit(10);
 
       ctx.resHeaders.set("Cache-Control", MARKETPLACE_CACHE_CONTROL);

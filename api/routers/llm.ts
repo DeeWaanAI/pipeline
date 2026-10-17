@@ -2,6 +2,8 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { declaredModelPrices, llmProviders, users } from "@db/schema";
+import { declaredModelPrices as sqliteDeclaredModelPrices } from "@db/schema.sqlite";
+import { upsertOnUniqueKey } from "../lib/upsert";
 import { eq, and, desc } from "drizzle-orm";
 import { createProviderAdapter, getProviderDefaults } from "../lib/providers";
 import { encrypt, decrypt, getMasterKey } from "../services/cryptoService";
@@ -187,10 +189,14 @@ export const llmRouter = createRouter({
         inputUsdPerMillion: input.inputUsdPerMillion.toFixed(8),
         outputUsdPerMillion: input.outputUsdPerMillion.toFixed(8),
       };
-      await db
-        .insert(declaredModelPrices)
-        .values({ providerRefId: provider.id, modelId, createdBy: ctx.user.id, ...values })
-        .onDuplicateKeyUpdate({ set: { ...values, createdBy: ctx.user.id } });
+      await upsertOnUniqueKey({
+        db,
+        mysqlTable: declaredModelPrices,
+        sqliteTable: sqliteDeclaredModelPrices,
+        values: { providerRefId: provider.id, modelId, createdBy: ctx.user.id, ...values },
+        conflictTarget: (t) => [t.providerRefId, t.modelId],
+        set: () => ({ ...values, createdBy: ctx.user.id }),
+      });
       const [row] = await db
         .select({
           id: declaredModelPrices.id,
