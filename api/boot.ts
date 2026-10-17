@@ -45,6 +45,16 @@ if (env.dbDriver === "sqlite") {
   logger.info("sqlite migrations applied (local-first mode)");
 }
 
+// ─── Local-first first-run (V3 spec, L1) ───────────────────────────
+// After migrations: create the local owner account if the DB is empty and
+// load the sign-in token for the startup banner. Dynamic import keeps the
+// MySQL-hosted path free of local-install code.
+let localFirst: { token: string | null; firstRun: boolean; homeDir: string } | null = null;
+if (env.dbDriver === "sqlite") {
+  const { provisionLocalOwnerIfFirstRun } = await import("./lib/localFirst");
+  localFirst = await provisionLocalOwnerIfFirstRun();
+}
+
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 // ─── Request ID ────────────────────────────────────────────────────
@@ -439,7 +449,11 @@ if (env.isProduction || process.env.V2_NODE_SERVE === "true") {
   serveStaticFiles(app);
 
   const port = parseInt(process.env.PORT || "3000");
-  serve({ fetch: app.fetch, port }, () => {
+  serve({ fetch: app.fetch, port }, async () => {
     logger.info("Server started", { port });
+    if (localFirst) {
+      const { printLocalFirstBanner } = await import("./lib/localFirst");
+      printLocalFirstBanner({ port, ...localFirst });
+    }
   });
 }

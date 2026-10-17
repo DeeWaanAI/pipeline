@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, getTableColumns, type SQL } from "drizzle-orm";
 import { QueryBuilder, type MySqlTable } from "drizzle-orm/mysql-core";
+import { QueryBuilder as SqliteQueryBuilder } from "drizzle-orm/sqlite-core";
 import { llmProviders, pipelineSteps, projects } from "@db/schema";
 
 const mocks = vi.hoisted(() => ({
@@ -40,16 +41,23 @@ let queries: Array<{ table: MySqlTable; sql: string; params: unknown[] }>;
 // Instead, evaluate the service's actual Drizzle SELECT predicates via toSQL(),
 // against adversarial rows. This double supports only equality joined by AND;
 // it fails loudly on other expressions rather than silently ignoring them.
+// Dialect-aware (V3 dual-schema): under DB_DRIVER=sqlite the table objects
+// are the SQLite mirror, so predicates render with double quotes and boolean
+// params as 1/0 — the scoping semantics being tested are unchanged.
+const IS_SQLITE = process.env.DB_DRIVER === "sqlite";
+const normBool = (v: unknown) => (v === true ? 1 : v === false ? 0 : v);
 function selectRows(table: MySqlTable, condition: SQL) {
-  const query = new QueryBuilder().select().from(table).where(condition).toSQL();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const builder: any = IS_SQLITE ? new SqliteQueryBuilder() : new QueryBuilder();
+  const query = builder.select().from(table).where(condition).toSQL();
   queries.push({ table, ...query });
   const where = query.sql.split(" where ")[1];
   expect(where).toBeDefined();
-  const comparisons = [...where.matchAll(/`[^`]+`\.`([^`]+)` = \?/g)];
+  const comparisons = [...where.matchAll(/["`][^"`]+["`]\.["`]([^"`]+)["`] = \?/g)];
   expect(comparisons.length).toBeGreaterThan(0);
   expect(comparisons).toHaveLength(query.params.length);
-  expect(where.replace(/`[^`]+`\.`[^`]+` = \?/g, "").replace(/\band\b|[()\s]/g, "")).toBe("");
-  const columns = getTableColumns(table);
+  expect(where.replace(/["`][^"`]+["`]\.["`][^"`]+["`] = \?/g, "").replace(/\band\b|[()\s]/g, "")).toBe("");
+  const columns: Record<string, { name: string }> = getTableColumns(table as never);
   const rows = table === projects ? [project] : table === llmProviders ? providers : [{
     projectId: PROJECT_ID, stepOrder: 1, name: "Draft", role: "builder", stepType: "agent",
   }];
@@ -57,6 +65,7 @@ function selectRows(table: MySqlTable, condition: SQL) {
   return rows.filter((row) => comparisons.every((match, index) => {
     const property = Object.keys(columns).find((key) => columns[key].name === match[1]);
     expect(property).toBeDefined();
+    if (IS_SQLITE) return normBool(row[property!]) === normBool(query.params[index]);
     return row[property!] === query.params[index];
   }));
 }
@@ -120,8 +129,14 @@ function expectRefusedBeforeSideEffects() {
 
 function expectScopedLookup(providerId: number) {
   const lookup = queries.filter((query) => query.table === llmProviders).at(-1)!;
-  expect(lookup.sql).toContain("where (`llm_providers`.`id` = ? and `llm_providers`.`user_id` = ? and `llm_providers`.`is_enabled` = ?)");
-  expect(lookup.params).toEqual([providerId, USER_ID, true]);
+  // Dialect-agnostic: the same table objects render MySQL SQL (backticks,
+  // `true`) in the default suite and SQLite SQL (double quotes, 1) under
+  // DB_DRIVER=sqlite — the authorization scope being asserted is identical.
+  const normalized = lookup.sql.replace(/["`]/g, "");
+  expect(normalized).toContain("where (llm_providers.id = ? and llm_providers.user_id = ? and llm_providers.is_enabled = ?)");
+  const enabledParam = lookup.params.at(-1);
+  expect(enabledParam === true || enabledParam === 1).toBe(true);
+  expect(lookup.params.slice(0, -1)).toEqual([providerId, USER_ID]);
 }
 
 function expectOwnedProviderUsed() {
@@ -167,8 +182,12 @@ describe("runAutoDesign provider authorization", () => {
   it("falls back only to an owned enabled provider", async () => {
     await expect(runAutoDesign(USER_ID, PROJECT_ID, TASK)).resolves.toMatchObject({ designedBy: "provider" });
     const fallback = queries.find((query) => query.table === llmProviders)!;
-    expect(fallback.sql).toContain("where (`llm_providers`.`user_id` = ? and `llm_providers`.`is_enabled` = ?)");
-    expect(fallback.params).toEqual([USER_ID, true]);
+    // Dialect-agnostic (see expectScopedLookup): quote style and boolean
+    // literal differ between the two schema flavours.
+    const normalized = fallback.sql.replace(/["`]/g, "");
+    expect(normalized).toContain("where (llm_providers.user_id = ? and llm_providers.is_enabled = ?)");
+    expect(fallback.params[0]).toEqual(USER_ID);
+    expect(normBool(fallback.params[1])).toEqual(1);
     expectOwnedProviderUsed();
   });
 

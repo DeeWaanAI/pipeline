@@ -10,11 +10,11 @@ import {
   marketplacePurchases,
   encryptedPrompts,
   pipelineTemplates,
-} from "../../db/schema";
+} from "@db/schema";
 import { encryptPipelineSteps } from "../lib/marketplaceCrypto";
 import { createProviderAdapter } from "../lib/providers";
 import { getMasterKey, decrypt } from "../services/cryptoService";
-import { llmProviders } from "../../db/schema";
+import { llmProviders } from "@db/schema";
 import { createOrUpdateFile } from "../services/giteeService";
 import { extractJson } from "../lib/extractJson";
 import { withTimeout } from "../lib/withTimeout";

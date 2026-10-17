@@ -5,8 +5,8 @@
 import { describe, expect, it } from "vitest";
 import { getTableConfig as mysqlConfig } from "drizzle-orm/mysql-core";
 import { getTableConfig as sqliteConfig } from "drizzle-orm/sqlite-core";
-import * as mysql from "@db/schema";
-import * as sqlite from "@db/schema.sqlite";
+import * as mysql from "../db/schema";
+import * as sqlite from "../db/schema.sqlite";
 
 function tables(mod: Record<string, unknown>, dialect: "mysql" | "sqlite") {
   const out = new Map<string, { columns: string[] }>();

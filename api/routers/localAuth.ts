@@ -35,11 +35,11 @@ function dbErr(err: unknown): never {
   throw new Error(fullMsg);
 }
 
-export async function signLocalToken(userId: number, username: string): Promise<string> {
+export async function signLocalToken(userId: number, username: string, expiresIn = "7d"): Promise<string> {
   return new jose.SignJWT({ userId, username, type: "local" })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(expiresIn)
     .sign(SECRET());
 }
 

@@ -7,9 +7,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && esbuild api/boot.ts api/workerEntry.ts --platform=node --bundle --format=esm --external:better-sqlite3 --outdir=dist --banner:js=\"import { createRequire as __createRequireShim } from 'module';globalThis.require = __createRequireShim(import.meta.url);\"",
+    "build:local": "vite build && esbuild api/boot.ts api/workerEntry.ts --platform=node --bundle --format=esm --external:better-sqlite3 --alias:@db/schema=./db/schema.sqlite.ts --outdir=dist --banner:js=\"import { createRequire as __createRequireShim } from 'module';globalThis.require = __createRequireShim(import.meta.url);\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
+    "start:local": "npm run build:local && NODE_ENV=production DB_DRIVER=sqlite node dist/boot.js",
     "start:worker": "NODE_ENV=production node dist/workerEntry.js",
     "check": "tsc -b",
     "format": "prettier --write .",

@@ -57,6 +57,14 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // V3 local-first: with DB_DRIVER=sqlite, every "@db/schema" import
+      // resolves to the generated SQLite mirror (parity-tested identical
+      // shape) so drizzle emits SQLite-flavoured SQL — e.g. it must not
+      // inline MySQL's now() timestamp defaults into INSERTs.
+      "@db/schema": path.resolve(
+        __dirname,
+        process.env.DB_DRIVER === "sqlite" ? "./db/schema.sqlite.ts" : "./db/schema.ts",
+      ),
       "@": path.resolve(__dirname, "./src"),
       "@contracts": path.resolve(__dirname, "./contracts"),
       "@db": path.resolve(__dirname, "./db"),

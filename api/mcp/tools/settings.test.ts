@@ -172,9 +172,11 @@ describe("set_default_model route validation", () => {
     expect(providers.filter((row) => row.id !== chosenId)).toEqual(untouched);
     expect(updates).toHaveLength(2);
     expect(updates[1].values).toEqual({ defaultModel: "exact-model" });
-    expect(updates[1].sql).toContain("`user_id` = ?");
-    expect(updates[1].sql).toContain("`is_enabled` = ?");
-    expect(updates[1].params).toEqual([chosenId, 1, true]);
+    expect(updates[1].sql.replace(/["`]/g, "")).toContain("user_id = ?");
+    expect(updates[1].sql.replace(/["`]/g, "")).toContain("is_enabled = ?");
+    // Dialect-agnostic: sqlite renders the boolean param as 1.
+    expect(updates[1].params.map((v) => (v === true ? 1 : v === false ? 0 : v)))
+      .toEqual([chosenId, 1, 1]);
     expect(JSON.stringify(result)).not.toContain("account model differs");
   });
 

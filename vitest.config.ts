@@ -7,6 +7,12 @@ export default defineConfig({
   root: templateRoot,
   resolve: {
     alias: {
+      // See vite.config.ts — dialect swap for "@db/schema" under
+      // DB_DRIVER=sqlite (the sqlite suite must exercise sqlite SQL).
+      "@db/schema": path.resolve(
+        templateRoot,
+        process.env.DB_DRIVER === "sqlite" ? "db/schema.sqlite.ts" : "db/schema.ts",
+      ),
       "@": path.resolve(templateRoot, "src"),
       "@contracts": path.resolve(templateRoot, "contracts"),
       "@assets": path.resolve(templateRoot, "attached_assets"),
