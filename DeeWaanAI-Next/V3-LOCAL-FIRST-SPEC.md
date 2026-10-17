@@ -97,7 +97,7 @@ else about a pipeline lives locally.
 | L1 ✅ (1ebc223, 2026-10-17) | First-run setup (`~/.deewaanai`, auto-migrate, local account, printed URLs) | clean-machine install script smoke |
 | L2 ✅ (4b94ca5, 2026-10-17) | `npx deewaanai` packaging (bundled server + static web) | install on a machine without the repo |
 | L3 ✅ (9c1d7bb, 2026-10-17) | Device-flow account linking + publish/fork from a local install against hosted | end-to-end: local fork → run → publish |
-| L4 | Hosted strip-down flag + hosted UI reduction | hosted deploy refuses execution, marketplace intact |
+| L4 ✅ (57bb050, 2026-10-17) | Hosted strip-down flag + hosted UI reduction | hosted deploy refuses execution, marketplace intact |
 
 ## 8. Open questions for the owner
 

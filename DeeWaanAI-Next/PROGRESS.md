@@ -244,3 +244,9 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 - **Found pre-existing drift (not caused by this work):** the MySQL drizzle journal/meta only tracks the squashed 0000 baseline — numbered SQL files 009–036 live outside it, and `ai_ensemble_reviews` (model_type→model_slug, +provider_id) drifted from the 0000 snapshot. `037_device_codes.sql` is hand-written to match the repo convention. **Owner decision needed eventually:** reconcile the MySQL migration chain before the next hosted DB change (drizzle-kit generate currently regenerates everything).
 - **Smoke isolation fix:** smokes now set REDIS_URL="" so the repo's .env can't leak real Redis into sandboxed instances (bullmq dedupe silently ate queued runs).
 - **Next:** L4 hosted strip-down (marketplace-only deploy; execution endpoints return 410).
+
+## v3 — 2026-10-17 session, part 6 (commit 57bb050, pushed) — V3 SPEC COMPLETE (L0–L4 all done)
+
+- **L4 done: `HOSTED_MARKETPLACE_ONLY=true` makes a deployment marketplace+evidence only.** Workers/reconcilers off; all enqueue chokepoints refuse with a 410 pointer ("install locally, npx deewaanai"); swarm.execute refuses at entry; /mcp registers only 13 marketplace tools; web app hides creation/execution pages behind a run-locally notice; new `/link` page (device approval — L3's missing piece). Gate `scripts/smoke-l4-hosted.mts` PASS + control instance unchanged. All four smoke gates green; suites baseline both dialects.
+- **Owner reconnected Railway `site` to deewaanai-v2** (2026-10-17) — site auto-deploys again.
+- **Remaining before the new model is live:** deploy the `deewaanai` app service from deewaanai-v2 with `HOSTED_MARKETPLACE_ONLY=true` + apply migration 037 (device_codes) to the hosted MySQL (journal drift must be reconciled first — see part 5); publish the `deewaanai` package to npm (owner's npm account); COMMERCIAL.md email placeholder.
