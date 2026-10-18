@@ -1,9 +1,25 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 import path from "path";
+import net from "net";
 
 const templateRoot = path.resolve(import.meta.dirname);
 
-export default defineConfig({
+// The *.integration.test.ts suites drive a dedicated MySQL docker harness on
+// localhost:3307 (docker-compose.yml). When it isn't running they die at
+// setup with ECONNREFUSED — red that means nothing. Probe once here and
+// exclude them cleanly instead; with the harness up they run as usual.
+function harnessUp(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = net.connect(3307, "127.0.0.1");
+    const done = (up: boolean) => { sock.destroy(); resolve(up); };
+    sock.setTimeout(800);
+    sock.on("connect", () => done(true));
+    sock.on("timeout", () => done(false));
+    sock.on("error", () => done(false));
+  });
+}
+
+export default defineConfig(async () => ({
   root: templateRoot,
   resolve: {
     alias: {
@@ -32,5 +48,8 @@ export default defineConfig({
      * the run costs a couple more minutes and becomes trustworthy instead.
      */
     fileParallelism: false,
+    ...((await harnessUp())
+      ? {}
+      : { exclude: [...configDefaults.exclude, "api/**/*.integration.test.ts"] }),
   },
-});
+}));

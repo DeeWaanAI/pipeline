@@ -18,6 +18,14 @@ permissions:
 jobs:
   verify-and-publish:
     runs-on: ubuntu-latest
+    # Same reason as ci.yml's gates job: token-signing tests need a
+    # non-empty dummy APP_SECRET in NODE_ENV=test.
+    env:
+      NODE_ENV: test
+      APP_ID: ci-app
+      APP_SECRET: ci-secret-not-a-dev-default
+      AI_SWARM_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000001
+      MARKETPLACE_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000002
     steps:
       - uses: actions/checkout@v4
 

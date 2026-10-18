@@ -12,6 +12,14 @@ jobs:
   # on every push/PR. Railway auto-deploys main, so this is the safety net.
   gates:
     runs-on: ubuntu-latest
+    # Non-production dummy secrets: without them APP_SECRET is "" and any
+    # test that signs a token dies with "Zero-length key" (jose).
+    env:
+      NODE_ENV: test
+      APP_ID: ci-app
+      APP_SECRET: ci-secret-not-a-dev-default
+      AI_SWARM_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000001
+      MARKETPLACE_MASTER_KEY: 0000000000000000000000000000000000000000000000000000000000000002
     steps:
       - uses: actions/checkout@v4
 
