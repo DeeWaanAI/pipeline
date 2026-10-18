@@ -30,7 +30,7 @@ include support, warranty, and indemnification terms not present in the AGPL-3.0
 
 To purchase a commercial license, contact:
 
-**license@deewaanai.com**
+**youssef@deewaanai.com**
 
 ## Copyright
 
