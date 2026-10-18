@@ -1,0 +1,63 @@
+name: Publish deewaanai to npm
+
+# Release = push a version tag:  git tag v0.3.1 && git push origin v0.3.1
+# The tag's version becomes the npm package version.
+#
+# Auth: GitHub trusted publishing (OIDC) — no npm token is stored anywhere.
+# Prerequisite (one time): the package must exist on npm, then npmjs.com →
+# package settings → Trusted Publisher → this repo + this workflow filename.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  id-token: write   # trusted publishing / provenance
+  contents: read
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      # ── The full gate set — a broken release must never ship ──────
+      - name: Typecheck
+        run: npm run check
+
+      - name: i18n key parity
+        run: npm run i18n:check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Local-first smoke gates (L0/L1/L3/L4)
+        run: |
+          npm run build:local
+          npx tsx scripts/smoke-sqlite.mts
+          npx tsx scripts/smoke-first-run.mts
+          npx tsx scripts/smoke-l3-e2e.mts
+          npx tsx scripts/smoke-l4-hosted.mts
+
+      # ── Pack, stamp the tag's version, publish with provenance ────
+      - name: Pack tarball
+        run: node scripts/pack-local.mjs
+
+      - name: Stamp version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Releasing $VERSION"
+          cd dist-pkg
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Publish to npm
+        working-directory: dist-pkg
+        run: npm publish --provenance --access public
