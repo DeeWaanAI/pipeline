@@ -258,3 +258,10 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 - **OPEN ISSUE:** `app.deewaanai.com` does NOT resolve (DNS) — the Railway domain works, the custom domain doesn't. Owner: check the domain attachment in Railway (service → Settings → Networking) and the DNS record. Device-flow verification URLs point there, so linking is broken for real users until fixed.
 - **npm publish:** pending. Recommendation given: publish v0.3.0 manually once (npm login, `npm publish` from dist-pkg — package must exist before trusted publishing can attach), then wire GitHub trusted publishing + a release workflow for all future releases.
 - **Cleanup noted:** hosted service still carries AI_TRIAGE_* vars for the deleted triage feature — remove them in the dashboard when convenient.
+
+## v3 — 2026-10-18 session, part 2 (npm publish LIVE)
+
+- **@deewaanai/pipeline@0.3.0 is published on npm** and verified by real install: fresh sandbox, `npm install` from the public registry, booted → banner with sign-in URL, health db:connected. The install command is `npx @deewaanai/pipeline`.
+- Repo moved to **github.com/deewaanai/pipeline** (org transfer); local remote updated; doc references updated (a769e47). Publish workflow `.github/workflows/publish.yml` ships tags automatically once the npm Trusted Publisher is attached (repo `deewaanai/pipeline`, workflow `publish.yml`).
+- Owner notes for next time: publish must target the real registry (the machine's default was the npmmirror download mirror — `npm config set registry https://registry.npmjs.org` fixes); the working token is a granular org token with read+write on @deewaanai.
+- Still open: app.deewaanai.com DNS; Railway auto-deploy from the new repo unproven (a769e47 push did not trigger a build before the second reconnect — verify on next push); npm Trusted Publisher attach (owner, 2 min).
