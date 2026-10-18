@@ -17,5 +17,12 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeeWaanAI/pipeline.git"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
