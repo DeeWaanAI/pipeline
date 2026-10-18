@@ -35,7 +35,9 @@ jobs:
           # Node 20 runner image during the smoke gates (verified 2026-10-18).
           node-version: 22
           cache: npm
-          registry-url: https://registry.npmjs.org
+          # NO registry-url here: it writes an (empty) NODE_AUTH_TOKEN line
+          # into .npmrc, which makes npm attempt token auth instead of the
+          # OIDC trusted-publishing exchange.
 
       - run: npm ci
 
