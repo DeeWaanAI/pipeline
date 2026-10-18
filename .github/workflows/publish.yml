@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           # Node 22: better-sqlite3 v13's prebuilt binding segfaults on the
           # Node 20 runner image during the smoke gates (verified 2026-10-18).
@@ -66,7 +66,11 @@ jobs:
       # Trusted publishing (OIDC) requires npm ≥ 11.5.1 — the version that
       # ships with Node 22 is older, so upgrade first.
       - name: Latest npm CLI
-        run: npm install -g npm@latest
+        # Pin the 11.x line (OIDC support landed in 11.5.1); print versions so
+        # the log can rule out version drift at a glance.
+        run: |
+          npm install -g npm@^11.19.0
+          node --version && npm --version
 
       - name: Stamp version from tag
         run: |
@@ -77,4 +81,6 @@ jobs:
 
       - name: Publish to npm
         working-directory: dist-pkg
-        run: npm publish --provenance --access public
+        # env -u: setup-node exports a dummy NODE_AUTH_TOKEN, and npm treats
+        # ANY value (even empty) as "token auth configured" and skips OIDC.
+        run: env -u NODE_AUTH_TOKEN npm publish --provenance --access public
