@@ -250,3 +250,11 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 - **L4 done: `HOSTED_MARKETPLACE_ONLY=true` makes a deployment marketplace+evidence only.** Workers/reconcilers off; all enqueue chokepoints refuse with a 410 pointer ("install locally, npx deewaanai"); swarm.execute refuses at entry; /mcp registers only 13 marketplace tools; web app hides creation/execution pages behind a run-locally notice; new `/link` page (device approval — L3's missing piece). Gate `scripts/smoke-l4-hosted.mts` PASS + control instance unchanged. All four smoke gates green; suites baseline both dialects.
 - **Owner reconnected Railway `site` to deewaanai-v2** (2026-10-17) — site auto-deploys again.
 - **Remaining before the new model is live:** deploy the `deewaanai` app service from deewaanai-v2 with `HOSTED_MARKETPLACE_ONLY=true` + apply migration 037 (device_codes) to the hosted MySQL (journal drift must be reconciled first — see part 5); publish the `deewaanai` package to npm (owner's npm account); COMMERCIAL.md email placeholder.
+
+## v3 — 2026-10-18 session (hosted go-live)
+
+- **Hosted marketplace-only deploy is LIVE.** Owner reconnected the `deewaanai` app service to `deewaanai-v2` (verified: builds from main). Migration `037_device_codes` applied to hosted MySQL (idempotent check first; table confirmed). `HOSTED_MARKETPLACE_ONLY=true` set → verified live: `/api/public-config` true, worker disabled, `/api/device/code` issues real codes. The platform now executes nothing.
+- **COMMERCIAL.md:** licensing contact set to youssef@deewaanai.com (c78126f).
+- **OPEN ISSUE:** `app.deewaanai.com` does NOT resolve (DNS) — the Railway domain works, the custom domain doesn't. Owner: check the domain attachment in Railway (service → Settings → Networking) and the DNS record. Device-flow verification URLs point there, so linking is broken for real users until fixed.
+- **npm publish:** pending. Recommendation given: publish v0.3.0 manually once (npm login, `npm publish` from dist-pkg — package must exist before trusted publishing can attach), then wire GitHub trusted publishing + a release workflow for all future releases.
+- **Cleanup noted:** hosted service still carries AI_TRIAGE_* vars for the deleted triage feature — remove them in the dashboard when convenient.
