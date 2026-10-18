@@ -20,7 +20,7 @@
 
 ## 1b. Owner decisions recorded (2026-09-19)
 
-- **D-a** Fresh private git repo for v2: `github.com/youssef-hariri/deewaanai-v2` (private; rename planned later). Baseline tag `v2-baseline`.
+- **D-a** Fresh private git repo for v2: `github.com/deewaanai/pipeline` (private; rename planned later). Baseline tag `v2-baseline`.
 - **D-b** P0 execution authorized and completed.
 - **D-c** Staging DB will be seeded from the latest S3 prod-snapshot restore, cleared at product launch.
 - **D-e (new)** Separate DB/Redis confirmed after split-brain risk review — v2 never shares the live prod database or queues, even within the same Railway project.

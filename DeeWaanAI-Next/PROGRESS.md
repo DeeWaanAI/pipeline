@@ -227,7 +227,7 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 ## v3 — 2026-10-17 session, part 3 (site redeployed)
 
 - **deewaanai.com now serves the new local-first, free/open-source copy.** Root cause of the stale site: both Railway services (`site`, `deewaanai`) were still connected to the OLD repo `youssef-hariri/deewaanai` @ ee01f075 — pushes to `deewaanai-v2` never triggered a deploy. The project token in `.env` (`RAILWAY_TOKEN`) authorizes CLI status/logs/redeploy/up but NOT `serviceConnect` (repo switch needs dashboard or account token). Deployed via `railway up` from the repo ROOT (rootDirectory `site/` must resolve; uploading from `site/` fails with "railpack prepare" error). Verified live: zero Pioneer/waitlist mentions, AGPL/open-source copy present, /connect shows the local `http://localhost:3000/mcp` URL, /pricing is gone (404 by design — nothing is sold).
-- **Owner action still needed (once):** Railway dashboard → `site` service → Settings → Source → reconnect to `youssef-hariri/deewaanai-v2` (branch main), so future pushes auto-deploy again. Same for the `deewaanai` app service when the hosted marketplace deploy is due (L4).
+- **Owner action still needed (once):** Railway dashboard → `site` service → Settings → Source → reconnect to `deewaanai/pipeline` (branch main), so future pushes auto-deploy again. Same for the `deewaanai` app service when the hosted marketplace deploy is due (L4).
 
 ## v3 — 2026-10-17 session, part 4 (commit 4b94ca5, pushed)
 
