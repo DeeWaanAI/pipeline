@@ -31,7 +31,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 22: better-sqlite3 v13's prebuilt binding segfaults on the
+          # Node 20 runner image during the smoke gates (verified 2026-10-18).
+          node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
 
