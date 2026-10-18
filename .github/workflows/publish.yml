@@ -91,4 +91,9 @@ jobs:
         working-directory: dist-pkg
         # env -u: setup-node exports a dummy NODE_AUTH_TOKEN, and npm treats
         # ANY value (even empty) as "token auth configured" and skips OIDC.
-        run: env -u NODE_AUTH_TOKEN npm publish --provenance --access public
+        run: |
+          env -u NODE_AUTH_TOKEN npm publish --provenance --access public || {
+            echo "──── npm debug log tail ────"
+            grep -iE "oidc|trusted|token|auth" /home/runner/.npm/_logs/*debug* | tail -30
+            exit 1
+          }
