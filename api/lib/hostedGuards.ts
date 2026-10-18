@@ -8,7 +8,7 @@ import { env } from "./env";
 
 export const EXECUTION_MOVED_MESSAGE =
   "This server no longer runs pipelines. DeeWaanAI is local-first: " +
-  "install it on your own computer (npx deewaanai) and run there with " +
+  "install it on your own computer (npx @deewaanai/pipeline) and run there with " +
   "your own provider keys. This marketplace only stores listings and evidence.";
 
 export class ExecutionMovedError extends Error {

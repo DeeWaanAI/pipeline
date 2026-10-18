@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // DeeWaanAI local launcher (V3 spec, L2). Everything runs on THIS machine:
-//   npx deewaanai
+//   npx @deewaanai/pipeline
 // Data lives in ~/.deewaanai (override the database location with
 // SQLITE_PATH). Secrets are generated once and persisted there — they
 // encrypt your stored LLM API keys and sign your local session, so they
@@ -54,7 +54,7 @@ process.env.NODE_ENV = process.env.NODE_ENV || "production";
 process.env.APP_ID = process.env.APP_ID || "deewaanai-local";
 
 // The bundled server resolves dist/public and db/migrations-sqlite relative
-// to the working directory — pin it to the package root so `npx deewaanai`
+// to the working directory — pin it to the package root so `npx @deewaanai/pipeline`
 // works from anywhere.
 process.chdir(packageRoot);
 

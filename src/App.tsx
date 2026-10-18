@@ -43,7 +43,7 @@ function LocalOnlyNotice() {
           keys:
         </p>
         <code className="block bg-neutral-900 border border-neutral-800 rounded px-4 py-2 text-blue-400">
-          npx deewaanai
+          npx @deewaanai/pipeline
         </code>
         <p className="text-xs text-neutral-500">
           Then open the printed local address, link it to this account (Settings → Marketplace
