@@ -1,6 +1,6 @@
 {
   "name": "@deewaanai/pipeline",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DeeWaanAI \u2014 local-first MCP server and visual pipeline designer. Runs entirely on your machine; your keys, your data, your models.",
   "license": "AGPL-3.0",
   "type": "module",
