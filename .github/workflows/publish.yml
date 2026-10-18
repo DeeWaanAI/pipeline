@@ -61,6 +61,11 @@ jobs:
       - name: Pack tarball
         run: node scripts/pack-local.mjs
 
+      # Trusted publishing (OIDC) requires npm ≥ 11.5.1 — the version that
+      # ships with Node 22 is older, so upgrade first.
+      - name: Latest npm CLI
+        run: npm install -g npm@latest
+
       - name: Stamp version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
