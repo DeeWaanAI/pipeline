@@ -79,21 +79,8 @@ jobs:
           cd dist-pkg
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Diagnose OIDC environment
-        run: |
-          echo "id-token-url present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
-          echo "id-token-token present: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-NO}"
-          echo "node_auth_token present: ${NODE_AUTH_TOKEN:+yes}${NODE_AUTH_TOKEN:-NO}"
-          npm config get registry
-          npm config get //registry.npmjs.org/:_authToken | sed 's/./*/g' | head -c 20; echo
-
       - name: Publish to npm
         working-directory: dist-pkg
         # env -u: setup-node exports a dummy NODE_AUTH_TOKEN, and npm treats
         # ANY value (even empty) as "token auth configured" and skips OIDC.
-        run: |
-          env -u NODE_AUTH_TOKEN npm publish --provenance --access public || {
-            echo "──── npm debug log tail ────"
-            grep -iE "oidc|trusted|token|auth" /home/runner/.npm/_logs/*debug* | tail -30
-            exit 1
-          }
+        run: env -u NODE_AUTH_TOKEN npm publish --provenance --access public
