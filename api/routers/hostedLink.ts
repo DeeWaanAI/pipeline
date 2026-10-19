@@ -15,6 +15,9 @@ import { join } from "node:path";
 import { eq, and } from "drizzle-orm";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
+import { createHash } from "node:crypto";
+import { stableJson } from "../services/benchmark/versionService";
+import { pipelineVersions } from "@db/schema";
 import { pipelineTemplates, projects } from "@db/schema";
 import { buildPipelineBundle, bundleIntegrityHash } from "../services/pipelineBundle";
 import { importPipelineBundle } from "../services/pipelineDelivery";
@@ -197,7 +200,7 @@ export const hostedLinkRouter = createRouter({
         bundleAttestation: null,
       });
 
-      return hostedTrpc<{ id: number; message: string }>("marketplace.publishBundle", {
+      return hostedTrpc<{ id: number; message: string; definitionHash: string | null }>("marketplace.publishBundle", {
         bundle, title: input.title, description: input.description, category: input.category,
       });
     }),
@@ -207,7 +210,12 @@ export const hostedLinkRouter = createRouter({
    *  secret findings); the hosted side re-checks the definition hash, signs
    *  with the platform key, and flips the draft listing to published. */
   publishEvidenceToHosted: authedQuery
-    .input(z.object({ listingId: z.number(), benchmarkId: z.number() }))
+    .input(z.object({
+      listingId: z.number(),
+      benchmarkId: z.number(),
+      /** The hash publishToHosted returned for the hosted (sanitized) version. */
+      hostedDefinitionHash: z.string().length(64),
+    }))
     .mutation(async ({ input, ctx }) => {
       const preview = await buildEvidencePreview({
         userId: ctx.user.id,
@@ -222,9 +230,42 @@ export const hostedLinkRouter = createRouter({
       if (preview.eligibilityIssues.length || preview.secretFindings.length) {
         throw new Error(`not publishable: ${[...preview.eligibilityIssues, ...preview.secretFindings].join("; ")}`);
       }
+
+      // Hash bridge: the locally-tested version records provider bindings, the
+      // shipped bundle never does. Strip them from the tested definition and
+      // require the sanitized hash to equal the hosted one — otherwise the
+      // evidence describes different bytes than the listing ships.
+      const db = getDb();
+      const testedVersionId = Number(preview.manifest.versionIdentity.workflowVersionId);
+      const [version] = await db.select().from(pipelineVersions)
+        .where(eq(pipelineVersions.id, testedVersionId)).limit(1);
+      if (!version) throw new Error("tested version not found locally");
+      const def = JSON.parse(String(version.definition)) as {
+        steps: Array<Record<string, unknown>>; schemaVersion?: number; pipelineConfig?: unknown;
+      };
+      const sanitized = def.steps.map(({ providerId: _dropped, ...rest }) => rest);
+      const pc = { ...((def.pipelineConfig as Record<string, unknown> | null) ?? {}) };
+      delete pc._importedBundle;
+      const sanitizedHash = createHash("sha256")
+        .update(stableJson({
+          ...def, steps: sanitized,
+          pipelineConfig: Object.keys(pc).length ? pc : null,
+        })).digest("hex");
+      if (sanitizedHash !== input.hostedDefinitionHash) {
+        throw new Error("definition_hash_mismatch: the benchmark measured a different pipeline than the one published — re-publish, then re-attach evidence");
+      }
+
+      const manifest = {
+        ...(preview.manifest as unknown as Record<string, unknown>),
+        versionIdentity: {
+          ...(preview.manifest.versionIdentity as unknown as Record<string, unknown>),
+          definitionHash: input.hostedDefinitionHash,
+          executionDefinitionHash: String(version.definitionHash),
+        },
+      };
       return hostedTrpc<{ publicationId: number; manifestHash: string }>(
         "marketplace.publishLocalEvidence",
-        { listingId: input.listingId, manifest: preview.manifest },
+        { listingId: input.listingId, manifest },
       );
     }),
 });

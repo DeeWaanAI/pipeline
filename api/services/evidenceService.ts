@@ -1094,9 +1094,23 @@ export async function publishLocalEvidence(opts: {
     .where(eq(pipelineVersions.id, v2.currentWorkflowVersionId)).limit(1);
   if (!version) throw new Error("no_version");
 
-  // The manifest must name the SAME bytes the hosted listing ships.
+  // The manifest must name the SAME bytes the hosted listing ships. Canonical
+  // form on both sides: provider bindings stripped (never shipped), and the
+  // import provenance metadata (_importedBundle) is not part of the pipeline.
+  const rawDef = JSON.parse(String(version.definition)) as {
+    steps: Array<Record<string, unknown>>; pipelineConfig?: Record<string, unknown> | null;
+  };
+  const hostedDef = {
+    ...rawDef,
+    steps: rawDef.steps.map(({ providerId: _dropped, ...rest }) => rest),
+    pipelineConfig: (() => {
+      const pc = { ...(rawDef.pipelineConfig ?? {}) };
+      delete pc._importedBundle;
+      return Object.keys(pc).length ? pc : null;
+    })(),
+  };
   const hostedHash = createHash("sha256")
-    .update(stableStringify(JSON.parse(String(version.definition)))).digest("hex");
+    .update(stableStringify(hostedDef)).digest("hex");
   const m = opts.manifest as {
     versionIdentity?: { definitionHash?: string; workflowVersionNumber?: number };
     cases?: unknown[]; outputs?: unknown[]; judging?: unknown; testedAt?: string;

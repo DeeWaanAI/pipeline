@@ -1536,9 +1536,16 @@ export const marketplaceRouter = createRouter({
           currentWorkflowVersionId: imported.versionId,
         });
       }
+      // The hash of the hosted (sanitized) definition — the local install
+      // needs it to anchor evidence: its benchmark version carries provider
+      // bindings, the shipped bundle never does.
+      const [hostedVersion] = imported.versionId
+        ? await db.select().from(pipelineVersions).where(eq(pipelineVersions.id, imported.versionId)).limit(1)
+        : [];
       return {
         id: listingId,
         projectId: imported.projectId,
+        definitionHash: hostedVersion?.definitionHash ?? null,
         verification: imported.verification,
         message: "Listing created as a draft. Submit it for review when ready.",
       };
