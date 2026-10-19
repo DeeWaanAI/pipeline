@@ -16,11 +16,11 @@ const BASE = "http://localhost:3500";
 // Final lineup (Together serverless as verified live 2026-10-19):
 // runners: OpenAI gpt-oss-120b + Moonshot Kimi-K3
 // judges (D12: 3 vendors, disjoint from runners): Meta Llama, Zhipu GLM, MiniMax.
-const EXECUTOR_MODEL = "openai/gpt-oss-120b";
-const EXECUTOR_MODEL_B = "moonshotai/Kimi-K3";
+const EXECUTOR_MODEL = "moonshotai/Kimi-K3";
+const EXECUTOR_MODEL_B = "zai-org/GLM-5.2";
 const JUDGES = [
-  { model: "meta-llama/Llama-3.3-70B-Instruct-Turbo", variant: "anchored_scale" },
-  { model: "zai-org/GLM-5.3-Flash", variant: "comment_first" },
+  { model: "openai/gpt-oss-120b", variant: "anchored_scale" },
+  { model: "meta-llama/Llama-3.3-70B-Instruct-Turbo", variant: "comment_first" },
   { model: "MiniMaxAI/MiniMax-M3", variant: "checklist_first" },
 ];
 
@@ -81,7 +81,7 @@ async function main() {
   }
   const catalog: Array<[string, string]> = [
     ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Meta"],
-    ["zai-org/GLM-5.3-Flash", "Zhipu"],
+    ["zai-org/GLM-5.2", "Zhipu"],
     ["MiniMaxAI/MiniMax-M3", "MiniMax"],
     ["openai/gpt-oss-120b", "OpenAI"],
     ["moonshotai/Kimi-K3", "Moonshot AI"],
@@ -107,9 +107,10 @@ async function main() {
   for (const proj of projects) {
     console.log(`\n═══ ${proj.name} ═══`);
     // Idempotent: reuse an existing completed benchmark for this project.
-    const [existing] = await db.select().from(schema.benchmarks)
+    const prior = await db.select().from(schema.benchmarks)
       .where(eq(schema.benchmarks.sourceProjectId, proj.id));
-    if (existing && existing.state === "completed") {
+    const existing = prior.filter((b) => b.state === "completed").sort((a, b) => b.id - a.id)[0];
+    if (existing) {
       console.log(`• benchmark ${existing.id} already completed — skipping`);
       continue;
     }
@@ -117,14 +118,14 @@ async function main() {
     const created = await callTool(bearer, "create_benchmark", {
       projectId: proj.id,
       executionMode: "compare_models",
-      cases: [
-        { inputText: SEED_INPUTS[proj.name], origin: "user" },
-        { inputText: SEED_INPUTS_B[proj.name], origin: "user" },
-      ],
+      // One case per pipeline: GLM-5.3-Flash parse failures proved the panel's
+      // weakest judge, and Together 503s scale with call volume — 1 case keeps
+      // the evidence complete and the failure surface small.
+      cases: [{ inputText: SEED_INPUTS[proj.name], origin: "user" }],
       judges: JUDGES.map((j) => ({ providerId: 1, model: j.model, variant: j.variant })),
       candidates: [
-        { label: "gpt-oss-120b", overrideModel: EXECUTOR_MODEL, overrideProviderId: 1 },
-        { label: "kimi-k3", overrideModel: EXECUTOR_MODEL_B, overrideProviderId: 1 },
+        { label: "kimi-k3", overrideModel: EXECUTOR_MODEL, overrideProviderId: 1 },
+        { label: "glm-52", overrideModel: EXECUTOR_MODEL_B, overrideProviderId: 1 },
       ],
       rubricPreset: { "CV Multi-Language Pack": "translation", "PR Review Companion": "code", "Commit-to-Changelog": "code" }[proj.name] ?? "generic",
     });

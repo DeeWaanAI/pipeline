@@ -28,6 +28,7 @@ import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
 import { isFeatureEnabled } from "../plugins/featureFlags";
 import { stableStringify } from "./benchmark/benchmarkCallPlan";
+import { bundleIntegrityHash } from "./pipelineBundle";
 import {
   PublicEvidenceManifestSchema, REVISION_NOT_EXPOSED,
   type PublicEvidenceManifest, type PublicJudging, type PublicTestCase, type PublicTestOutput,
@@ -1099,25 +1100,30 @@ export async function publishLocalEvidence(opts: {
   // import provenance metadata (_importedBundle) is not part of the pipeline.
   const rawDef = JSON.parse(String(version.definition)) as {
     steps: Array<Record<string, unknown>>; pipelineConfig?: Record<string, unknown> | null;
+    schemaVersion?: number;
   };
-  const hostedDef = {
-    ...rawDef,
-    steps: rawDef.steps.map(({ providerId: _dropped, ...rest }) => rest),
-    pipelineConfig: (() => {
-      const pc = { ...(rawDef.pipelineConfig ?? {}) };
-      delete pc._importedBundle;
-      return Object.keys(pc).length ? pc : null;
-    })(),
-  };
-  const hostedHash = createHash("sha256")
-    .update(stableStringify(hostedDef)).digest("hex");
+  const pcClean = { ...(rawDef.pipelineConfig ?? {}) };
+  delete pcClean._importedBundle;
+  // Canonical form = the bundle integrity hash (same as the local install's
+  // bridge): whitelist shipped step fields, no bindings, no import metadata.
+  const hostedHash = bundleIntegrityHash({
+    steps: rawDef.steps.map((s) => ({
+      stepOrder: s.stepOrder as number, name: s.name as string, role: s.role as string,
+      systemPrompt: s.systemPrompt as string, stepType: (s.stepType as string) ?? "agent",
+      model: (s.model as string) ?? null, temperature: (s.temperature as string) ?? null,
+      maxTokens: (s.maxTokens as number) ?? null, ifConfig: s.ifConfig ?? null,
+      whileConfig: s.whileConfig ?? null,
+    })),
+    schemaVersion: Number(rawDef.schemaVersion ?? 1),
+    pipelineConfig: Object.keys(pcClean).length ? pcClean : null,
+  });
   const m = opts.manifest as {
     versionIdentity?: { definitionHash?: string; workflowVersionNumber?: number };
     cases?: unknown[]; outputs?: unknown[]; judging?: unknown; testedAt?: string;
     consentVersion?: string;
   };
   const claimedHash = m.versionIdentity?.definitionHash;
-  if (!claimedHash || claimedHash !== hostedHash || hostedHash !== String(version.definitionHash)) {
+  if (!claimedHash || claimedHash !== hostedHash) {
     throw new Error("definition_hash_mismatch: the uploaded evidence does not describe the exact pipeline version this listing ships");
   }
   if (!Array.isArray(m.cases) || !m.cases.length || !Array.isArray(m.outputs) || !m.judging) {

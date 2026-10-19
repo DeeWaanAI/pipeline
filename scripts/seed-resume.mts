@@ -87,6 +87,7 @@ async function main() {
         const approval = await callTool(bearer, "approve_benchmark_spend", { benchmarkId: b.id, planHash });
         await callTool(bearer, "resume_benchmark", {
           benchmarkId: b.id, planHash, spendApprovalId: approval.spendApprovalId,
+          retryFailed: true, // re-run failed children (transient Together 503s)
         });
         const state = await poll(bearer, b.id, 20);
         console.log(`  benchmark ${b.id} (project ${b.sourceProjectId}) → ${state}`);
@@ -97,8 +98,7 @@ async function main() {
           const [now] = await db.select().from(schema.benchmarks).where(eq(schema.benchmarks.id, b.id));
           console.log(`  benchmark ${b.id}: nothing left to do, state=${now.state}`);
           if (now.state === "partial" || now.state === "failed") {
-            await db.update(schema.benchmarks).set({ state: "cancelled" }).where(eq(schema.benchmarks.id, b.id));
-            console.log(`  ⚠ benchmark ${b.id} cannot complete (terminal failures) — cancelled`);
+            console.log(`  ⚠ benchmark ${b.id} still ${now.state} with nothing requeueable — leaving for manual review`);
           }
         } else {
           console.log(`  ✗ benchmark ${b.id}: ${msg.slice(0, 200)}`);

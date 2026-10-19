@@ -15,8 +15,6 @@ import { join } from "node:path";
 import { eq, and } from "drizzle-orm";
 import { createRouter, authedQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { createHash } from "node:crypto";
-import { stableJson } from "../services/benchmark/versionService";
 import { pipelineVersions } from "@db/schema";
 import { pipelineTemplates, projects } from "@db/schema";
 import { buildPipelineBundle, bundleIntegrityHash } from "../services/pipelineBundle";
@@ -243,14 +241,21 @@ export const hostedLinkRouter = createRouter({
       const def = JSON.parse(String(version.definition)) as {
         steps: Array<Record<string, unknown>>; schemaVersion?: number; pipelineConfig?: unknown;
       };
-      const sanitized = def.steps.map(({ providerId: _dropped, ...rest }) => rest);
+      // Canonical form = the published bundle's own integrity hash: whitelist
+      // the shipped step fields (bindings and agent-id bookkeeping never ship).
       const pc = { ...((def.pipelineConfig as Record<string, unknown> | null) ?? {}) };
       delete pc._importedBundle;
-      const sanitizedHash = createHash("sha256")
-        .update(stableJson({
-          ...def, steps: sanitized,
-          pipelineConfig: Object.keys(pc).length ? pc : null,
-        })).digest("hex");
+      const sanitizedHash = bundleIntegrityHash({
+        steps: def.steps.map((s) => ({
+          stepOrder: s.stepOrder as number, name: s.name as string, role: s.role as string,
+          systemPrompt: s.systemPrompt as string, stepType: (s.stepType as string) ?? "agent",
+          model: (s.model as string) ?? null, temperature: (s.temperature as string) ?? null,
+          maxTokens: (s.maxTokens as number) ?? null, ifConfig: s.ifConfig ?? null,
+          whileConfig: s.whileConfig ?? null,
+        })),
+        schemaVersion: Number(def.schemaVersion ?? 1),
+        pipelineConfig: Object.keys(pc).length ? pc : null,
+      });
       if (sanitizedHash !== input.hostedDefinitionHash) {
         throw new Error("definition_hash_mismatch: the benchmark measured a different pipeline than the one published — re-publish, then re-attach evidence");
       }

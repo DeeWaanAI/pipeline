@@ -25,6 +25,7 @@ import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedErr
 import { assertOriginalCreatorMayList } from "../services/workflowLineage";
 import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema, forkPublicListing, forkPublicListingInputSchema, exportListingBundle, importPipelineBundle } from "../services/pipelineDelivery";
 import { publishLocalEvidence } from "../services/evidenceService";
+import { bundleIntegrityHash } from "../services/pipelineBundle";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
   getEvidenceForViewer, getPurchasedEvidenceForListing,
@@ -1536,16 +1537,31 @@ export const marketplaceRouter = createRouter({
           currentWorkflowVersionId: imported.versionId,
         });
       }
-      // The hash of the hosted (sanitized) definition — the local install
-      // needs it to anchor evidence: its benchmark version carries provider
-      // bindings, the shipped bundle never does.
+      // The CANONICAL hash of the shipped definition (bundle integrity form)
+      // — the local install anchors evidence to it.
       const [hostedVersion] = imported.versionId
         ? await db.select().from(pipelineVersions).where(eq(pipelineVersions.id, imported.versionId)).limit(1)
         : [];
+      let canonicalHash: string | null = null;
+      if (hostedVersion) {
+        const rawDef = JSON.parse(String(hostedVersion.definition));
+        const pcClean = { ...(rawDef.pipelineConfig ?? {}) };
+        delete pcClean._importedBundle;
+        canonicalHash = bundleIntegrityHash({
+          steps: rawDef.steps.map((s: Record<string, unknown>) => ({
+            stepOrder: s.stepOrder, name: s.name, role: s.role, systemPrompt: s.systemPrompt,
+            stepType: s.stepType ?? "agent", model: s.model ?? null,
+            temperature: s.temperature ?? null, maxTokens: s.maxTokens ?? null,
+            ifConfig: s.ifConfig ?? null, whileConfig: s.whileConfig ?? null,
+          })),
+          schemaVersion: Number(rawDef.schemaVersion ?? 1),
+          pipelineConfig: Object.keys(pcClean).length ? pcClean : null,
+        });
+      }
       return {
         id: listingId,
         projectId: imported.projectId,
-        definitionHash: hostedVersion?.definitionHash ?? null,
+        definitionHash: canonicalHash,
         verification: imported.verification,
         message: "Listing created as a draft. Submit it for review when ready.",
       };
