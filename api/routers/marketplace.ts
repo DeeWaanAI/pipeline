@@ -24,6 +24,7 @@ import { isFeatureEnabled } from "../plugins/featureFlags";
 import { assertLegacyFlowAllowed, setLegacyListingStatus, V2PublicationLockedError } from "../services/marketplacePublication";
 import { assertOriginalCreatorMayList } from "../services/workflowLineage";
 import { deliverPurchasedCopy, deliverPurchasedCopyInputSchema, forkPublicListing, forkPublicListingInputSchema, exportListingBundle, importPipelineBundle } from "../services/pipelineDelivery";
+import { publishLocalEvidence } from "../services/evidenceService";
 import {
   getPublishedManifestByHash, getPublicEvidenceForListing, listPublicEvidenceForListing, publishVersion,
   getEvidenceForViewer, getPurchasedEvidenceForListing,
@@ -1458,11 +1459,21 @@ export const marketplaceRouter = createRouter({
       bundle: await exportListingBundle(ctx.user.id, input.listingId),
     })),
 
-  // ── Local install (device-linked, V3 L3): publish a pipeline ────
-  // The local install exports its own pipeline as a bundle and uploads it.
+  // ── Local install (device-linked, V3 L3): publish a pipeline ────// The local install exports its own pipeline as a bundle and uploads it.
   // Seller identity is the marketplace account (spec §4): the import is
   // re-attributed to it, so the account can submit the draft for review
   // through the normal hosted flow afterwards.
+  // ── Local install (device-linked, V3 creator-funded evidence) ────
+  // Hosted executes nothing (L4), so seller benchmarks run on the creator's
+  // machine; this boundary verifies the uploaded manifest binds to the exact
+  // shipped definition, signs it with the platform key, and flips the listing
+  // to published. See services/evidenceService.publishLocalEvidence.
+  publishLocalEvidence: authedQuery
+    .input(z.object({ listingId: z.number(), manifest: z.record(z.string(), z.unknown()) }))
+    .mutation(async ({ input, ctx }) => publishLocalEvidence({
+      userId: ctx.user.id, listingId: input.listingId, manifest: input.manifest,
+    })),
+
   publishBundle: authedQuery
     .input(z.object({
       bundle: z.unknown(),
@@ -1517,6 +1528,14 @@ export const marketplaceRouter = createRouter({
       logger.info("bundle published from a linked local install", {
         userId: ctx.user.id, listingId, projectId: imported.projectId,
       });
+      // Sidecar pins the frozen version the draft ships — local-run evidence
+      // (publishLocalEvidence) anchors to it later.
+      if (imported.versionId) {
+        await db.insert(marketplaceListingV2).values({
+          listingId, publicationMode: "legacy",
+          currentWorkflowVersionId: imported.versionId,
+        });
+      }
       return {
         id: listingId,
         projectId: imported.projectId,

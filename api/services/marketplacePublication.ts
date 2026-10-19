@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import { marketplaceListings, marketplaceListingV2 } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { logger } from "../lib/logger";
+import { lockForUpdate } from "../queries/connection";
 
 type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -69,11 +70,10 @@ export async function setLegacyListingStatus(
   await db.transaction(async (tx: Tx) => {
     // Lock the listing row before reading the mode: `publishVersion` writes
     // this same row inside its transaction, so whoever arrives second waits.
-    const [listing] = await tx
+    const [listing] = await lockForUpdate(tx
       .select({ id: marketplaceListings.id, creatorId: marketplaceListings.creatorId })
       .from(marketplaceListings)
-      .where(eq(marketplaceListings.id, listingId))
-      .for("update")
+      .where(eq(marketplaceListings.id, listingId)))
       .limit(1);
     if (!listing) return; // the listing is gone — a background flow has nothing to update
     if (opts?.ownerId !== undefined && listing.creatorId !== opts.ownerId) {

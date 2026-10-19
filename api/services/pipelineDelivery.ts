@@ -492,7 +492,7 @@ export const importPipelineBundleInputSchema = z.object({
 export async function importPipelineBundle(
   userId: number,
   input: { bundle: unknown; name?: string },
-): Promise<{ projectId: number; projectName: string; verification: ReturnType<typeof verifyPipelineBundle>; meaning: string }> {
+): Promise<{ projectId: number; projectName: string; templateId: number; versionId: number; verification: ReturnType<typeof verifyPipelineBundle>; meaning: string }> {
   const candidate = input.bundle as PipelineBundle;
   const pinned = signingPublicKeyPem();
   const verification = verifyPipelineBundle(candidate, pinned ?? undefined);

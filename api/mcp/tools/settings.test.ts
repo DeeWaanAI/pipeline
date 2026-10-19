@@ -6,7 +6,11 @@ import type { McpAuthContext } from "../types";
 
 const mocks = vi.hoisted(() => ({ getDb: vi.fn(), resolveCapabilities: vi.fn() }));
 // Never import the real connection/environment or entitlement dependencies.
-vi.mock("../../queries/connection", () => ({ getDb: mocks.getDb }));
+vi.mock("../../queries/connection", () => ({
+  getDb: mocks.getDb,
+  // passthrough: sqlite mode is a no-op, mysql mode calls .for("update")
+  lockForUpdate: (q: unknown) => q,
+}));
 vi.mock("../../services/entitlements", () => ({ resolveCapabilities: mocks.resolveCapabilities }));
 
 import { getSettings, setDefaultModel } from "./settings";

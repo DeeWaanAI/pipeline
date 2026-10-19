@@ -20,6 +20,7 @@ import { buildPipelineBundle, bundleIntegrityHash } from "../services/pipelineBu
 import { importPipelineBundle } from "../services/pipelineDelivery";
 import { localHomeDir } from "../lib/localFirst";
 import { logger } from "../lib/logger";
+import { buildEvidencePreview } from "../services/evidenceService";
 
 const LINK_FILE = "hosted-link.json";
 
@@ -199,5 +200,31 @@ export const hostedLinkRouter = createRouter({
       return hostedTrpc<{ id: number; message: string }>("marketplace.publishBundle", {
         bundle, title: input.title, description: input.description, category: input.category,
       });
+    }),
+
+  /** Publish a LOCALLY-run benchmark as the listing's evidence. The local
+   *  preview gates apply first (evidence-grade panel, no eligibility or
+   *  secret findings); the hosted side re-checks the definition hash, signs
+   *  with the platform key, and flips the draft listing to published. */
+  publishEvidenceToHosted: authedQuery
+    .input(z.object({ listingId: z.number(), benchmarkId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const preview = await buildEvidencePreview({
+        userId: ctx.user.id,
+        benchmarkId: input.benchmarkId,
+        publicationKind: "seller",
+        listingId: null, // the listing lives on hosted; identity re-anchored there
+        consentVersion: "consent-v1",
+      });
+      if (!preview.evidenceGradePanel) {
+        throw new Error(`panel not evidence-grade: ${preview.panelIssues.join("; ")}`);
+      }
+      if (preview.eligibilityIssues.length || preview.secretFindings.length) {
+        throw new Error(`not publishable: ${[...preview.eligibilityIssues, ...preview.secretFindings].join("; ")}`);
+      }
+      return hostedTrpc<{ publicationId: number; manifestHash: string }>(
+        "marketplace.publishLocalEvidence",
+        { listingId: input.listingId, manifest: preview.manifest },
+      );
     }),
 });

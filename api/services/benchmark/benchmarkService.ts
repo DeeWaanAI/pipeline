@@ -48,6 +48,7 @@ import {
   generateJudgeCall, judgePromptVersionFor, parseAndValidatePairwiseVerdict, parseAndValidateRubricVerdict,
 } from "./judgeService";
 import { benchmarkLedgerTotals, costDisclosure, recordCallAttempt, type PricingSegment } from "./benchmarkLedger";
+import { lockForUpdate } from "../../queries/connection";
 
 const LEASE_MS = 15 * 60_000;
 
@@ -718,8 +719,8 @@ export async function startBenchmark(opts: {
   if (finalHash !== opts.planHash) return { ok: false, error: "plan_changed — the frozen plan differs from the approved quote; obtain a new quote and approval (A06)" };
 
   await db.transaction(async (tx) => {
-    const [current] = await tx.select({ state: benchmarks.state, plan: benchmarks.plan }).from(benchmarks)
-      .where(eq(benchmarks.id, b.id)).for("update");
+    const [current] = await lockForUpdate(tx.select({ state: benchmarks.state, plan: benchmarks.plan }).from(benchmarks)
+      .where(eq(benchmarks.id, b.id)));
     if (!current || current.state !== "draft" || current.plan !== b.plan) {
       throw new Error("plan_changed — the draft changed or started while preparing execution; re-quote before starting");
     }

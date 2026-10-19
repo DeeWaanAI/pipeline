@@ -8,6 +8,7 @@ import {
 import { getDb } from "../queries/connection";
 import { assertPublicationEnabled, scanForSecrets } from "./evidenceService";
 import { stableStringify } from "./benchmark/benchmarkCallPlan";
+import { lockForUpdate } from "../queries/connection";
 
 export const EXTERNAL_CONSENT_VERSION = "external-report-v1";
 export const EXTERNAL_VERIFICATION_NOTICE = "User-reported; not independently verified. The declared date is supplied by the author, not a platform test time.";
@@ -95,7 +96,7 @@ async function assertPublicTarget(db: Db | Tx, input: PreviewInput, lock = false
     eq(marketplaceListings.status, "published"),
     input.workflowVersionId == null ? undefined : eq(marketplaceListingV2.currentWorkflowVersionId, input.workflowVersionId),
   )).limit(1);
-  const [listing] = await (lock ? query.for("update") : query);
+  const [listing] = await (lock ? lockForUpdate(query) : query);
   if (!listing) throw new Error("not_found_or_not_authorized");
 }
 
@@ -169,11 +170,11 @@ export async function reportExternal(userId: number, raw: unknown) {
     if (preview.previewHash !== input.previewHash) throw new Error("preview_changed: preview again and confirm the exact disclosure");
     // The listing lock serializes publishes. Include withdrawn rows so a delayed
     // retry cannot undo withdrawal; lock the row to coordinate with withdrawal.
-    const [existing] = await tx.select().from(externalEvidenceReports).where(and(
+    const [existing] = await lockForUpdate(tx.select().from(externalEvidenceReports).where(and(
       eq(externalEvidenceReports.authorId, authorId),
       eq(externalEvidenceReports.listingId, input.listingId),
       eq(externalEvidenceReports.previewHash, preview.previewHash),
-    )).limit(1).for("update");
+    )).limit(1));
     if (existing) return { report: reportDto(existing), previewHash: existing.previewHash, consentVersion: existing.consentVersion };
     const [inserted] = await tx.insert(externalEvidenceReports).values({
       publicationState: "published",
@@ -204,7 +205,7 @@ export async function withdrawExternal(userId: number, raw: unknown): Promise<Ex
   // target listing is no longer public. Never remove content or consent proof.
   return getDb().transaction(async (tx) => {
     const ownedReport = and(eq(externalEvidenceReports.id, reportId), eq(externalEvidenceReports.authorId, authorId));
-    const [row] = await tx.select().from(externalEvidenceReports).where(ownedReport).limit(1).for("update");
+    const [row] = await lockForUpdate(tx.select().from(externalEvidenceReports).where(ownedReport).limit(1));
     if (!row) throw new Error("not_found_or_not_authorized");
     if (row.publicationState === "withdrawn") return reportDto(row);
     await tx.update(externalEvidenceReports).set({ publicationState: "withdrawn", withdrawnAt: new Date() }).where(ownedReport);

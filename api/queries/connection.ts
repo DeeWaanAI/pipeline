@@ -57,7 +57,7 @@ export function getDb(): AppDb {
           if (r && typeof r === "object" && "lastInsertRowid" in r) {
             const header = Object.assign([] as unknown as unknown[] & {
               changes: number; lastInsertRowid: number | bigint; insertId: number;
-            }, r, { insertId: Number(r.lastInsertRowid) });
+            }, r, { insertId: Number(r.lastInsertRowid), affectedRows: r.changes });
             header[0] = header;
             return header;
           }
@@ -146,6 +146,14 @@ export async function pingDb(db: AppDb): Promise<void> {
 
 /** True when the process is running the local-first SQLite store. Callers use
  *  this to branch around MySQL-only SQL (upserts, RAND(), …). */
+/** SELECT ... FOR UPDATE on MySQL; a deliberate no-op on SQLite, which has no
+ *  locking reads and doesn't need them: our emulated transactions serialize
+ *  writers, and every `.for("update")` site runs inside one. */
+export function lockForUpdate<T>(query: T): T {
+  if (env.dbDriver === "sqlite") return query;
+  return (query as unknown as { for: (mode: "update") => T }).for("update");
+}
+
 export const isSqlite = () => env.dbDriver === "sqlite";
 
 /** Dialect-correct random ordering expression. */

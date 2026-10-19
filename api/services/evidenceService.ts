@@ -40,6 +40,7 @@ import { assessBenchmarkPanel } from "./benchmark/judgePanel";
 import { judgePromptVersionFor, previewJudgePrompts, VARIANT_FRAMING } from "./benchmark/judgeService";
 import { ExecutionRightError, resolveProtectedExecutionRight } from "./executionRight";
 import { assertOriginalCreatorMaySellVersion } from "./workflowLineage";
+import { lockForUpdate } from "../queries/connection";
 
 export const PUBLICATION_POLICY_VERSION = "v2-p3-1";
 export const DEFAULT_CONSENT_VERSION = "consent-v1";
@@ -790,8 +791,8 @@ async function attachListing(
   tx: Tx, listingId: number, sellerId: number, publicationId: number,
   preview: EvidencePreview, expectedRevision?: number | null,
 ): Promise<{ evidenceSummaryRevision: number; previousListingStatus: string }> {
-  const [listing] = await tx.select().from(marketplaceListings)
-    .where(eq(marketplaceListings.id, listingId)).for("update").limit(1);
+  const [listing] = await lockForUpdate(tx.select().from(marketplaceListings)
+    .where(eq(marketplaceListings.id, listingId))).limit(1);
   if (!listing || listing.creatorId !== sellerId) throw new Error("not_found_or_not_authorized");
   const [v2] = await tx.select().from(marketplaceListingV2)
     .where(eq(marketplaceListingV2.listingId, listingId)).limit(1);
@@ -837,8 +838,8 @@ export async function withdrawPublication(opts: { userId: number; publicationId:
     if (row.listingId) {
       // Lock the listing row first: the same order every other status writer
       // uses, so this cannot deadlock against a concurrent publication.
-      const [v2] = await tx.select({ rev: marketplaceListingV2.evidenceSummaryRevision, current: marketplaceListingV2.currentEvidencePublicationId })
-        .from(marketplaceListingV2).where(eq(marketplaceListingV2.listingId, row.listingId)).for("update").limit(1);
+      const [v2] = await lockForUpdate(tx.select({ rev: marketplaceListingV2.evidenceSummaryRevision, current: marketplaceListingV2.currentEvidencePublicationId })
+        .from(marketplaceListingV2).where(eq(marketplaceListingV2.listingId, row.listingId))).limit(1);
       // A listing may not stay buyable on v2 terms with no current evidence:
       // it is unpublished in the same transaction (§4.3/§10.1).
       if (v2 && v2.current === row.id) {
@@ -887,8 +888,8 @@ export async function supersedePublication(opts: {
       // Lock in the same order as the writer above (listing first) — the new
       // publication is already current, so withdrawing the old one cannot leave
       // the listing pointing at nothing.
-      await tx.select({ id: marketplaceListings.id }).from(marketplaceListings)
-        .where(eq(marketplaceListings.id, opts.listingId)).for("update").limit(1);
+      await lockForUpdate(tx.select({ id: marketplaceListings.id }).from(marketplaceListings)
+        .where(eq(marketplaceListings.id, opts.listingId))).limit(1);
       await tx.update(evidencePublications)
         .set({ state: "withdrawn", withdrawnAt: new Date(), withdrawalReason: `superseded by publication ${published.publicationId}` })
         .where(eq(evidencePublications.id, old.id));
@@ -1061,4 +1062,108 @@ export async function getPurchasedEvidenceForListing(opts: { userId: number; lis
   if (!row) return null;
   const evidence = await getEvidenceForViewer({ userId: opts.userId, publicationId: row.id });
   return evidence ? { ...evidence, versionBinding: right.versionBinding } : null;
+}
+
+// ─── Local-run evidence upload (V3, creator-funded benchmarks) ─────────────
+// Hosted no longer executes (L4), so seller evidence is produced by the
+// creator's LOCAL install and uploaded here. The platform never re-runs it:
+// it verifies the manifest binds to the exact published definition, rewrites
+// the identity to the hosted listing/version ids, signs it with the platform
+// key, and records provenance as user_reported — the signature covers that
+// field too, so the label cannot be quietly upgraded afterwards.
+export async function publishLocalEvidence(opts: {
+  userId: number;
+  listingId: number;
+  manifest: Record<string, unknown>;
+}): Promise<{ publicationId: number; manifestHash: string }> {
+  const db = getDb();
+
+  const [listing] = await db.select().from(marketplaceListings)
+    .where(eq(marketplaceListings.id, opts.listingId)).limit(1);
+  if (!listing || listing.creatorId !== opts.userId) throw new Error("not_found_or_not_authorized");
+  if (listing.status !== "draft") {
+    throw new Error(`listing_not_draft: evidence attaches to a draft (status is "${listing.status}") — use supersede for a published listing`);
+  }
+
+  const [v2] = await db.select().from(marketplaceListingV2)
+    .where(eq(marketplaceListingV2.listingId, opts.listingId)).limit(1);
+  if (!v2?.currentWorkflowVersionId) {
+    throw new Error("no_version: this listing has no frozen workflow version to anchor evidence to (publish via bundle first)");
+  }
+  const [version] = await db.select().from(pipelineVersions)
+    .where(eq(pipelineVersions.id, v2.currentWorkflowVersionId)).limit(1);
+  if (!version) throw new Error("no_version");
+
+  // The manifest must name the SAME bytes the hosted listing ships.
+  const hostedHash = createHash("sha256")
+    .update(stableStringify(JSON.parse(String(version.definition)))).digest("hex");
+  const m = opts.manifest as {
+    versionIdentity?: { definitionHash?: string; workflowVersionNumber?: number };
+    cases?: unknown[]; outputs?: unknown[]; judging?: unknown; testedAt?: string;
+    consentVersion?: string;
+  };
+  const claimedHash = m.versionIdentity?.definitionHash;
+  if (!claimedHash || claimedHash !== hostedHash || hostedHash !== String(version.definitionHash)) {
+    throw new Error("definition_hash_mismatch: the uploaded evidence does not describe the exact pipeline version this listing ships");
+  }
+  if (!Array.isArray(m.cases) || !m.cases.length || !Array.isArray(m.outputs) || !m.judging) {
+    throw new Error("incomplete_manifest: cases, outputs and judging are required");
+  }
+
+  // Re-anchor identity to hosted rows; keep the local version number for humans.
+  const manifest = {
+    ...opts.manifest,
+    provenance: "user_reported",
+    versionIdentity: {
+      ...(m.versionIdentity ?? {}),
+      listingId: opts.listingId,
+      workflowVersionId: version.id,
+      definitionHash: hostedHash,
+    },
+  };
+  const manifestJson = stableStringify(manifest);
+  const manifestHash = createHash("sha256").update(manifestJson).digest("hex");
+  const attestation = attestEvidenceManifest({
+    manifestHash,
+    listingId: opts.listingId,
+    workflowVersionId: version.id,
+    definitionHash: hostedHash,
+    authorId: opts.userId,
+  });
+
+  const [pub] = await db.insert(evidencePublications).values({
+    authorId: opts.userId,
+    listingId: opts.listingId,
+    listingWorkflowVersionId: version.id,
+    publicationKind: "seller",
+    provenance: "user_reported",
+    publicManifest: JSON.stringify({ ...manifest, attestation }),
+    manifestHash,
+    signature: attestation ? JSON.stringify(attestation) : null,
+    signingKeyId: attestation?.keyId ?? null,
+    signedAt: attestation ? new Date(attestation.issuedAt) : null,
+    consentVersion: m.consentVersion ?? DEFAULT_CONSENT_VERSION,
+    state: "published",
+    testedAt: m.testedAt ? new Date(m.testedAt) : new Date(),
+    publishedAt: new Date(),
+  });
+  const publicationId = Number((pub as unknown as { insertId: number }).insertId);
+
+  // Flip the listing to v2-published in the same breath: current evidence and
+  // current version move together or the bundle export breaks (§4.3).
+  const [sidecar] = await db.select().from(marketplaceListingV2)
+    .where(eq(marketplaceListingV2.listingId, opts.listingId)).limit(1);
+  await db.update(marketplaceListingV2)
+    .set({
+      publicationMode: "v2",
+      currentEvidencePublicationId: publicationId,
+      evidenceSummaryRevision: (sidecar?.evidenceSummaryRevision ?? 0) + 1,
+    })
+    .where(eq(marketplaceListingV2.listingId, opts.listingId));
+  await db.update(marketplaceListings)
+    .set({ status: "published" })
+    .where(eq(marketplaceListings.id, opts.listingId));
+
+  logger.info("local-run evidence published", { userId: opts.userId, listingId: opts.listingId, publicationId, manifestHash });
+  return { publicationId, manifestHash };
 }
