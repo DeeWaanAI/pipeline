@@ -265,3 +265,10 @@ Spec `DeeWaanAI-Next/WEBSITE-SPEC.md` · plan `DeeWaanAI-Next/WEBSITE-BUILD-PLAN
 - Repo moved to **github.com/deewaanai/pipeline** (org transfer); local remote updated; doc references updated (a769e47). Publish workflow `.github/workflows/publish.yml` ships tags automatically once the npm Trusted Publisher is attached (repo `deewaanai/pipeline`, workflow `publish.yml`).
 - Owner notes for next time: publish must target the real registry (the machine's default was the npmmirror download mirror — `npm config set registry https://registry.npmjs.org` fixes); the working token is a granular org token with read+write on @deewaanai.
 - Still open: app.deewaanai.com DNS; Railway auto-deploy from the new repo unproven (a769e47 push did not trigger a build before the second reconnect — verify on next push); npm Trusted Publisher attach (owner, 2 min).
+
+## v3 — 2026-10-19 (release pipeline DONE)
+
+- **@deewaanai/pipeline@0.3.1 published entirely by CI** — tag → gates (tsc, i18n, tests, all 4 local-first smokes) → pack → OIDC trusted publish → live on npm with a **provenance attestation**. No token stored anywhere.
+- Root causes fixed along the way (documented for future): CI jobs needed dummy APP_SECRET etc. (jose refuses empty keys); 3307 docker-harness integration suites now probe-skip cleanly; better-sqlite3 segfaulted on the node-20 runner (CI/publish on node 22); npm OIDC required: repository.url in the published package.json, no registry-url/dummy NODE_AUTH_TOKEN shadowing, npm CLI ≥11.5.1 (pinned via global install), and the npm-side trusted publisher spelled exactly `DeeWaanAI/pipeline` (case-sensitive) with direct `npm publish` allowed (default was stage-only).
+- CI on main is green again.
+- Still open: app.deewaanai.com DNS attachment.
