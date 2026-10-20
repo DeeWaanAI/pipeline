@@ -6,7 +6,8 @@
     "blog": "Blog",
     "mainNav": "Main navigation",
     "menu": "Menu",
-    "getStarted": "Get started"
+    "getStarted": "Get started",
+    "marketplace": "Marketplace"
   },
   "footer": {
     "product": "Product",
@@ -27,7 +28,8 @@
       "primaryCta": "Get started →",
       "secondaryCta": "See how it works",
       "videoCaption": "Watch: using a certified pipeline inside a chat — 45 seconds.",
-      "videoPlaceholder": "Demo video coming soon"
+      "videoPlaceholder": "Demo video coming soon",
+      "marketplaceCta": "Browse the marketplace"
     },
     "worksWith": {
       "label": "Connects to the tools you already use",
