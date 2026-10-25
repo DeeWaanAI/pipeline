@@ -107,8 +107,8 @@ export async function seedDefaultFlags() {
     // default OFF: additive schema exists but no v2 entry point activates
     // until its phase gate passes. v2Commercial stays OFF until the spec's
     // open policy register (P1–P7) is resolved by the owner.
-    { key: "v2DesignJobs", name: "V2 — Durable Design Jobs", description: "Auto-design as durable queued jobs with revision-safe apply", enabled: false, rolloutPercent: 0 },
-    { key: "v2Benchmarks", name: "V2 — Private Evaluation", description: "Benchmark workspace: grade-only and optional comparisons", enabled: false, rolloutPercent: 0 },
+    { key: "v2DesignJobs", name: "V2 — Durable Design Jobs", description: "Auto-design as durable queued jobs with revision-safe apply", enabled: true, rolloutPercent: 100 },
+    { key: "v2Benchmarks", name: "V2 — Private Evaluation", description: "Benchmark workspace: grade-only and optional comparisons", enabled: true, rolloutPercent: 100 },
     { key: "v2Publication", name: "V2 — Evidence Publication", description: "Transparency-manifest publishing for sellers and community", enabled: false, rolloutPercent: 0 },
     { key: "v2ProtectedExecution", name: "V2 — Protected Marketplace Execution", description: "Server-side buyer runs of protected workflow versions", enabled: false, rolloutPercent: 0 },
     { key: "v2Commercial", name: "V2 — Commercial Features", description: "Subscription/payouts/trials — blocked pending P1–P7 policy approval", enabled: false, rolloutPercent: 0 },
