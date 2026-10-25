@@ -1,6 +1,6 @@
 {
   "name": "@deewaanai/pipeline",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "DeeWaanAI — local-first MCP server and visual pipeline designer. Runs entirely on your machine; your keys, your data, your models.",
   "license": "AGPL-3.0",
   "type": "module",
@@ -11,7 +11,8 @@
     "README.md",
     "bin",
     "dist",
-    "db"
+    "db",
+    "examples"
   ],
   "dependencies": {
     "better-sqlite3": "^13.0.3"

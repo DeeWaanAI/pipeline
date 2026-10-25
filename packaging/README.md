@@ -54,3 +54,20 @@ the loopback redirect is accepted on any port.
 ## Licence
 
 AGPL-3.0. Source: https://github.com/DeeWaanAI/pipeline
+
+## Example pipelines
+
+`examples/` ships seven real pipelines with the evaluation that scored each one:
+the pipeline, the rubric, the full judging prompts, every judgment, and the
+models that were tested — plus an Ed25519 attestation on each evidence record.
+
+These are **reference records, not import files**. The importer expects a
+bundle with a bundle hash and a signature over the shipped steps; these examples
+predate that format. Read them, learn from them, and verify them:
+
+```bash
+node examples/verify-examples.mjs
+```
+
+It recomputes each manifest's hash and checks its signature offline. Add
+`--pin platform.pub` to also check the signer is the key you trust.
