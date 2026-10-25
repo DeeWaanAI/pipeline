@@ -63,9 +63,11 @@ async function makeBundle(over: { attestation?: unknown | null; manifestHash?: s
     manifestHash: over.manifestHash === undefined ? MANIFEST_HASH : over.manifestHash,
     attestation: attestation as never,
     manifestJson: over.manifestHash === null ? null : MANIFEST_JSON,
+    benchmark: null,
     bundleAttestation: signing.attestBundle({
       bundleHash, definitionHash: VERSION_HASH,
       manifestHash: over.manifestHash === undefined ? MANIFEST_HASH : over.manifestHash,
+      benchmarkHash: null,
       listingId: PROVENANCE.listingId, workflowVersionId: PROVENANCE.workflowVersionId,
       originCreatorId: PROVENANCE.originCreatorId,
     }),
@@ -161,9 +163,10 @@ describe("pipeline bundle", () => {
       ...PROVENANCE, ...shape, definitionHash: VERSION_HASH,
       bundleHash: bundle.bundleIntegrityHash(shape), manifestHash: MANIFEST_HASH, attestation,
       manifestJson: MANIFEST_JSON,
+      benchmark: null,
       bundleAttestation: forgedSigning.attestBundle({
         bundleHash: bundle.bundleIntegrityHash(shape), definitionHash: VERSION_HASH,
-        manifestHash: MANIFEST_HASH, listingId: PROVENANCE.listingId,
+        manifestHash: MANIFEST_HASH, benchmarkHash: null, listingId: PROVENANCE.listingId,
         workflowVersionId: PROVENANCE.workflowVersionId, originCreatorId: PROVENANCE.originCreatorId,
       }),
     });

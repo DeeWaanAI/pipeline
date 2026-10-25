@@ -192,7 +192,7 @@ describe("buildHelp", () => {
     // user's own device holds it. Membership is still pinned exactly, so a tool
     // cannot silently appear or disappear from the one group a user reads when
     // they ask "what happens to my data".
-    expect(yourDataGroup?.tools.map((t) => t.name)).toEqual(["export_my_data"]);
+    expect(yourDataGroup?.tools.map((t) => t.name)).toEqual(["export_pipeline_bundle", "export_my_data"]);
   });
 
   it("submit_for_review describes the scan + evidence certification model", () => {

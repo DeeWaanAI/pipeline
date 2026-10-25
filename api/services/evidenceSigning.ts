@@ -292,6 +292,7 @@ export interface BundleAttestation {
   bundleHash: string;
   definitionHash: string;
   manifestHash: string | null;
+  benchmarkHash: string | null;
   listingId: number | null;
   workflowVersionId: number | null;
   originCreatorId: number;
@@ -304,6 +305,7 @@ export function bundleAttestationPayload(a: {
   bundleHash: string;
   definitionHash: string;
   manifestHash: string | null;
+  benchmarkHash: string | null;
   listingId: number | null;
   workflowVersionId: number | null;
   originCreatorId: number;
@@ -316,6 +318,7 @@ export function bundleAttestationPayload(a: {
     bundleHash: a.bundleHash,
     definitionHash: a.definitionHash,
     manifestHash: a.manifestHash,
+    benchmarkHash: a.benchmarkHash,
     listingId: a.listingId,
     workflowVersionId: a.workflowVersionId,
     originCreatorId: a.originCreatorId,
@@ -330,6 +333,7 @@ export function attestBundle(args: {
   bundleHash: string;
   definitionHash: string;
   manifestHash: string | null;
+  benchmarkHash: string | null;
   listingId: number | null;
   workflowVersionId: number | null;
   originCreatorId: number;
@@ -354,6 +358,7 @@ export function attestBundle(args: {
     bundleHash: args.bundleHash,
     definitionHash: args.definitionHash,
     manifestHash: args.manifestHash,
+    benchmarkHash: args.benchmarkHash,
     listingId: args.listingId,
     workflowVersionId: args.workflowVersionId,
     originCreatorId: args.originCreatorId,
@@ -369,6 +374,7 @@ export function verifyBundleAttestation(
     bundleHash: string;
     definitionHash: string;
     manifestHash: string | null;
+    benchmarkHash: string | null;
     listingId: number | null;
     workflowVersionId: number | null;
     originCreatorId: number;
@@ -386,6 +392,7 @@ export function verifyBundleAttestation(
     bundleHash: expected.bundleHash,
     definitionHash: expected.definitionHash,
     manifestHash: expected.manifestHash,
+    benchmarkHash: expected.benchmarkHash,
     listingId: expected.listingId,
     workflowVersionId: expected.workflowVersionId,
     originCreatorId: expected.originCreatorId,

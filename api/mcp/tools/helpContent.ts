@@ -202,6 +202,11 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     example: "\"Show my purchased pipelines.\"",
   },
   {
+    name: "export_pipeline_bundle", group: "Your data", scopes: ["mcp:read"],
+    summary: "Export your own pipeline as one portable file to send to anyone — no listing, no server. Attach a benchmark's optional archive and its cases, outputs, judgments and judging prompts travel inside the same signed file, bound to the pipeline.",
+    example: "\"Export my redliner pipeline with its benchmark so I can send it to a colleague.\"",
+  },
+  {
     name: "download_shared_pipeline", group: "Marketplace", scopes: ["mcp:read"],
     summary: "Take a shared pipeline home as one portable file — steps, prompts, origin, version hash and the platform's signed evidence attestation. It runs in your own desktop app on your own keys afterwards, with no call back to us.",
     example: "\"Download the contract redliner so I can keep it in my project folder.\"",

@@ -36,6 +36,7 @@ import { getDb } from "../queries/connection";
 import { evidencePublications, marketplaceListingV2, marketplaceListings, pipelineSteps, pipelineTemplates, projects, users } from "@db/schema";
 import { logger } from "../lib/logger";
 import { buildPipelineBundle, bundleIntegrityHash, verifyPipelineBundle, type PipelineBundle } from "./pipelineBundle";
+import { exportBenchmarkArchive } from "./benchmark/benchmarkExport";
 import { attestBundle, signingPublicKeyPem, type EvidenceAttestation } from "./evidenceSigning";
 import { resolveProtectedExecutionRight } from "./executionRight";
 import type { VersionDefinition } from "./benchmark/benchmarkTypes";
@@ -419,6 +420,7 @@ export async function exportListingBundle(
     bundleHash,
     definitionHash: String(version.definitionHash),
     manifestHash,
+    benchmarkHash: null,
     listingId: listing!.id,
     workflowVersionId: version.id,
     originCreatorId: sellerId,
@@ -441,6 +443,7 @@ export async function exportListingBundle(
     manifestJson,
     attestation,
     bundleAttestation,
+    benchmark: null,
   });
 }
 
@@ -524,4 +527,94 @@ export async function importPipelineBundle(
     ? `Imported and attributed to ${p.originAccountName ?? "account " + p.originCreatorId}. The published benchmark evidence verifies against the platform's signing key and names this exact definition hash (${verification.definitionHash}) — edit the steps and it stops describing your copy.`
     : `Imported. The file is intact and hashes to ${verification.definitionHash}, but its benchmark claim is ${verification.evidenceState}: nothing here proves DeeWaanAI issued it. Treat the scores as the author's assertion, not as verified evidence.`;
   return { ...written, verification, meaning };
+}
+
+export const exportPipelineBundleInputSchema = z.object({
+  projectId: z.number().int().positive(),
+  benchmarkId: z.number().int().positive().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+/**
+ * Export YOUR OWN pipeline as a file — the step that makes sharing work without
+ * any server. No listing, no purchase, no benchmark required; a benchmark is an
+ * OPTION the author can attach, and when attached its archive is bound into the
+ * same signature so the recipient receives one artifact, not two that might
+ * drift apart.
+ *
+ * The snapshot is immutable in the file sense: the hash is taken over exactly
+ * the steps shipped, so if the author edits the project afterwards the file they
+ * already sent still describes what they sent.
+ */
+export async function exportOwnPipelineBundle(
+  userId: number,
+  input: z.infer<typeof exportPipelineBundleInputSchema>,
+): Promise<PipelineBundle> {
+  const db = getDb();
+  const [project] = await db.select().from(projects)
+    .where(and(eq(projects.id, input.projectId), eq(projects.userId, userId))).limit(1);
+  if (!project) throw new PipelineDeliveryError("not_found_or_not_authorized", "pipeline is not available to this account");
+
+  const rows = await db.select().from(pipelineSteps)
+    .where(eq(pipelineSteps.projectId, project.id)).orderBy(pipelineSteps.stepOrder);
+  if (rows.length === 0) throw new PipelineDeliveryError("nothing_to_export", "this pipeline has no steps to export");
+  const steps = rows.map((st) => ({
+    stepOrder: st.stepOrder,
+    name: st.name,
+    role: st.role,
+    systemPrompt: st.systemPrompt,
+    stepType: st.stepType ?? "agent",
+    model: st.model ?? null,
+    temperature: st.temperature ?? null,
+    maxTokens: st.maxTokens ?? null,
+    ifConfig: st.ifConfig ?? null,
+    whileConfig: st.whileConfig ?? null,
+  }));
+  const schemaVersion = 1;
+  const pipelineConfig = project.pipelineConfig ?? null;
+  const bundleHash = bundleIntegrityHash({ steps, schemaVersion, pipelineConfig });
+
+  let benchmark: PipelineBundle["benchmark"] = null;
+  let benchmarkHash: string | null = null;
+  if (input.benchmarkId) {
+    const exported = await exportBenchmarkArchive({ userId, benchmarkId: input.benchmarkId });
+    const bench: NonNullable<PipelineBundle["benchmark"]> = {
+      benchmarkId: input.benchmarkId,
+      planHash: (exported.benchmark as { planHash?: string | null }).planHash ?? null,
+      files: exported.archive.files,
+      incomplete: exported.archive.incomplete,
+    };
+    benchmark = bench;
+    benchmarkHash = createHash("sha256").update(stableJson(bench.files)).digest("hex");
+  }
+
+  const attestation = attestBundle({
+    bundleHash,
+    definitionHash: bundleHash,
+    manifestHash: null,
+    benchmarkHash,
+    listingId: null,
+    workflowVersionId: null,
+    originCreatorId: userId,
+  });
+
+  return buildPipelineBundle({
+    pipelineName: input.name ?? project.name,
+    pipelineDescription: project.description ?? null,
+    steps,
+    listingId: null,
+    workflowVersionId: null,
+    schemaVersion,
+    pipelineConfig,
+    originCreatorId: userId,
+    originAccountName: null,
+    workflowVersionNumber: null,
+    definitionHash: bundleHash,
+    bundleHash,
+    manifestHash: null,
+    manifestJson: null,
+    attestation: null,
+    bundleAttestation: attestation,
+    benchmark,
+  });
 }

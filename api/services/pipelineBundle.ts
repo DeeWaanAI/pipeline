@@ -82,8 +82,17 @@ const bundleSchema = z.object({
         definitionHash: hashSchema.nullable(), authorId: idSchema }).strict(),
     }).strict().nullable(),
   }).strict().nullable(),
+  benchmark: z.object({
+    benchmarkId: idSchema,
+    planHash: hashSchema.nullable(),
+    files: z.array(z.object({
+      path: z.string().min(1), content: z.string(), bytes: z.number().int().nonnegative(), sha256: hashSchema,
+    }).strict()),
+    incomplete: z.array(z.object({ path: z.string(), reason: z.string() }).strict()),
+  }).strict().nullable(),
   attestation: signatureSchema.extend({
     bundleHash: hashSchema, definitionHash: hashSchema, manifestHash: hashSchema.nullable(),
+    benchmarkHash: hashSchema.nullable(),
     listingId: idSchema.nullable(), workflowVersionId: idSchema.nullable(), originCreatorId: idSchema,
   }).strict().nullable(),
   note: z.string(),
@@ -131,6 +140,15 @@ export interface PipelineBundle {
     manifestHash: string;
     manifestJson: string | null;
     attestation: EvidenceAttestation | null;
+  } | null;
+  /** The author's benchmark for this pipeline, exported with it. The archive is
+   *  self-verifying per file, and its hash is inside the signed payload below, so
+   *  pipeline and evidence travel as one attested artifact. */
+  benchmark: {
+    benchmarkId: number;
+    planHash: string | null;
+    files: Array<{ path: string; content: string; bytes: number; sha256: string }>;
+    incomplete: Array<{ path: string; reason: string }>;
   } | null;
   /** The platform's signature over the file AS SHIPPED. This is what makes the
    *  integrity hash more than a checksum: an editor who recomputes
@@ -198,6 +216,7 @@ export function buildPipelineBundle(args: {
   manifestJson: string | null;
   attestation: EvidenceAttestation | null;
   bundleAttestation: BundleAttestation | null;
+  benchmark: PipelineBundle["benchmark"];
 }): PipelineBundle {
   return {
     kind: PIPELINE_BUNDLE_KIND,
@@ -222,6 +241,7 @@ export function buildPipelineBundle(args: {
       ? { manifestHash: args.manifestHash, manifestJson: args.manifestJson, attestation: args.attestation }
       : null,
     attestation: args.bundleAttestation,
+    benchmark: args.benchmark,
     note: "Put this file in your own folder and import it whenever you like — it is yours to read, edit and run. provenance.bundleHash covers the steps as shipped; provenance.definitionHash is the certified version the signed evidence describes. They are different hashes on purpose, because the certified version records the author's provider bindings and this file must not.",
   };
 }
@@ -273,9 +293,13 @@ export function verifyPipelineBundle(
   // The file's own signature is checked against the hash recomputed HERE, from
   // the steps in hand — so recomputing `provenance.bundleHash` to match an edit
   // defeats the checksum and nothing else.
+  const benchmarkHash = bundle.benchmark
+    ? createHash("sha256").update(stableJson(bundle.benchmark.files)).digest("hex")
+    : null;
   if (bundle.attestation) {
     const pv = verifyBundleAttestation(bundle.attestation, {
       bundleHash: recomputed,
+      benchmarkHash,
       definitionHash: bundle.provenance.definitionHash,
       manifestHash: bundle.evidence?.manifestHash ?? null,
       listingId: bundle.provenance.listingId,

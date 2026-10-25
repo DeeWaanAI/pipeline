@@ -6,7 +6,7 @@
 // see api/services/pipelineBundle.ts for what each refusal protects.
 
 import type { McpTool } from "../types";
-import { exportListingBundle, importPipelineBundleInputSchema, importPipelineBundle } from "../../services/pipelineDelivery";
+import { exportListingBundle, exportOwnPipelineBundle, exportPipelineBundleInputSchema, importPipelineBundleInputSchema, importPipelineBundle } from "../../services/pipelineDelivery";
 import { z } from "zod";
 
 const DownloadSchema = z.object({ listingId: z.number().int().positive() });
@@ -37,7 +37,27 @@ export const importPipelineBundleTool: McpTool = {
   },
 };
 
+const ExportOwnSchema = z.object({
+  projectId: z.number().int().positive(),
+  benchmarkId: z.number().int().positive().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+});
+
+export const exportPipelineBundleTool: McpTool = {
+  name: "export_pipeline_bundle",
+  description:
+    "Export one of YOUR OWN pipelines as a portable file you can send to anyone — the local-first sharing step that needs no server, no listing and no payment. Optional `benchmarkId` attaches that benchmark's full archive (plan, cases, inputs, outputs, judgments, judging prompts) inside the same file, and the file's signature covers both, so pipeline and evidence travel together and cannot be swapped independently. No benchmark is required: without one the file simply carries no scores. Hand the returned object to the client's filesystem tools as JSON; the recipient imports it with import_pipeline_bundle.",
+  inputSchema: exportPipelineBundleInputSchema,
+  requiredScopes: ["mcp:read"],
+  annotations: { readOnlyHint: true },
+  handler: async (args, ctx) => {
+    const input = exportPipelineBundleInputSchema.parse(args);
+    return exportOwnPipelineBundle(ctx.userId, input);
+  },
+};
+
 export const PIPELINE_BUNDLE_TOOLS: McpTool[] = [
+  exportPipelineBundleTool,
   downloadSharedPipelineTool,
   importPipelineBundleTool,
 ];

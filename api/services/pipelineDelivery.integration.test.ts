@@ -17,7 +17,7 @@
 //    longer describes, and the receipt would be a lie.
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
 import { and, eq } from "drizzle-orm";
@@ -25,6 +25,8 @@ import { and, eq } from "drizzle-orm";
 const TEST_DB = `swarm_v2test_delivery_${randomUUID().replaceAll("-", "")}`;
 const ROOT_MYSQL = process.env.MYSQL_ROOT_URL || "mysql://root:rootpass@localhost:3307";
 const SELLER_PROMPT = "SELLER SECRET SYSTEM PROMPT: reads ~/vault/secrets.md then drafts";
+const TEST_SIGNING = generateKeyPairSync("ed25519");
+const TEST_SIGNING_PUBLIC = TEST_SIGNING.publicKey.export({ type: "spki", format: "pem" }).toString();
 const PIPELINE_CONFIG = { maxIterations: 3, enabledAgents: ["builder", "polisher"], stopOnNoImprovement: false };
 
 let delivery: typeof import("./pipelineDelivery");
@@ -48,6 +50,9 @@ beforeAll(async () => {
   process.env.APP_SECRET ||= "1".repeat(64);
   process.env.AI_SWARM_MASTER_KEY ||= "2".repeat(64);
   process.env.MARKETPLACE_MASTER_KEY ||= "3".repeat(64);
+  process.env.EVIDENCE_SIGNING_PRIVATE_KEY = TEST_SIGNING.privateKey
+    .export({ type: "pkcs8", format: "pem" }).toString().replace(/\n/g, "\\n");
+  process.env.EVIDENCE_SIGNING_KEY_ID = "delivery-test-key";
   const { execFileSync } = await import("node:child_process");
   execFileSync(process.execPath, [
     fileURLToPath(new URL("../../node_modules/drizzle-kit/bin.cjs", import.meta.url)), "push", "--force",
@@ -485,6 +490,7 @@ describe("Class A marketplace delivery (DB-backed)", () => {
         manifestJson: null,
         attestation: null,
         bundleAttestation: null,
+        benchmark: null,
       });
     }
 
@@ -591,6 +597,58 @@ describe("Class A marketplace delivery (DB-backed)", () => {
       const missing = await delivery.exportListingBundle(stranger, 987_654).catch((e: Error) => e.message);
       expect(hidden).toBe(missing);
       expect(String(hidden)).toMatch(/not_available/);
+    });
+  });
+
+  describe("exporting your own pipeline (no listing, no purchase)", () => {
+    async function authorProject(tag: string) {
+      const d = await db();
+      const [u] = await d.insert(schema.users).values({ name: "Author", email: `auth-${tag}@example.test`, tier: "standard" });
+      const authorId = Number((u as { insertId: number }).insertId);
+      const [p] = await d.insert(schema.projects).values({ userId: authorId, name: "My Pipeline" });
+      const projectId = Number((p as { insertId: number }).insertId);
+      await d.insert(schema.pipelineSteps).values([
+        { projectId, stepOrder: 1, name: "Draft", role: "builder", systemPrompt: SELLER_PROMPT, stepType: "agent", model: "m1", temperature: "0.7", maxTokens: 1024 },
+        { projectId, stepOrder: 2, name: "Polish", role: "polisher", systemPrompt: "polish it", stepType: "agent", model: "m1", temperature: "0.5", maxTokens: 512 },
+      ]);
+      return { authorId, projectId };
+    }
+
+    async function makeStranger(tag: string) {
+      const d = await db();
+      const [u] = await d.insert(schema.users).values({ name: "Stranger", email: `s-${tag}@example.test`, tier: "standard" });
+      return Number((u as { insertId: number }).insertId);
+    }
+
+    it("exposes the work as a signed file anyone can import", async () => {
+      const { authorId, projectId } = await authorProject(`${Date.now()}`);
+      const bundle = await delivery.exportOwnPipelineBundle(authorId, { projectId });
+      expect(bundle.benchmark).toBeNull();
+      const { verifyPipelineBundle } = await import("./pipelineBundle");
+      const verdict = verifyPipelineBundle(bundle, TEST_SIGNING_PUBLIC);
+      expect(verdict.valid).toBe(true);
+      expect(verdict.provenanceState).toBe("signed");
+      expect(bundle.pipeline.steps).toHaveLength(2);
+      expect(JSON.stringify(bundle)).not.toContain("providerId");
+
+      const stranger = await makeStranger(`imp-${Date.now()}`);
+      const imported = await delivery.importPipelineBundle(stranger, { bundle, name: "Received" });
+      const d = await db();
+      const [project] = await d.select().from(schema.projects).where(eq(schema.projects.id, imported.projectId));
+      expect(project.userId).toBe(stranger);
+      expect(project.name).toBe("Received");
+      const steps = await d.select().from(schema.pipelineSteps).where(eq(schema.pipelineSteps.projectId, project.id));
+      expect(steps).toHaveLength(2);
+      expect(steps.some((x) => x.systemPrompt === SELLER_PROMPT)).toBe(true);
+    });
+
+    it("refuses to export someone else's project, or to attach someone else's benchmark", async () => {
+      const { authorId, projectId } = await authorProject(`x-${Date.now()}`);
+      const other = await makeStranger(`o-${Date.now()}`);
+      await expect(delivery.exportOwnPipelineBundle(other, { projectId }))
+        .rejects.toThrow(/not_found_or_not_authorized/);
+      await expect(delivery.exportOwnPipelineBundle(authorId, { projectId, benchmarkId: 999_999 }))
+        .rejects.toThrow();
     });
   });
 });
