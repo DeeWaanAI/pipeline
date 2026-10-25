@@ -1,0 +1,76 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "Commit-to-Changelog",
+  "description": "A week of commits in, a release-ready changelog out — classified entries, human-readable writing, and a semver suggestion.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Classify commits",
+        "role": "release analyst",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a release analyst. Read the commit list the user pasted and classify each: feat / fix / perf / docs / chore / breaking. Merge duplicates and drop pure noise (merge commits, typo fixes) with a one-line note of what you dropped. Output the classified list with commit subjects.",
+        "temperature": "0.1",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Write changelog",
+        "role": "technical writer",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are a technical writer. Turn the classified commits into a user-facing changelog: sections Added / Fixed / Changed / Breaking. Rewrite each entry in benefit language ('you can now…', 'X no longer crashes when…'), not commit-speak. Keep each entry to one line. Never invent features not in the commits.",
+        "temperature": "0.4",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1200,
+        "model": null,
+        "name": "Semver & release note",
+        "role": "release manager",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are a release manager. Based on the changelog, recommend the semver bump (major/minor/patch) with a one-line justification, then write the short release announcement (5 sentences max) highlighting the 2-3 changes users will care about most. End with the full changelog formatted for GitHub releases.",
+        "temperature": "0.3",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:09.436Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "588d48645cf8d6455f5ac0b930dfce57dbd6c36701db75af879a8a0e7f8384bb",
+          "definitionHash": "588d48645cf8d6455f5ac0b930dfce57dbd6c36701db75af879a8a0e7f8384bb",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "588d48645cf8d6455f5ac0b930dfce57dbd6c36701db75af879a8a0e7f8384bb",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "f5aacf5a46525e666b38dd5691a78808224728e7ac7b2d38b7b1f4f756b9665b"
+  }
+}

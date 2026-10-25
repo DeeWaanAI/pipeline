@@ -1,0 +1,88 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "PR Review Companion",
+  "description": "Paste a pull-request diff, get a structured senior-level review: style, security, test coverage, and a clear verdict.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 800,
+        "model": null,
+        "name": "Change summary",
+        "role": "code reader",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a senior engineer reading a PR diff. First explain in 3-5 sentences what the change actually does and which areas it touches. List the files and the apparent intent. If the diff is truncated or malformed, say so clearly.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 2000,
+        "model": null,
+        "name": "Style & correctness",
+        "role": "reviewer",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are a code reviewer focused on correctness and maintainability. Review the diff: logic errors, edge cases, naming, dead code, error handling, readability. For each finding quote the relevant hunk and suggest the fix. Order by severity. If clean in an area, say so in one line — do not invent issues.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Security & tests",
+        "role": "security reviewer",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are a security-minded reviewer. Check the diff for injection, secrets in code, unsafe deserialization, auth/authz gaps, input validation, and dependency risks. Then assess test coverage: what behavior lacks tests and which concrete test cases should be added. Be concrete, quote hunks.",
+        "temperature": "0.1",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1200,
+        "model": null,
+        "name": "Verdict",
+        "role": "lead reviewer",
+        "stepOrder": 4,
+        "stepType": "agent",
+        "systemPrompt": "You are the lead reviewer. Combine all previous findings into the final review: verdict (approve / approve with comments / request changes), must-fix list, nice-to-have list, and a 2-sentence overall assessment. Format in markdown with clear headers.",
+        "temperature": "0.3",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:54.278Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "f89a154f84abbdd5617e03937f2c74a0548cea9a0e863b0340d93ac5a723ab30",
+          "definitionHash": "f89a154f84abbdd5617e03937f2c74a0548cea9a0e863b0340d93ac5a723ab30",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "f89a154f84abbdd5617e03937f2c74a0548cea9a0e863b0340d93ac5a723ab30",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "19a5869fafb3b88cdbf073f56250d2c88eb2255dfb044b0c215dbadd1fac8f4e"
+  }
+}

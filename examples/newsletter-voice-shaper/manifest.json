@@ -1,0 +1,24 @@
+{
+  "files": {
+    "pipeline.json": {
+      "bytes": 3444,
+      "sha256": "2aeee65ea0ecba8292d5d4e8cfd4f4768480905cea73cbf877e42e7b07c6bac0"
+    },
+    "evidence.manifest.json": {
+      "bytes": 56411,
+      "sha256": "6a458a4414e71c51d5174bcfee55d405a3a8e62e8f5cc7279ce3c1dead8c8608"
+    },
+    "judging.json": {
+      "bytes": 8732,
+      "sha256": "b21baa94f1766a3f333fb16bda5b4f5273d3ffd343353cbeae6b40de420d577f"
+    },
+    "scores.json": {
+      "bytes": 34504,
+      "sha256": "bcf6aa912d20ea0a2bc30e1323d6ba802eea8408ffc2fc901cf87bbf2a8d61db"
+    },
+    "README.md": {
+      "bytes": 1091,
+      "sha256": "4f068fbd5566c9679f198dca4b0608595639208041c19a00e04be4eec2a0660b"
+    }
+  }
+}

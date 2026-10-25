@@ -1,0 +1,88 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "Ice Cream Recipe Studio",
+  "description": "Turn a theme and dietary restrictions into a complete, checked ice cream recipe: concept → ingredient compliance → full recipe → name & story.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 1200,
+        "model": null,
+        "name": "Concept",
+        "role": "flavor designer",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a creative ice cream flavor designer. Given a theme and dietary restrictions from the user, invent 2 original ice cream concepts that vividly express the theme. For each: a working title, the flavor profile, key ingredients, and why it fits the theme. Be specific and imaginative, never generic vanilla-with-food-coloring.",
+        "temperature": "0.9",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1000,
+        "model": null,
+        "name": "Dietary compliance check",
+        "role": "compliance checker",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are a strict dietary-compliance checker. Review the concepts from the previous step against the user's stated restrictions (e.g. halal, vegan, allergies). Flag EVERY ingredient that violates or risks violating a restriction (watch for hidden dairy, eggs, gelatin, alcohol, non-halal emulsifiers) and propose a compliant substitute. Pick the single best compliant concept and explain the final ingredient list. If nothing is compliant, say so and fix it.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Recipe",
+        "role": "recipe writer",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are a professional recipe writer. Turn the approved concept into a complete home ice cream recipe: exact ingredient list with metric measurements, equipment, numbered steps with timings, churning and freezing instructions, texture and storage tips. Use ONLY the compliant ingredients confirmed in the previous step.",
+        "temperature": "0.4",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 900,
+        "model": null,
+        "name": "Name & story",
+        "role": "brand storyteller",
+        "stepOrder": 4,
+        "stepType": "agent",
+        "systemPrompt": "You are a brand storyteller for artisanal food. Give the recipe from the previous step a memorable final name tied to the user's theme, a 3-sentence story that would appear on the tub, and 3 serving suggestions. End with the complete recipe card: name, story, ingredients, steps.",
+        "temperature": "0.8",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:03.723Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "2e3a598734623f4d1e0ee32b39d8a88091a7c81107b4c288e0594812fbd73789",
+          "definitionHash": "2e3a598734623f4d1e0ee32b39d8a88091a7c81107b4c288e0594812fbd73789",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "2e3a598734623f4d1e0ee32b39d8a88091a7c81107b4c288e0594812fbd73789",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "f90234762f2d7d77a23ee4adee861546e17583feb957494ae8e7aadf36260f9b"
+  }
+}

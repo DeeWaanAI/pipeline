@@ -1,0 +1,910 @@
+{
+  "judgments": [
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output accurately addresses the theme of remote islands and adheres to the dietary restrictions of halal and vegan. It provides a creative and detailed description of the ice cream and three ways to serve it, demonstrating good clarity. However, it lacks specific details about the ice cream making process using a basic home ice cream maker, which affects its completeness. The format is generally well-structured but does not strictly follow a traditional recipe format, which slightly reduces its instruction fit score.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "6",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is strong in creativity and adherence to dietary restrictions, but weak in providing a clear recipe or instructions for making the coconut-mango ice cream.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output accurately addresses the theme of remote islands and adheres to the dietary restrictions of halal and vegan. It provides a creative and detailed description of the ice cream and three ways to serve it, demonstrating completeness. The format and tone are generally fitting, though some elements like the story introduction might be seen as slightly unconventional. The clarity is high, making the content immediately usable by the end reader.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "3",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Theme, vegan & halal, serves 4 and basic ice cream maker are mentioned and the remote-islands story is present, with no factual errors. The output is truncated and provides no ingredients or method for the coconut-mango ice cream, so it is not a usable recipe and misses the core cooking task. Clarity suffers from the missing/incomplete instructions.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "3",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Strongest parts are the thematic framing around remote islands and the explicit call-outs for vegan & halal, serves 4, and basic home ice cream maker, plus evocative serving ideas. Weakest parts are the missing core recipe — no ingredients list or churn method — and the output is truncated mid-sentence, so it is not usable as a recipe. Accuracy is fine for what is stated, but completeness, instruction fit and clarity suffer from the absent instructions and truncation.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "3",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output respects the vegan and halal constraints, mentions serves 4, basic home ice cream maker and remote-islands theme, with no factual errors. It is incomplete because no ingredients list or method for the coconut-mango ice cream is provided and the serving section is truncated mid-sentence. Instruction fit is weakened by the missing recipe and abrupt cutoff, and clarity is low because the reader cannot actually make the ice cream from what is given.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "2",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is clearly truncated mid-sentence, cutting off before the actual recipe (ingredients, measurements, churning instructions) is provided. What is shown — the theme, story, and three serving suggestions — is factually accurate and appropriately themed for remote islands, with vegan/halal ingredients (coconut, mango, lime). The constraints (4 servings, basic ice cream maker, halal, vegan) are acknowledged in the header. However, the core deliverable — an actual ice cream recipe with ingredient quantities and step-by-step instructions — is entirely missing, severely limiting completeness and usability. Clarity of the written portion is good with nice formatting, but the missing recipe makes it not immediately usable.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "6",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "2",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Strongest parts: The output has an evocative, well-written narrative that genuinely captures the 'remote islands' theme, and the ingredients mentioned (coconut, mango, lime) are correctly vegan and halal. The serving suggestions are creative and plausible. Weakest parts: The output is missing the core deliverable — there is no actual recipe. No ingredients list, no measurements, no step-by-step instructions for using the ice cream maker. The response is also cut off mid-sentence ('roll the edges in toasted'), suggesting truncation. What exists reads more like a marketing brochure or restaurant menu description than a usable home recipe. Accuracy is moderate because the ingredients mentioned are correct, but there's no recipe to fully verify. Completeness is very low because the implicit ask (a recipe for 4) is essentially absent. Instruction fit is partial — theme, dietary tags, serving count, and equipment are all acknowledged, but the format is wrong for a recipe. Clarity is decent in prose quality but poor in usability since a cook cannot make ice cream from this.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "3",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is clearly truncated mid-sentence ('roll the edges in toasted'), cutting off before any actual recipe is provided. While the framing elements are present (title, theme, dietary labels, serving size, equipment mention), there are no ingredients, measurements, or preparation instructions for the ice cream itself — only a narrative intro and three serving suggestions. Accuracy cannot be fully assessed because no recipe content exists to verify. InstructionFit is moderate: the tone and theme are well-matched to 'remote islands,' and constraints are acknowledged, but the response is incomplete. Clarity is decent for what exists but undermined by the abrupt cutoff.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is factually correct and complete in terms of the recipe and serving suggestions, following the halal and vegan dietary restrictions. It covers every part of the task, including the story, recipe, and serving suggestions. The format is mostly followed, but there are some minor deviations in tone and style. The clarity is high, making it immediately usable by the end reader.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The strongest part of this output is its creativity and thoroughness in providing a detailed recipe and serving suggestions that fit the theme of remote islands and adhere to the dietary restrictions of halal and vegan. The weakest part is the incomplete method section, which seems to be cut off mid-instruction, potentially leaving the reader without crucial information to complete the recipe. The output generally follows the expected format for a recipe and is clear in its instructions and descriptions, making it usable for the end reader. However, the abrupt ending and lack of final steps in the method section detract from its completeness and clarity.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is largely accurate, complete, and clear, with a well-structured recipe and serving suggestions that fit the theme. However, it assumes some prior knowledge of cooking techniques and ingredient handling, which might affect clarity for novice readers. The instruction fit is good, but the output's creative elements, such as the story, might not be strictly necessary for a basic recipe format.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The recipe is vegan and uses halal-certified agar, matches remote-island theme and serves 4 with a basic ice-cream maker. Accuracy is reduced by an unconventional agar-pearl method and the truncated method. Completeness is low because the churn and hardening steps are cut off mid-instruction, making the recipe unfinishable. Instruction fit is good for constraints and tone, with extra story/serving suggestions. Clarity suffers due to the incomplete step 4, so the output is not immediately usable.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "6",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Strongest parts are the remote-island theme and story, a fully vegan and halal ingredient list with halal-certified agar, correct serving for 4 people, and equipment suited to a home kitchen with a basic ice-cream maker. Weakest part is the method which is truncated at step 4 ‘Churn’ with no churn instructions, freezing/hardening, or finishing steps, and the pearl quantity is confusing. That truncation makes the recipe not immediately usable and leaves the task incomplete despite the otherwise accurate and constraint-fitting content.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The recipe is vegan and halal-compliant, themed to remote islands, serves 4 and uses a basic ice-cream maker. Ingredients and story are appropriate. Completeness and clarity are reduced because the Method stops mid-step at “4. Churn”, leaving churn, hardening and finishing instructions missing, so the recipe is not fully usable.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "6",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Accuracy: The recipe content shown is factually sound—vegan and halal ingredients are correctly identified (coconut milk, almond milk, mango, date nectar, agar-agar), the agar-pearl technique is a legitimate culinary method, and proportions are reasonable. Score 8. Completeness: The output addresses theme (remote atoll), dietary restrictions (halal/vegan), serving size (4), and equipment (basic ice cream maker), but the recipe is truncated mid-method at step 4 ('Churn'), so churning, freezing, and final assembly instructions are missing—a significant gap. Score 5. InstructionFit: Format is strong with a creative story, serving suggestions, ingredient table, equipment list, and numbered method; tone matches a themed recipe request. Truncation prevents full credit. Score 6. Clarity: Excellent organization, clear measurements in both metric and imperial, well-structured sections, and readable prose. Truncation reduces usability. Score 7.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "5",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Strongest parts: evocative island-themed storytelling, well-organized recipe card with clear measurements in both metric and imperial, creative use of agar pearls for textural interest, and proper attention to both vegan (no animal products) and halal (halal-certified agar, no alcohol) constraints. Weakest parts: the recipe is abruptly cut off mid-step at 'Churn,' leaving out the most critical instructions for an ice cream recipe—the churning time, consistency cues, and final freezing/storage steps. This truncation significantly undermines the output's usability. The agar-pearl technique (drizzling hot agar liquid into ice water) is legitimate but may be challenging for a home cook without further guidance. Serving size of 4 is correctly stated, and the basic ice cream maker is acknowledged in equipment.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "4",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Accuracy: The ingredients and techniques described (agar pearls, ice cream base, date nectar, coconut milk) are factually plausible and appropriate; all ingredients are vegan and halal. No fabricated facts in the content present. Completeness: The recipe is cut off mid-method at step 4 ('Churn'), so the churning instructions, freezing time, and final assembly/storage steps are missing — a significant gap for an ice cream recipe. The story, serving suggestions, ingredients, equipment, and first three steps are present. Instruction Fit: Format follows recipe conventions (story, serving suggestions, ingredient table, equipment list, numbered method), addresses all stated constraints (remote-island theme, halal, vegan, 4 servings, basic ice cream maker), but the truncation breaks the format. Clarity: The presented content is well-organized with clear tables, numbered steps, and precise measurements; however, the abrupt cutoff reduces overall usability.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    }
+  ],
+  "validatorOutcomes": [],
+  "testedModels": [
+    {
+      "stableCandidateId": "gpt-oss-120b",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "openai/gpt-oss-120b",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 4,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    },
+    {
+      "stableCandidateId": "kimi-k3",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "moonshotai/Kimi-K3",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 4,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    }
+  ],
+  "costs": {
+    "currency": "USD",
+    "generationCostPerCompletedRunUsd": "0.03867675",
+    "totalGenerationCostUsd": "0.0773535",
+    "designCostUsd": "unknown",
+    "preparationCostUsd": "unknown",
+    "judgingCostUsd": "0.02766615",
+    "retryCostUsd": "0.0031185",
+    "narrativeCostUsd": "0",
+    "providerInvoicedAmount": "unknown",
+    "platformLicenseCharge": null,
+    "tokenUsage": {
+      "promptTokens": 23525,
+      "completionTokens": 21885,
+      "cachedTokens": 0
+    },
+    "priceVectorVersion": "not used (live provider list)",
+    "pricingSource": "the serving provider's published list price — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative",
+    "pricingAsOf": "2026-10-19T20:56:30.144Z",
+    "costCompleteness": "partial",
+    "estimatedItems": [
+      "generation and judging cost from token estimates",
+      "average in/out token assumptions for any unpriced model"
+    ],
+    "missingItems": [
+      "design/preparation cost attributable to this plan",
+      "provider-invoiced amounts",
+      "cached-token billing"
+    ]
+  },
+  "testedAt": "2026-10-19T20:56:30.144Z"
+}

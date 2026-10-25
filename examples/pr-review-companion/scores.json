@@ -1,0 +1,784 @@
+{
+  "judgments": [
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The candidate output correctly identifies major security issues and provides a comprehensive list of necessary changes, but may lack specificity in some implementation details. The output is well-structured and clear, but its runnability is somewhat diminished by the absence of concrete code examples or snippets to illustrate the proposed fixes.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The strongest part of this output is its thorough identification and explanation of critical security issues in the proposed code changes, including SQL injection vulnerabilities and insecure hashing, along with a comprehensive list of necessary improvements and nice-to-have features. The weakest part is the lack of actual code fixes or examples to directly address the identified issues, which would further enhance the clarity and usefulness of the feedback. Overall, the output is well-structured, clear, and directly addresses the task by providing a detailed review of the diff, suggesting improvements, and emphasizing security and best practices.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The candidate output correctly identifies critical security issues in the provided diff, including SQL injection and insecure hashing, and provides a comprehensive list of must-fix and nice-to-have changes. The output is well-structured and clear, but may not be directly executable as it is a review comment rather than code.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies the critical security regressions introduced by the diff — SQL injection via string concatenation and downgrade from sha256 to MD5 — and calls for parameterised/ORM queries, strong password hashing, input validation and proper auth handling. The assessment is accurate, well-structured with Must-Fix/Nice-to-Have, and clearly communicates why the change should not be merged.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "Strongest parts are the accurate identification of the two critical regressions introduced by the diff: the downgrade from sha256 to MD5 for password hashing and the switch from a parameterised ORM find to string-concatenated raw SQL, which is a clear SQL injection risk. The verdict of Request Changes and the overall assessment correctly frame these as merge-blocking security issues. Weakest parts are the overreach beyond the diff: items such as missing import / remove unused import, returning a proper authentication result, input validation and authentication flow handling are reasonable hardening suggestions but are presented as must-fixes rather than as context-specific recommendations, and some are not directly provable from the shown hunk. The review is otherwise well structured, readable and idiomatic for a code review, with clear Must-Fix vs Nice-to-Have separation.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies the critical regressions introduced by the diff: raw SQL concatenation leading to SQL injection and downgrade from sha256 to MD5 for password hashing. It calls for parameterised/ORM usage, strong password hashing, and notes security and design concerns. The assessment is accurate and well-structured, with only minor over-speculation on imports and return shape. The output is clear, idiomatic review documentation.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies both critical security regressions in the diff: the SQL injection vulnerability from raw string concatenation and the downgrade from SHA-256 to MD5 for password hashing. It also catches related issues like missing imports, lack of input validation, and improper return handling. The output is well-structured with clear sections (Verdict, Must-Fix, Nice-to-Have, Overall Assessment), uses bullet points effectively, and provides specific, actionable recommendations with appropriate technical reasoning. As a review document rather than executable code, runnability is interpreted as the output being well-formed and usable, which it is.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "Strongest parts: The review correctly identifies both critical security regressions in the diff — the SQL injection vulnerability from raw string concatenation and the downgrade from SHA-256 to MD5 — and provides concrete, actionable remediation (parameterized queries, bcrypt/Argon2). The structure (Verdict, Must-Fix, Nice-to-Have, Overall Assessment) is well-prioritized and easy to act on. Weakest parts: The 'Add missing import / remove unused import' bullet is speculative since the diff doesn't show imports, and a couple of items (e.g., 'Handle authentication flow') are vague without codebase context. Correctness is high because the security analysis is accurate and the recommendations are sound. Runnability is high because the output is a complete, well-formed review document with no broken structure. Clarity is high due to idiomatic markdown formatting, clear severity tiers, and specific technical suggestions.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "gpt-oss-120b",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies both critical security regressions (SQL injection via string concatenation and downgrade from SHA-256 to MD5) and provides technically sound remediation advice (parameterized queries, bcrypt/Argon2, input validation, rate limiting). The must-fix list is prioritized and actionable. Minor deduction for speculative advice about removing a 'stale sha256 import' which isn't visible in the diff. The output is well-structured markdown with clear sections (Verdict, Must-Fix, Nice-to-Have, Overall Assessment), making it idiomatic and easy to follow.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The candidate output correctly identifies critical vulnerabilities in the diff, provides clear and actionable feedback for improvement, and demonstrates a strong understanding of security best practices. However, the runnability score is slightly lower due to the assumption that the code snippets provided will work as-is without additional context or setup.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The strongest part of this output is its thorough and detailed analysis of the security vulnerabilities introduced by the diff, including SQL injection, password hashing downgrade, and potential authorization gaps. The weakest part is the assumption that the reader is familiar with the context and the technologies used, which might make it harder for non-experts to understand the review. The output is generally well-structured and easy to follow, with clear headings and concise explanations. However, some of the sentences are quite long and complex, which might affect runnability. Overall, the output is correct, clear, and well-organized, but could benefit from some minor improvements in terms of accessibility and concision.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The output correctly identifies critical vulnerabilities in the diff, provides clear and actionable feedback for improvement, and demonstrates a strong understanding of security best practices. However, the runnability score is slightly lower due to the absence of explicit code snippets for all suggested improvements, which might require additional interpretation by the developer.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies the critical SQL injection via string concatenation and the MD5 password-hashing downgrade, plus the SELECT * leak and return-shape change risks. The assessment, must-fix items and suggested mitigations are accurate and aligned with the diff. The output is well-structured and clear, with minor over-specification in nice-to-have items.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "Strongest parts are the accurate identification of the critical pre-auth issues: direct string concatenation of user into raw SQL enabling injection/auth bypass, and the MD5 downgrade from SHA-256 with the resulting hash invalidation. The review gives concrete parameterized-query remediation, notes the need for proper password hashing with salts and a migration plan, and flags return-shape and SELECT * leakage risks. Weakest aspects are minor over-generalisation around SELECT * leakage versus the original query-builder return and the authz-gap claim about truthy empty arrays, which are plausible but driver-dependent. The review is well structured, idiomatic, and actionable, and as a textual review it is readable and coherent.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies the critical SQL injection via string concatenation, the MD5 hashing downgrade and its breakage of existing hashes, SELECT * leakage, and return-shape change risks, with actionable fixes and tests. It is well-structured and clear, with only minor over-specification for a pure review task.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "The review correctly identifies all major security issues in the diff: SQL injection via string concatenation (with a valid bypass payload example), the MD5 downgrade from SHA-256, the SELECT * leaking the password hash, and the return-shape change risk. Recommendations are technically sound (parameterized queries, bcrypt/argon2/scrypt with salts, constant-time compare, migration plan). Minor deduction for not explicitly calling out that the original SHA-256 implementation was also weak (though it does mention 'even the prior SHA-256 was inadequate'). Runnability is high — the output is a well-formed markdown review with syntactically valid TypeScript code snippets. Clarity is excellent: clear verdict, severity-tagged sections (Must-Fix vs Nice-to-Have), concrete code examples, and a concise overall assessment.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "Strongest parts: The review correctly identifies both critical vulnerabilities (SQL injection via string concatenation and the MD5 downgrade from SHA-256), provides concrete remediation with valid TypeScript code examples (parameterized queries, bcrypt/argon2/scrypt), and goes beyond the obvious to flag the SELECT * hash leak and the return-shape change that could create an authz gap. It also sensibly recommends a re-hash-on-next-login migration rather than an in-place swap. Weakest parts: The review is somewhat verbose for a code review, and a few suggestions (rate limiting, input validation caps) drift slightly out of scope of the diff itself; the 'do not add the md5 dependency' point is a minor misread since the diff doesn't show a dependency change. Overall the technical claims are accurate, the structure (Must-Fix / Nice-to-Have / Overall) is clear and actionable, and the suggested code snippets are syntactically sound.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "correctness",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.5"
+        },
+        {
+          "dimension": "runnability",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        }
+      ],
+      "rationale": "Correctness: The review accurately identifies all critical issues in the diff—SQL injection via concatenation, MD5 downgrade, SELECT * leaking hash, return-shape changes—and provides technically sound remediation (parameterized queries, bcrypt/argon2/scrypt, explicit normalization). No latent analytical errors. Runnability: The output is a review document (not executable code), but the markdown is well-formed and the illustrative TypeScript snippets are syntactically correct and would compile in context. Slight deduction since the deliverable is prose rather than runnable code. Clarity: Excellent organization with clear Must-Fix/Nice-to-Have/Overall sections, numbered points, code blocks with proper syntax highlighting, severity labels, and actionable recommendations. Highly idiomatic and maintainable.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    }
+  ],
+  "validatorOutcomes": [],
+  "testedModels": [
+    {
+      "stableCandidateId": "gpt-oss-120b",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "openai/gpt-oss-120b",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 4,
+          "requestedModel": "openai/gpt-oss-120b",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    },
+    {
+      "stableCandidateId": "kimi-k3",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "moonshotai/Kimi-K3",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 4,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    }
+  ],
+  "costs": {
+    "currency": "USD",
+    "generationCostPerCompletedRunUsd": "0.03747818",
+    "totalGenerationCostUsd": "0.07495635",
+    "designCostUsd": "unknown",
+    "preparationCostUsd": "unknown",
+    "judgingCostUsd": "0.02794532",
+    "retryCostUsd": "0",
+    "narrativeCostUsd": "0",
+    "providerInvoicedAmount": "unknown",
+    "platformLicenseCharge": null,
+    "tokenUsage": {
+      "promptTokens": 24680,
+      "completionTokens": 20738,
+      "cachedTokens": 0
+    },
+    "priceVectorVersion": "not used (live provider list)",
+    "pricingSource": "the serving provider's published list price — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative",
+    "pricingAsOf": "2026-10-19T20:57:11.854Z",
+    "costCompleteness": "complete",
+    "estimatedItems": [
+      "generation and judging cost from token estimates",
+      "average in/out token assumptions for any unpriced model"
+    ],
+    "missingItems": [
+      "design/preparation cost attributable to this plan",
+      "provider-invoiced amounts",
+      "cached-token billing"
+    ]
+  },
+  "testedAt": "2026-10-19T20:57:11.854Z"
+}

@@ -1,0 +1,770 @@
+{
+  "judgments": [
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translation preserves all factual content with no omissions or additions, meeting full adequacy. The French and German texts read naturally, with only minor stylistic quirks (e.g., 'Bachelor of Science en informatique'), so fluency is very high but not perfect. Domain terminology and named entities are handled correctly and consistently across both languages.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translation faithfully retains all information from the original CV – names, dates, figures, roles, education, skills and languages are all present without omission or distortion, which is the strongest aspect. The language reads naturally in both French and German, using appropriate phrasing and cultural conventions; only a few minor stylistic quirks (e.g., “Leitung des Launches” in German and the lingering “Responsable Produit Senior” label in French) prevent a perfect native feel. Domain‑specific terminology and proper nouns are handled consistently and correctly across both languages, earning a top score for terminology.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translations preserve all factual information from the original CV with no omissions or additions, meeting the adequacy criterion. The French and German texts read naturally and are largely idiomatic, though a few phrasing choices are slightly less native, resulting in a high but not perfect fluency score. Domain-specific terminology and named entities are accurately rendered in both languages, earning full marks for terminology.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translations generally preserve the original meaning with minor adjustments for cultural and linguistic adaptations. The text reads smoothly in both French and German, indicating good fluency. Domain-specific terms and named entities are handled consistently, though minor discrepancies were noted and corrected.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The strongest part of this output is the high level of accuracy in preserving the original meaning, with careful attention to details such as formatting and cultural adaptations. The weakest part is the occasional slight awkwardness in sentence structure and word choice, which affects fluency. Overall, the terminology is handled well, with correct usage of domain-specific terms and named entities. The discrepancies found and corrected, such as the French and German header titles, demonstrate a thorough review process. However, minor issues with sentence flow and wording prevent a perfect score for fluency.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translation preserves the original meaning with minor adjustments for cultural adaptations, reads smoothly in the target languages with some minor awkwardness, and handles domain-specific terms and named entities consistently with high accuracy.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The candidate produced accurate French and German translations of the CV with thorough verification. All factual content (name, dates, metrics, company names, university) is preserved correctly. The candidate even identified and corrected a discrepancy between the header title ('Product Manager') and the job title ('Senior Product Manager') in the original. Minor expansion of 'BSc' to 'Bachelor of Science' is a reasonable interpretation. Both translations read naturally with appropriate cultural adaptations: French uses 'parties prenantes' and 'tunnel de paiement' while German retains common English business terms like 'Checkout-Funnel' and 'Stakeholder-Management'. Number formatting follows target-language conventions (space separator in French, dot in German). Feminine job title forms ('Produktmanagerin') are correctly applied for the female name. Named entities are preserved consistently. Domain terminology is handled appropriately for each language context.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "Strongest parts: The candidate performs a thorough discrepancy check, correctly identifying that the header title should be 'Product Manager' (not 'Senior Product Manager') while preserving the 'Senior Product Manager' title for the TechFlow role in the experience section. Cultural adaptations are well-handled (French space thousands separator, German dot separator, feminine job title forms in German, 'parties prenantes' for stakeholders). All named entities (Sarah Chen, TechFlow Asia, ShopSphere, NUS) are preserved correctly, and all numerical facts (40k accounts, 18%, 12%, dates) are accurately rendered. Weakest parts: The German version retains several anglicisms ('Launches', 'A/B-Testing', 'Stakeholder-Management', 'Checkout-Funnel') which, while common in modern German business language, slightly reduce native fluency. The 'Bachelor of Science' translation is literal rather than idiomatic (could be 'Licence' in French). Overall, the output demonstrates strong translation competence with good attention to detail and appropriate domain terminology.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "Adequacy: All factual content from the original CV is preserved in both translations with no omissions or additions. Numbers, dates, named entities, and percentages are correctly carried over. The candidate even self-identified and corrected a header-title discrepancy (Product Manager vs Senior Product Manager). Minor nit: 'Bachelor of Science en informatique' is a slight hybrid but acceptable. Fluency: Both French and German versions read naturally with appropriate business register, correct number formatting (40 000 / 40.000), proper spacing around percent signs, and idiomatic phrasing ('taux d'activation', 'Warenkorbabbruchrate', 'parties prenantes'). Terminology: Domain terms are handled consistently and correctly across both languages (B2B SaaS dashboard, checkout funnel, cart abandonment, A/B testing, stakeholder management). Named entities (Sarah Chen, TechFlow Asia, ShopSphere, National University of Singapore) are preserved. German uses correct feminine job-title forms (Produktmanagerin).",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translation preserves all information from the original CV without omission or addition, reads naturally in both French and German, and uses appropriate domain terminology and consistent handling of named entities.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The output faithfully preserves all information from the original CV, correctly translating every detail into French and German without omissions or additions. The language in both versions reads naturally and follows the conventions of each target language. Domain‑specific terms and proper names are consistently and accurately rendered, demonstrating excellent handling of terminology.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The output faithfully preserves all information from the original CV, includes no omissions or additions, and presents it accurately in French and German. Both language versions read naturally with correct grammar, punctuation, and cultural formatting. Domain-specific terms, company names, dates, numbers, and skill descriptors are consistently and appropriately translated.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translation preserves the original meaning without omissions or additions, reads natively in both French and German, and handles domain-specific terms and named entities consistently.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The strongest part of this output is its meticulous attention to detail in preserving the original meaning, including accurate translation of numbers, dates, and job titles, as well as cultural adaptations for both French and German versions. The weakest part is a minor formatting issue mentioned but corrected by the candidate, which does not significantly impact the overall quality. The terminology is handled exceptionally well, with correct usage of domain-specific terms and named entities in both target languages. The fluency and adequacy are also high, with the translations reading smoothly and naturally in both French and German, and the meaning being preserved with no significant omissions or additions.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "The translation preserves the original meaning without omissions or additions, reads natively in both French and German, and handles domain-specific terms and named entities consistently.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "All factual content from the original CV is preserved exactly in both French and German versions: name, email, location, dates, numbers (40k, 18%, 12%), job titles, company names, university, skills, and languages. No omissions or additions. Fluency is excellent in both languages with natural phrasing, correct typography (French thin space before %, German period thousands separator), and culturally appropriate conventions (e.g., 'Depuis 2022'/'seit 2022', feminine 'Product Managerin', 'Licence en informatique' for BSc). Terminology is handled consistently and correctly across both versions: 'checkout funnel' → 'tunnel de paiement'/'Checkout-Funnel', 'cart abandonment' → 'abandon de panier'/'Warenkorbabbruchrate', 'activation rate' → 'taux d'activation'/'Aktivierungsrate'. Named entities (TechFlow Asia, ShopSphere, National University of Singapore) are preserved correctly. The verification section and cultural adaptation notes demonstrate careful, professional work.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "Strongest parts: (1) Complete factual preservation — every date, number, title, company name, skill, and language from the source CV appears in both translations with no omissions or additions; (2) Strong cultural adaptation — French typography (thin space as thousands separator, space before %), German feminine job-title forms (Product Managerin), and 'seit 2022'/'Depuis 2022' for ongoing roles are all correctly applied; (3) Named entities (TechFlow Asia, ShopSphere, National University of Singapore) are kept intact as proper nouns, which is the correct convention. Weakest parts: (1) Minor French phrasing — 'Responsabilité du tunnel de paiement' is slightly awkward; 'Responsable du tunnel de paiement' or 'En charge du tunnel de paiement' would read more naturally; (2) 'Chef de produit senior' is acceptable but 'Chef de produit' alone is more idiomatic in French CVs; (3) The verification preamble is thorough but adds bulk without changing the deliverable. Adequacy is essentially perfect (10). Fluency is high but not flawless due to the minor French phrasing issues (9). Terminology is consistently handled across both languages with appropriate domain vocabulary (9).",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "adequacy",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.4"
+        },
+        {
+          "dimension": "fluency",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "terminology",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        }
+      ],
+      "rationale": "All factual content from the original CV is preserved exactly in both French and German versions: name, email, location, dates (2022–present, 2019–2022, 2018), numbers (40k, 18%, 12%), company names (TechFlow Asia, ShopSphere), university (National University of Singapore), all four skills, and both languages. No omissions or fabricated additions. Fluency is native-level in both languages: French uses proper CV conventions (thin-space thousands separator, space before %, 'Depuis 2022', 'Pilotage du lancement', 'Réduction de l'abandon de panier'); German uses correct conventions (feminine 'Product Managerin', period thousands separator '40.000', 'seit 2022', 'Leitung der Einführung', 'Senkung der Warenkorbabbruchrate'). Terminology is handled consistently and correctly across both versions: job titles, SaaS/B2B/checkout/A-B testing/stakeholder management terms, and education credentials (Licence/B.Sc.) are all rendered with appropriate domain-specific equivalents while keeping named entities intact.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    }
+  ],
+  "validatorOutcomes": [],
+  "testedModels": [
+    {
+      "stableCandidateId": "glm-52",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "zai-org/GLM-5.2",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    },
+    {
+      "stableCandidateId": "kimi-k3",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "moonshotai/Kimi-K3",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    }
+  ],
+  "costs": {
+    "currency": "USD",
+    "generationCostPerCompletedRunUsd": "0.076757",
+    "totalGenerationCostUsd": "0.153514",
+    "designCostUsd": "unknown",
+    "preparationCostUsd": "unknown",
+    "judgingCostUsd": "0.02486349",
+    "retryCostUsd": "0",
+    "narrativeCostUsd": "0",
+    "providerInvoicedAmount": "unknown",
+    "platformLicenseCharge": null,
+    "tokenUsage": {
+      "promptTokens": 28611,
+      "completionTokens": 27478,
+      "cachedTokens": 0
+    },
+    "priceVectorVersion": "not used (live provider list)",
+    "pricingSource": "the serving provider's published list price — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative",
+    "pricingAsOf": "2026-10-19T21:24:59.265Z",
+    "costCompleteness": "complete",
+    "estimatedItems": [
+      "generation and judging cost from token estimates",
+      "average in/out token assumptions for any unpriced model"
+    ],
+    "missingItems": [
+      "design/preparation cost attributable to this plan",
+      "provider-invoiced amounts",
+      "cached-token billing"
+    ]
+  },
+  "testedAt": "2026-10-19T21:24:59.265Z"
+}

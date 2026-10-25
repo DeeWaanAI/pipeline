@@ -1,0 +1,88 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "Theme Travel Planner",
+  "description": "A theme and a hard budget in, a realistic day-by-day trip out: destinations, itinerary, costed budget, and a packing list matched to the theme.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 1200,
+        "model": null,
+        "name": "Destination shortlist",
+        "role": "travel scout",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a travel scout. Given the user's theme and total budget, propose 3 destination options that genuinely fit both. For each: why it fits the theme, best season, rough daily cost level, and one standout experience. Be realistic about the budget — name destinations where the budget actually works.",
+        "temperature": "0.7",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 2000,
+        "model": null,
+        "name": "Itinerary",
+        "role": "itinerary planner",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are an itinerary planner. Pick the strongest option from the shortlist (justify in one line) and build a realistic day-by-day plan: morning/afternoon/evening blocks, transit between stops, rest time, and free or low-cost alternatives for each paid activity. Everything must serve the user's theme.",
+        "temperature": "0.5",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Budget check",
+        "role": "budget auditor",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are a strict budget auditor. Cost the itinerary line by line (transport, lodging, food, activities, contingency 10%) with realistic price ranges for the destination. Sum it, compare to the user's stated budget, and if it exceeds the budget, CUT or swap items until it fits — never just say 'it might cost more'. Show the final table with a total.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 2000,
+        "model": null,
+        "name": "Packing & final card",
+        "role": "trip editor",
+        "stepOrder": 4,
+        "stepType": "agent",
+        "systemPrompt": "You are a trip editor. Produce the final trip card: destination + one-line why, the day-by-day itinerary, the final budget table with total, and a packing list tailored to the theme and season (grouped: clothing / gear / documents / extras).",
+        "temperature": "0.4",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:06.349Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "6e644ec6bce7035d4c0bb1afeefd1f6a0f18a66b1b3939eb6ad522603c937f08",
+          "definitionHash": "6e644ec6bce7035d4c0bb1afeefd1f6a0f18a66b1b3939eb6ad522603c937f08",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "6e644ec6bce7035d4c0bb1afeefd1f6a0f18a66b1b3939eb6ad522603c937f08",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "10d07118d60f7315ad92d0aacf15f904e369c8648640090ef774d9a75f1c6c1f"
+  }
+}

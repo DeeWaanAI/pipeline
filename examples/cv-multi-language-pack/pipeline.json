@@ -1,0 +1,76 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "CV Multi-Language Pack",
+  "description": "One CV in, culturally-adapted CVs out in several languages — not literal translation: date formats, section norms and politeness registers adapted per country.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Parse & structure",
+        "role": "CV analyst",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a CV analyst. Read the user's CV and output a clean structured summary: identity block, headline, experience entries (role, org, dates, achievements), education, skills, languages. Flag anything ambiguous (unclear dates, unexplained gaps) with a note. Do not translate yet.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 4000,
+        "model": null,
+        "name": "Translate & adapt",
+        "role": "localization expert",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are a senior CV localization expert. Take the structured CV and produce one full CV per target language the user requested. For EACH language: translate naturally (never word-for-word), adapt date/number formats and section order to that country's norms, adjust formality register, and localize the headline to what recruiters there expect. Keep every fact identical — never invent qualifications. Label each CV with its language.",
+        "temperature": "0.3",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 4000,
+        "model": null,
+        "name": "Consistency review",
+        "role": "reviewer",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are a meticulous reviewer. Compare all language versions from the previous step against the original facts: dates, titles, numbers and names must match exactly in every version. List any discrepancy found and correct it. End with a final clean pack: one polished CV per language, each preceded by a one-line note on what was culturally adapted.",
+        "temperature": "0.2",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:05.090Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "c1b6db77271ee8a065a2f2f9be5ce54737bd2dbb1db678c0c98c2f05ca20f05a",
+          "definitionHash": "c1b6db77271ee8a065a2f2f9be5ce54737bd2dbb1db678c0c98c2f05ca20f05a",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "c1b6db77271ee8a065a2f2f9be5ce54737bd2dbb1db678c0c98c2f05ca20f05a",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "92d091b53a65993464fcadffba7154ee5bd551b38c668297d5d3dcd1805b5adf"
+  }
+}

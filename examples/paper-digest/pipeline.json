@@ -1,0 +1,76 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "Paper Digest",
+  "description": "A research paper (or abstract) in, a trustworthy digest out: claims, evidence table, limitations, and a 200-word plain-English summary.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Claim extraction",
+        "role": "research reader",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a careful research reader. From the paper text the user provides, extract: research question, method, and every distinct claim the authors make, each with the evidence they give for it (or 'asserted, no evidence shown'). Never add outside knowledge. If only an abstract is provided, say what is unknown.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Evidence table",
+        "role": "evidence analyst",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are an evidence analyst. Turn the claims into a markdown table: Claim | Evidence type (experiment/citation/assertion) | Strength (strong/moderate/weak) | Caveat. Then a short limitations paragraph: sample size, confounders, generalizability — based ONLY on the provided text.",
+        "temperature": "0.2",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1000,
+        "model": null,
+        "name": "Plain-English digest",
+        "role": "science writer",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are a science writer. Write the final digest: a 200-word plain-English summary a smart non-specialist can trust, then 'Why it matters' (2 sentences), then 'Read carefully' (the key caveats from the evidence table). Mark clearly anything the paper only asserted but did not prove.",
+        "temperature": "0.4",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:08.471Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "ee7e3b4671d648e40d4a9eab446e322bd6d74736fb5be9bde4d72a0e4e16591f",
+          "definitionHash": "ee7e3b4671d648e40d4a9eab446e322bd6d74736fb5be9bde4d72a0e4e16591f",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "ee7e3b4671d648e40d4a9eab446e322bd6d74736fb5be9bde4d72a0e4e16591f",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "37e6d9c44ef0e7be26d28b09325525801daf192b25ff4944e60c854eb6283c8f"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "kind": "deewaanai-pipeline-example-v1",
+  "name": "Newsletter Voice Shaper",
+  "description": "Rough draft in, on-brand newsletter out — rewritten in your voice, with subject-line variants ready to test.",
+  "definition": {
+    "schemaVersion": 1,
+    "steps": [
+      {
+        "ifConfig": null,
+        "maxTokens": 600,
+        "model": null,
+        "name": "Voice profile",
+        "role": "voice analyst",
+        "stepOrder": 1,
+        "stepType": "agent",
+        "systemPrompt": "You are a voice analyst. From the user draft and brand description, extract a voice profile: tone, sentence rhythm, vocabulary level, taboos, signature moves (e.g. playful metaphors, maker slang), and 3 adjectives that define the voice. Also state the draft core message in one sentence. Be concrete — quote phrases from the brand description.",
+        "temperature": "0.3",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Rewrite",
+        "role": "newsletter writer",
+        "stepOrder": 2,
+        "stepType": "agent",
+        "systemPrompt": "You are a newsletter writer who FULLY embodies the voice profile from the previous step. Rewrite the draft so it unmistakably sounds like the brand: playful-but-expert, talks to makers like a friend who codes. Use concrete imagery, at least one playful metaphor, and maker vocabulary. Structure: hook opening line, one idea per short section, one clear call to action. Keep every factual claim. 250-400 words.",
+        "temperature": "0.7",
+        "whileConfig": null
+      },
+      {
+        "ifConfig": null,
+        "maxTokens": 1500,
+        "model": null,
+        "name": "Subject lines & polish",
+        "role": "editor",
+        "stepOrder": 3,
+        "stepType": "agent",
+        "systemPrompt": "You are an email editor. First polish the rewritten newsletter (tighten, kill filler, keep the voice loud). Then write exactly 5 subject lines, one per style, each specific to THIS newsletter content (never generic like \"New Tool\"): 1) straightforward benefit, 2) curiosity gap, 3) playful voice-driven, 4) question, 5) how-to. End with the final newsletter, then the 5 numbered subject lines.",
+        "temperature": "0.6",
+        "whileConfig": null
+      }
+    ],
+    "pipelineConfig": {
+      "_importedBundle": {
+        "attestation": null,
+        "evidence": null,
+        "exportedAt": "2026-10-19T22:00:07.468Z",
+        "kind": "deewaanai-pipeline-bundle-v1",
+        "provenance": {
+          "bundleHash": "43a8318fe8c83b0363741befb26757b9245ae23246f546b6342774128e87c36c",
+          "definitionHash": "43a8318fe8c83b0363741befb26757b9245ae23246f546b6342774128e87c36c",
+          "listingId": null,
+          "originAccountName": "Local Owner",
+          "originCreatorId": 1,
+          "pipelineConfig": null,
+          "schemaVersion": 1,
+          "workflowVersionId": null,
+          "workflowVersionNumber": null
+        },
+        "verification": {
+          "definitionHash": "43a8318fe8c83b0363741befb26757b9245ae23246f546b6342774128e87c36c",
+          "evidenceState": "absent",
+          "provenanceState": "unsigned",
+          "reason": "intact_but_no_evidence_record",
+          "valid": true
+        }
+      }
+    }
+  },
+  "provenance": {
+    "workflowVersionNumber": 1,
+    "definitionHash": "db60a050e63556a6ee7e037ef15bd068bcd957c43639f461ec16ec31ffb18339"
+  }
+}

@@ -1,0 +1,910 @@
+{
+  "judgments": [
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The itinerary and budget directly address the high‑mountain theme, 5‑day June trip from Lyon, $800 limit, and lack of climbing gear, and the details are realistic and internally consistent. It covers all required elements (itinerary, budget breakdown, packing list) though some cost estimates are approximate, so not perfect accuracy/completeness. The format is well‑structured, matches the expected tone, and is easy to understand.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The response gives a well‑structured 5‑day high‑mountain itinerary from Lyon in June, stays within the $800 budget, and avoids any climbing‑gear‑required activities, matching the user’s constraints. The travel times, activities and cost estimates are realistic, though some budget line items (e.g., a large miscellaneous buffer) are a bit vague, preventing a perfect accuracy score. All required elements—theme, budget, duration, departure city, month, and lack of climbing gear—are addressed, so completeness is full. The format is clear, uses headings, tables and lists, fitting the implicit request for a usable plan, but it isn’t tied to any specific template the user gave, so it’s very close to perfect but not exact, yielding a high but not perfect instructionFit. The language is concise and easy to follow, giving a clarity score of 10.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The itinerary is factually sound and respects the $800 budget, high‑mountain theme, 5‑day length, and departure from Lyon, with no technical climbing gear required. It covers all required elements (itinerary, budget breakdown, packing list) though it could mention June explicitly. Formatting and tone match expectations, and the information is presented clearly and ready to use.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is largely accurate, complete, and clear, providing a detailed itinerary and budget breakdown. However, it assumes some prior knowledge of hiking and trail conditions, and the instruction fit could be improved with more explicit connections to the original task constraints.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The strongest part of this output is its detailed and well-structured itinerary, which covers all aspects of the trip, including transportation, accommodation, food, and activities, making it highly complete and accurate. The budget table and packing list are also comprehensive and relevant to the task. However, the weakest part is the lack of explicit consideration for the 'no climbing gear' constraint in the initial task input, although the itinerary itself does not require such gear, making it somewhat instruction-fit but not perfectly. The clarity of the output is high, with each section being easy to understand and follow. Overall, the output demonstrates a strong understanding of the task requirements and provides a usable plan for the end reader.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is generally accurate, complete, and clear, with a well-structured itinerary and budget breakdown. However, there are minor inaccuracies, such as not explicitly stating the total cost of activities, and some instructions, like the tone, are not perfectly followed. The clarity is high due to the detailed day-by-day plan and packing list, making it immediately usable by the end reader.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Accuracy: The itinerary is factually sound — Chamonix is ~3h from Lyon, Lac Blanc/Flégère, Aiguille du Midi (3,842m), Grand Balcon Nord, Mer de Glace, and Bossons Glacier are all correctly described. Budget items are plausible though tight (cable cars alone could exceed $135; miscellaneous buffer of $190 is large). Minor gap: insufficient warning about altitude effects at 3,842m for someone without acclimatization experience. Completeness: Covers all task parameters (theme, budget, 5 days, Lyon departure, June, no climbing gear) and adds useful extras like packing list and budget table. InstructionFit: Respects all stated constraints — 5-day structure, $800 total, no climbing gear required, June timing, Lyon origin. Clarity: Excellent organization with headers, tables, and bullet points; immediately actionable for the traveler.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Strongest parts: The output is well-structured with a realistic day-by-day itinerary, accurate information about Chamonix (Lac Blanc, Aiguille du Midi at 3,842m, Montenvers train, Grand Balcon Nord, Ice Cave), correct budget math totaling $800, and a thorough packing list appropriate for the user's hiking experience level. The choice of Chamonix is excellent given the constraints (high mountains, accessible from Lyon, no climbing gear needed). Weakest parts: The local transport budget of $135 seems optimistic — Aiguille du Midi (~€65-80), Montenvers train (~€35), and Flégère cable car (~€25-30) alone could exceed this, and the $190 'miscellaneous/buffer' is suspiciously large. Some early-June cable car maintenance closures aren't mentioned. The Aiguille du Midi visit, while not requiring climbing gear, is borderline for someone with no high-altitude experience. Overall, the output is highly usable, comprehensive, and well-organized.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "glm-52",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "10",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The response is factually accurate: Chamonix is reachable from Lyon in ~3 hours, Lac Blanc, Aiguille du Midi (3,842m), Grand Balcon Nord, Mer de Glace, Montenvers train, and Ice Cave are all real and correctly described. The itinerary respects all constraints: 5 days, $800 budget (totals exactly), Lyon departure, June timing, and the 'no climbing gear' limitation is addressed by using cable cars and well-marked trails. Completeness is excellent with day-by-day plan, budget table, and categorized packing list. Format is clean with headers, tables, and lists making it immediately usable. Minor nit: cable car costs ($135) may be slightly optimistic for Aiguille du Midi + Flégère + Montenvers train, but the $190 buffer absorbs this. Overall a highly polished, practical response.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The plan is factually sound and stays within the $800 budget, offering realistic itinerary and cost estimates for a June trip from Lyon to the Chamonix area. It addresses most of the user’s requirements (high‑mountain theme, 5‑day schedule, no climbing gear) and presents the information in a well‑structured, engaging format. However, the packing list is cut off and some ancillary advice (e.g., safety, detailed gear recommendations) is missing, so the solution isn’t fully complete. The style matches the informal, helpful tone expected, and the content is clear and easy to follow.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The response gives a well‑structured 5‑day itinerary in the French Alps that fits the budget and avoids the need for climbing gear, matching the user’s constraints. Most factual details (distances, lift heights, cost estimates) are realistic, though exact prices are approximate. The answer covers the main elements—destination, day‑by‑day plan, budget breakdown, and a packing list—but the packing list is cut off and some ancillary advice (e.g., safety tips, alternative routes) is missing, so completeness is not perfect. The format is friendly and uses headings and emojis as expected, and the language is clear and easy to follow, aside from the abrupt ending of the packing list.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 1,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "7",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The itinerary and budget are factually correct and appropriate for a June high‑mountain trip from Lyon, matching the budget and gear constraints. The response is well‑structured and easy to read, but the packing list is truncated and some minor details (e.g., currency clarification) are missing, so it does not fully cover every requested element.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is largely accurate and complete, covering the essential aspects of the trip. It provides a detailed itinerary, budget breakdown, and packing list. However, minor details such as specific bus schedules or accommodation options are not included, preventing a perfect score for completeness. The format is generally clear and easy to follow, but some sections could be more concise. Instruction fit is good, but the output does not strictly follow a traditional format, incorporating symbols and emojis.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The strongest part of this output is its completeness and clarity, providing a detailed day-by-day itinerary, budget breakdown, and packing list tailored to the high mountains theme and the user's specifications. The weakest part is the potential for minor inaccuracies or outdated information, such as prices or trail conditions, which could affect the accuracy score. The instruction fit is generally good, but there might be slight deviations in tone or format. Overall, the output is well-structured and immediately usable by the end reader, making it a strong candidate.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:anchored_scale",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is factually accurate: Chamonix distances from Lyon, elevations (Aiguille du Midi 3,842m, Lac Blanc 2,352m, Brévent 2,525m, Chamonix town 1,035m), trail names (Grand Balcon Nord, Petit Balcon Sud), Montenvers cog railway, and regional food references are all correct. It addresses every task constraint: high-mountain theme, $800 budget (totals ~$715), 5-day duration, Lyon departure, June-specific notes (snow conditions, weather contingency), and explicitly accommodates the no-climbing-gear limitation via cable cars and marked trails. Format is well-structured as a trip card with clear headers, a budget table, day-by-day itinerary, and tips. Completeness is slightly reduced because the packing list is cut off mid-sentence after only the first clothing item, leaving the gear guidance incomplete. Clarity is high throughout with specific times, distances, elevations, and practical warnings, though the truncation slightly diminishes end-reader usability.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:comment_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Strongest parts: Excellent structure with a clear day-by-day itinerary, realistic budget breakdown totaling $715 (under the $800 limit), and smart handling of the 'no climbing gear' constraint by leveraging cable cars and well-marked trails. June-specific advice (snow conditions at Lac Blanc, early cable car to beat clouds) is accurate and practical. Elevations (Aiguille du Midi 3,842m, Lac Blanc 2,352m, Brévent 2,525m) and logistics (Lyon-Chamonix bus time, Montenvers cog railway, Carte d'Hôte tip) are factually correct. Weakest parts: The packing list is cut off mid-sentence ('Moisture-wicking base layers (2)'), which is a noticeable completeness gap. The budget line items are reasonable estimates but some prices (e.g., Aiguille du Midi cable car at $80) could vary. Overall, the output is highly usable, well-formatted with a trip-card style, and addresses every constraint in the task input.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 3,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "Accuracy: Facts about Chamonix, Aiguille du Midi (3,842m), Lac Blanc (2,352m), Brévent (2,525m), Montenvers cog railway, trails, and regional details are correct. Prices are reasonable. Completeness: Covers all task constraints (high mountains theme, $800 budget with $715 total, 5-day duration, Lyon departure, June timing, no climbing gear via cable cars/trails). However, the packing list is truncated mid-sentence, leaving it incomplete. InstructionFit: Well-structured trip card format with clear sections, appropriate tone, emojis, and markdown. All stated constraints are addressed. Clarity: Day-by-day itinerary, budget table, tips, and warnings make it immediately usable by a traveler. Minor deduction for the truncated packing list.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    },
+    {
+      "stableCaseId": "case-1",
+      "stableCandidateId": "kimi-k3",
+      "judgeSlot": 2,
+      "judgePromptVersion": "judge-v1:checklist_first",
+      "kind": "rubric",
+      "orientation": "none",
+      "status": "completed",
+      "dimensionScores": [
+        {
+          "dimension": "accuracy",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.3"
+        },
+        {
+          "dimension": "completeness",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "instructionFit",
+          "rawScore": "8",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.25"
+        },
+        {
+          "dimension": "clarity",
+          "rawScore": "9",
+          "lowerBound": "0",
+          "upperBound": "10",
+          "weight": "0.2"
+        }
+      ],
+      "rationale": "The output is generally accurate, complete, and clear, with a well-structured itinerary and budget breakdown. However, it assumes some prior knowledge of hiking and mountain terminology, and the instruction fit is good but not perfect, as it includes some extraneous information and symbols.",
+      "validationNotes": {
+        "outOfRangeDimensions": [],
+        "missingDimensions": []
+      }
+    }
+  ],
+  "validatorOutcomes": [],
+  "testedModels": [
+    {
+      "stableCandidateId": "glm-52",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "zai-org/GLM-5.2",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 4,
+          "requestedModel": "zai-org/GLM-5.2",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    },
+    {
+      "stableCandidateId": "kimi-k3",
+      "strategy": "pipeline",
+      "provider": "as configured in the workflow",
+      "route": null,
+      "requestedModel": "moonshotai/Kimi-K3",
+      "returnedModel": null,
+      "revision": null,
+      "notExposedReason": "not_exposed_by_provider",
+      "stepModelMap": [
+        {
+          "stepOrder": 1,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 2,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 3,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        },
+        {
+          "stepOrder": 4,
+          "requestedModel": "moonshotai/Kimi-K3",
+          "returnedModel": null,
+          "revision": null,
+          "notExposedReason": "not_exposed_by_provider"
+        }
+      ]
+    }
+  ],
+  "costs": {
+    "currency": "USD",
+    "generationCostPerCompletedRunUsd": "0.0663524",
+    "totalGenerationCostUsd": "0.1327048",
+    "designCostUsd": "unknown",
+    "preparationCostUsd": "unknown",
+    "judgingCostUsd": "0.02031641",
+    "retryCostUsd": "0",
+    "narrativeCostUsd": "0",
+    "providerInvoicedAmount": "unknown",
+    "platformLicenseCharge": null,
+    "tokenUsage": {
+      "promptTokens": 24969,
+      "completionTokens": 22260,
+      "cachedTokens": 0
+    },
+    "priceVectorVersion": "not used (live provider list)",
+    "pricingSource": "the serving provider's published list price — read at run time; list prices cannot show promotional or committed-use discounts, and provider invoices remain authoritative",
+    "pricingAsOf": "2026-10-19T21:42:23.751Z",
+    "costCompleteness": "partial",
+    "estimatedItems": [
+      "generation and judging cost from token estimates",
+      "average in/out token assumptions for any unpriced model"
+    ],
+    "missingItems": [
+      "design/preparation cost attributable to this plan",
+      "provider-invoiced amounts",
+      "cached-token billing"
+    ]
+  },
+  "testedAt": "2026-10-19T21:42:23.751Z"
+}
