@@ -15,6 +15,24 @@ multi-product platform:
 client; optional Redis (queue/pub-sub — in-memory fallbacks without it); Stripe for
 billing. The same Node process serves the API, the MCP surface, and the built SPA.
 
+## Verified evidence
+
+Published evidence records are signed with Ed25519. These are the values you pin,
+from a source you trust — not from the record itself:
+
+- **Signing key:** `deewaanai-platform-2026-1`
+- **Fingerprint:** `27b3:1f5d:361b:1a82:7c0d:1a32:2c21:891e`
+
+Seven signed examples ship in [`examples/`](examples/) and verify offline:
+
+```bash
+node examples/verify-examples.mjs
+node examples/verify-examples.mjs --pin platform-public-key.pem   # also checks the signer
+```
+
+A signature proves a record was not edited and names which key signed it; pinning
+that fingerprint is what turns "signed by some key" into "issued by DeeWaanAI".
+
 ## Quickstart
 
 Prerequisites: Node 20+, Docker (for MySQL + Redis).

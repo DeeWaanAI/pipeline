@@ -71,3 +71,6 @@ node examples/verify-examples.mjs
 
 It recomputes each manifest's hash and checks its signature offline. Add
 `--pin platform.pub` to also check the signer is the key you trust.
+
+Signed under key `deewaanai-platform-2026-1`; fingerprint `27b3:1f5d:361b:1a82:7c0d:1a32:2c21:891e`. Pin this value from the project site or repository — a record carries its own key, so the fingerprint is what tells you the key is ours.
+
