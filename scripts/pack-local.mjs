@@ -17,6 +17,7 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(join(stage, "bin"), { recursive: true });
 
 cpSync(join(root, "packaging", "bin", "deewaanai.js"), join(stage, "bin", "deewaanai.js"));
+cpSync(join(root, "packaging", "README.md"), join(stage, "README.md"));
 cpSync(join(root, "dist", "boot.js"), join(stage, "dist", "boot.js"));
 cpSync(join(root, "dist", "public"), join(stage, "dist", "public"), { recursive: true });
 cpSync(join(root, "db", "migrations-sqlite"), join(stage, "db", "migrations-sqlite"), { recursive: true });

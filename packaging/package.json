@@ -1,13 +1,14 @@
 {
   "name": "@deewaanai/pipeline",
-  "version": "0.3.1",
-  "description": "DeeWaanAI \u2014 local-first MCP server and visual pipeline designer. Runs entirely on your machine; your keys, your data, your models.",
+  "version": "0.3.2",
+  "description": "DeeWaanAI — local-first MCP server and visual pipeline designer. Runs entirely on your machine; your keys, your data, your models.",
   "license": "AGPL-3.0",
   "type": "module",
   "bin": {
     "deewaanai": "bin/deewaanai.js"
   },
   "files": [
+    "README.md",
     "bin",
     "dist",
     "db"
@@ -24,5 +25,13 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "keywords": [
+    "mcp",
+    "llm",
+    "pipeline",
+    "local-first",
+    "llm-as-a-judge"
+  ],
+  "homepage": "https://github.com/DeeWaanAI/pipeline#readme"
 }
