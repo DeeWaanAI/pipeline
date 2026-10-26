@@ -14,7 +14,6 @@ import {
   LogOut,
   Bot,
   Workflow,
-  Store,
   ClipboardCheck,
   Database,
   Shield,
@@ -46,7 +45,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     {
       label: t("nav.groups.market", "Market"),
       items: [
-        { path: "/marketplace", icon: Store, label: t("nav.marketplace", "Marketplace") },
       ],
     },
     {

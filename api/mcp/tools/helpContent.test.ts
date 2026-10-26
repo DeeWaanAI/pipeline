@@ -135,29 +135,11 @@ describe("buildHelp", () => {
     // "Publish" appears even with v2Publication off because reading already
     // published evidence is available to anyone — see the next test for the
     // gated half of that section. "Team" is gone with the team features.
-    expect(groups).toEqual(["Discover", "Run", "Research", "Author", "Marketplace", "Publish", "Account", "Your data", "Diagnostics"]);
+    expect(groups).toEqual(["Discover", "Run", "Research", "Author", "Account", "Your data", "Diagnostics"]);
     for (const s of help.sections) expect(s.tools.length).toBeGreaterThan(0);
   });
 
-  it("shows the v2 publisher tools only when v2Publication is enabled", () => {
-    const off = buildHelp(base({ flags: { v2Publication: false } }));
-    const publishTools = (help: typeof off) =>
-      help.sections.find((s) => s.group === "Publish")?.tools.map((t) => t.name) ?? [];
-    // Reads of already-published reports, and the author's own withdrawal
-    // route, stay visible even while publication is disabled.
-    expect(publishTools(off)).toEqual([
-      "get_public_evidence", "get_external_evidence", "list_external_evidence", "withdraw_external_evidence",
-    ]);
-
-    const on = buildHelp(base({ flags: { v2Publication: true } }));
-    expect(publishTools(on)).toContain("publish_evidence_version");
-    expect(publishTools(on)).toContain("preview_evidence");
-    expect(publishTools(on)).toContain("preview_external_evidence");
-    expect(publishTools(on)).toContain("report_external_evidence");
-    expect(publishTools(on)).toContain("withdraw_external_evidence");
-  });
-
-  it("renders no locked-for-upsell section at all — there is no plan ladder", () => {
+    it("renders no locked-for-upsell section at all — there is no plan ladder", () => {
     const help = buildHelp(base());
     expect("locked" in help).toBe(false);
     expect("upgradeCTA" in help).toBe(false);
@@ -192,40 +174,17 @@ describe("buildHelp", () => {
     // user's own device holds it. Membership is still pinned exactly, so a tool
     // cannot silently appear or disappear from the one group a user reads when
     // they ask "what happens to my data".
-    expect(yourDataGroup?.tools.map((t) => t.name)).toEqual(["export_pipeline_bundle", "export_my_data"]);
+    expect(yourDataGroup?.tools.map((t) => t.name)).toEqual(["export_pipeline_bundle", "import_pipeline_bundle", "export_my_data"]);
   });
 
-  it("submit_for_review describes the scan + evidence certification model", () => {
-    const entry = HELP_CATALOG.find((e) => e.name === "submit_for_review");
-    expect(entry).toBeDefined();
-    // The platform pays for zero model calls and there is no review panel:
-    // the retired three-layer copy (AI triage floor, blind human consensus)
-    // must not creep back into the guide, and buyability must be described as
-    // riding on the published evidence record.
-    expect(entry!.summary).toContain("security scan");
-    expect(entry!.summary).toContain("evidence");
-    expect(entry!.summary).not.toMatch(/AI triage|human consensus|blind review/i);
-    expect(entry!.summary).not.toContain("≥3.5");
-    expect(entry!.summary).not.toContain("published immediately");
-  });
-
-  it("no longer advertises the reviewer pool", () => {
+    it("no longer advertises the reviewer pool", () => {
     const names = toolNames(buildHelp(base()));
     for (const dead of ["enroll_reviewer", "get_next_review_task", "submit_review_task"]) {
       expect(names).not.toContain(dead);
       expect(HELP_CATALOG.find((e) => e.name === dead)).toBeUndefined();
     }
   });
-
-  it("get_listing_status uses current stage names not old grade framing", () => {
-    const entry = HELP_CATALOG.find((e) => e.name === "get_listing_status");
-    expect(entry).toBeDefined();
-    expect(entry!.summary).toContain("generating");
-    expect(entry!.summary).toContain("pending review");
-    expect(entry!.summary).not.toContain("grade");
-  });
 });
-
 
 describe("the retired team surface stays retired", () => {
   it("no catalogue entry is a team tool or carries the teamsync flag", () => {

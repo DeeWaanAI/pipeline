@@ -6,23 +6,8 @@
 // see api/services/pipelineBundle.ts for what each refusal protects.
 
 import type { McpTool } from "../types";
-import { exportListingBundle, exportOwnPipelineBundle, exportPipelineBundleInputSchema, importPipelineBundleInputSchema, importPipelineBundle } from "../../services/pipelineDelivery";
+import { exportOwnPipelineBundle, exportPipelineBundleInputSchema, importPipelineBundleInputSchema, importPipelineBundle } from "../../services/pipelineDelivery";
 import { z } from "zod";
-
-const DownloadSchema = z.object({ listingId: z.number().int().positive() });
-
-export const downloadSharedPipelineTool: McpTool = {
-  name: "download_shared_pipeline",
-  description:
-    "Get a shared pipeline as ONE portable file: the certified steps and prompts, who originally made it, which listing and version it came from, the definition hash, and the platform's signed evidence attestation. Nothing about it requires our server afterwards — the recipient's client writes it to their own folder and it runs there on their own keys. Works for a listing published with evidence, or for a version the caller bought. Refused with `not_available` otherwise, answering identically whether the listing exists or not. Hand the returned object to the client's filesystem tools as JSON, then tell the user the file's `provenance.definitionHash`: editing the steps makes the evidence stop describing their copy.",
-  inputSchema: DownloadSchema,
-  requiredScopes: ["mcp:read"],
-  annotations: { readOnlyHint: true },
-  handler: async (args, ctx) => {
-    const input = DownloadSchema.parse(args);
-    return exportListingBundle(ctx.userId, input.listingId);
-  },
-};
 
 export const importPipelineBundleTool: McpTool = {
   name: "import_pipeline_bundle",
@@ -58,6 +43,5 @@ export const exportPipelineBundleTool: McpTool = {
 
 export const PIPELINE_BUNDLE_TOOLS: McpTool[] = [
   exportPipelineBundleTool,
-  downloadSharedPipelineTool,
   importPipelineBundleTool,
 ];

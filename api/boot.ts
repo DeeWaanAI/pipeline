@@ -16,7 +16,6 @@ import { registerWaitlistRoute } from "./waitlist-route";
 import { registerDeviceRoutes } from "./device-route";
 import { registerTestFixtureRoute } from "./test-fixture-route";
 import { registerBillingWebhookRoute } from "./billing-webhook-route";
-import { registerCertificationBadgeRoute } from "./certification-badge-route";
 import { registerMcpRoutes } from "./mcp/register";
 import { registerSsoRoutes } from "./sso-route";
 import { startSwarmWorker, stopSwarmWorker, enqueueSwarmRun, isSwarmWorkerRunning } from "./workers/swarmWorker";
@@ -191,7 +190,6 @@ registerTestFixtureRoute(app);
 registerBillingWebhookRoute(app);
 
 // Register public certification badge (SVG, CDN-cacheable)
-registerCertificationBadgeRoute(app);
 
 // Register scheduled-backup trigger (BACKUP_TOKEN bearer → mysqldump → S3).
 // Self-gates to 503 when BACKUP_TOKEN / S3_* are unconfigured.

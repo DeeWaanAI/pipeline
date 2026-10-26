@@ -21,20 +21,8 @@ import { samplePing } from "./samplePing";
 import { runStatus } from "./getRunStatus";
 import { approveStep } from "./approveStep";
 import { projectContext } from "./projectContext";
-import { searchMarketplace } from "./searchMarketplace";
-import {
-  publishToMarketplace,
-  submitForReview,
-  getListingStatus,
-  myMarketplaceListings,
-  myPurchases,
-  deliverPurchasedCopyTool,
-  forkPipelineTool,
-} from "./marketplaceTools";
 import { exportMyData } from "./portability";
 import { exportRun } from "./exportRun";
-import { PUBLICATION_TOOLS } from "./publicationTools";
-import { EXTERNAL_EVIDENCE_TOOLS } from "./externalEvidenceTools";
 import { MODEL_CATALOG_TOOLS } from "./modelCatalogTools";
 import { PIPELINE_BUNDLE_TOOLS } from "./pipelineBundleTools";
 
@@ -55,10 +43,8 @@ export const TOOLS: McpTool[] = [
   ...BENCHMARK_TOOLS,
   // Offering redesign v2 — evidence publication (hidden unless v2Publication
   // flag). The seller half of the D9 workbench: preview, consent, publish.
-  ...PUBLICATION_TOOLS,
   // Offering redesign v2 — user-declared community reports (A09). Writes are
   // flag-gated; the public reads are not, like every other published record.
-  ...EXTERNAL_EVIDENCE_TOOLS,
   // Pipeline sharing between two individual accounts + the lineage rule that
   // keeps publishing with the original creator (owner decisions 2026-09-22).
   // Not flag-gated: it is gated on ownership and on the grant row, and no new
@@ -84,17 +70,6 @@ export const TOOLS: McpTool[] = [
   runStatus,
   approveStep,
   projectContext,
-  searchMarketplace,
-  publishToMarketplace,
-  submitForReview,
-  getListingStatus,
-  myMarketplaceListings,
-  myPurchases,
-  // v3 Class A (2026-10-13): buying a listing hands over a copy. Entitlement is
-  // the purchase/grant row, so this needs no flag and no payment configuration
-  // to exist — and a refund closes it at the same moment it closes the run door.
-  deliverPurchasedCopyTool,
-  forkPipelineTool,
   // Batch B — data portability (no lock-in, from chat)
   exportMyData,
   // Research Mode — granular run export (full step/response history)
@@ -102,29 +77,5 @@ export const TOOLS: McpTool[] = [
   // Research Mode — batch runs
 ];
 
-// ─── Hosted strip-down (V3 L4) ─────────────────────────────────────
-// A marketplace-only deployment answers exactly four needs over MCP:
-// search listings, read evidence, fork/download, publish. Execution tools
-// (run_pipeline, design, benchmarks, settings…) are not registered at all —
-// a tool that doesn't exist can't be invoked, whatever its scopes say.
-const MARKETPLACE_ONLY_TOOLS = new Set([
-  "deewaanai_help",
-  "search_marketplace",
-  "get_listing_status",
-  "my_marketplace_listings",
-  "fork_pipeline",
-  "deliver_purchased_copy",
-  "publish_to_marketplace",
-  "submit_for_review",
-  "download_shared_pipeline",
-  "import_pipeline_bundle",
-  "listing_model_freshness",
-  "get_public_evidence",
-  "listing_publication_state",
-  "get_external_evidence",
-  "list_external_evidence",
-]);
-
-export const ACTIVE_TOOLS: McpTool[] = env.marketplaceOnly
-  ? TOOLS.filter((tool) => MARKETPLACE_ONLY_TOOLS.has(tool.name))
-  : TOOLS;
+// One tool list: there is no hosted marketplace deployment to strip down.
+export const ACTIVE_TOOLS: McpTool[] = TOOLS;

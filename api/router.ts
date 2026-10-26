@@ -1,6 +1,5 @@
 import { authRouter } from "./auth-router";
 import { localAuthRouter } from "./routers/localAuth";
-import { hostedLinkRouter } from "./routers/hostedLink";
 import { createRouter, publicQuery } from "./middleware";
 import { projectRouter } from "./routers/project";
 import { agentRouter } from "./routers/agent";
@@ -12,7 +11,6 @@ import { responseRouter } from "./routers/response";
 import { customAgentRouter } from "./routers/customAgent";
 import { pipelineRouter } from "./routers/pipeline";
 import { templateRouter } from "./routers/template";
-import { marketplaceRouter } from "./routers/marketplace";
 import { projectFilesRouter } from "./routers/projectFiles";
 import { projectImportRouter } from "./routers/projectImport";
 import { issuesRouter } from "./routers/issues";
@@ -22,10 +20,8 @@ import { notificationRouter } from "./routers/notification";
 import { searchRouter } from "./routers/search";
 import { testFixtureRouter } from "./routers/testFixture";
 import { billingRouter } from "./routers/billing";
-import { certificationRouter } from "./routers/certification";
 import { designJobsRouter } from "./routers/designJobs";
 import { benchmarkRouter } from "./routers/benchmark";
-import { communityEvidenceRouter, evidenceRouter } from "./routers/evidence";
 import { modelCatalogRouter } from "./routers/modelCatalog";
 import { PLUGINS } from "./plugins/registry";
 
@@ -41,7 +37,6 @@ export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
   auth: authRouter,
   localAuth: localAuthRouter,
-  hostedLink: hostedLinkRouter,
   project: projectRouter,
   agent: agentRouter,
   customAgent: customAgentRouter,
@@ -52,7 +47,6 @@ export const appRouter = createRouter({
   gitee: giteeRouter,
   debug: debugRouter,
   response: responseRouter,
-  marketplace: marketplaceRouter,
   projectFile: projectFilesRouter,
   projectImport: projectImportRouter,
   issues: issuesRouter,
@@ -62,11 +56,8 @@ export const appRouter = createRouter({
   search: searchRouter,
   testFixture: testFixtureRouter,
   billing: billingRouter,
-  certification: certificationRouter,
   designJobs: designJobsRouter,
   benchmark: benchmarkRouter,
-  evidence: evidenceRouter,
-  communityEvidence: communityEvidenceRouter,
   modelCatalog: modelCatalogRouter,
   // Plugin routes are namespaced under their plugin ID
   ...pluginRouters,

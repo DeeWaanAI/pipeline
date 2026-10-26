@@ -63,11 +63,6 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
     name: "project_context", group: "Discover", scopes: ["mcp:read"],
     summary: "Read a project's working context (goal, state summary, recent decisions).",
   },
-  {
-    name: "search_marketplace", group: "Discover", scopes: ["mcp:read"],
-    summary: "Search the marketplace for pre-built pipelines you can purchase and run.",
-    example: "\"Find a pipeline for competitive analysis.\"",
-  },
   // ── Run ─────────────────────────────────────────────────────────
   {
     name: "run_pipeline", group: "Run", scopes: ["mcp:run"],
@@ -177,109 +172,16 @@ export const HELP_CATALOG: HelpCatalogEntry[] = [
   },
   // ── Marketplace ─────────────────────────────────────────────────
   {
-    name: "publish_to_marketplace", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Create a marketplace listing from a pipeline project. Sets price and description. The listing starts as a draft — call submit_for_review when ready.",
-    example: "\"Publish my pipeline 'Contract Redliner' to the marketplace at $4.99.\"",
-  },
-  {
-    name: "submit_for_review", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Submit a draft marketplace listing for certification. The platform pays for zero model calls: a deterministic security scan of your prompts runs first and rejects with actionable findings if it fails, then test data generates on YOUR OWN provider key. There is no AI judge and no human review panel — the listing becomes buyable when you publish its signed evidence record with publish_evidence_version; until then it stays visible but locked ('certifying').",
-    example: "\"Submit listing 1 for certification.\"",
-  },
-  {
-    name: "get_listing_status", group: "Marketplace", scopes: ["mcp:read"],
-    summary: "Check a marketplace listing's certification stage: generating test data, pending review, certifying (awaiting its published evidence record), rejected, or published.",
-    example: "\"What's the status of listing 1?\"",
-  },
-  {
-    name: "my_marketplace_listings", group: "Marketplace", scopes: ["mcp:read"],
-    summary: "List all marketplace listings you have created (drafts, in review, published, rejected).",
-    example: "\"Show my marketplace listings.\"",
-  },
-  {
-    name: "my_purchases", group: "Marketplace", scopes: ["mcp:read"],
-    summary: "List marketplace pipelines you have purchased. Purchase receipts written before the flat plan was retired still carry their legacy subscription fields; nothing on this list is a plan you are billed for.",
-    example: "\"Show my purchased pipelines.\"",
-  },
-  {
     name: "export_pipeline_bundle", group: "Your data", scopes: ["mcp:read"],
     summary: "Export your own pipeline as one portable file to send to anyone — no listing, no server. Attach a benchmark's optional archive and its cases, outputs, judgments and judging prompts travel inside the same signed file, bound to the pipeline.",
     example: "\"Export my redliner pipeline with its benchmark so I can send it to a colleague.\"",
   },
   {
-    name: "download_shared_pipeline", group: "Marketplace", scopes: ["mcp:read"],
-    summary: "Take a shared pipeline home as one portable file — steps, prompts, origin, version hash and the platform's signed evidence attestation. It runs in your own desktop app on your own keys afterwards, with no call back to us.",
-    example: "\"Download the contract redliner so I can keep it in my project folder.\"",
-  },
-  {
-    name: "import_pipeline_bundle", group: "Marketplace", scopes: ["mcp:write"],
+    name: "import_pipeline_bundle", group: "Your data", scopes: ["mcp:write"],
     summary: "Import a pipeline bundle file into your account as a project you own and can edit. Verified before anything is written: the steps must match the declared hash and the evidence signature must name this exact pipeline; an unsigned file imports but is reported as unproven.",
     example: "\"Import the bundle I just saved to my folder.\"",
   },
-  {
-    name: "fork_pipeline", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Copy a publicly shared pipeline into your own account — the way a fork on GitHub works. Only listings whose benchmark evidence is published can be forked, so the inputs, outputs and judging prompts come with it; the copy runs on your keys and stays attributed to whoever made it.",
-    example: "\"Fork the contract redliner from the gallery into my account.\"",
-  },
-  {
-    name: "deliver_purchased_copy", group: "Marketplace", scopes: ["mcp:write"],
-    summary: "Take a listing you bought into your own account as an editable copy that runs on your keys. You receive the workflow, not a secret: the copy is yours, it can be shared, and its published evidence describes the exact hash delivered — edit it and that evidence quietly stops describing yours.",
-    example: "\"Deliver the contract redliner I bought into my pipelines.\"",
-  },
   // ── Publish (v2 evidence) ───────────────────────────────────────
-  {
-    name: "preview_evidence", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
-    summary: "See EXACTLY what would become public before anything is: the tested version, every case and judgment, the rubric and weights, all attempts and costs, and the validators recorded as disabled. Returns the hash you must echo back to publish, plus any credential it would leak and any reason a seller publication would be refused.",
-    example: "\"Preview the evidence for benchmark 3 as seller evidence.\"",
-  },
-  {
-    name: "publish_evidence_version", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
-    summary: "Publish your listing's evidence AND the exact workflow version it was measured on, together. This is the only way a listing becomes published under the v2 rules: it requires your consent to the preview hash, refuses stale or mismatched versions (a new revision cannot inherit old scores), and never routes through the legacy certification states.",
-    example: "\"Publish benchmark 3's evidence for listing 1, version 4, hash abc123…\"",
-  },
-  {
-    name: "publish_community_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
-    summary: "Publish your own measured report about a workflow. It can reference a listing but never becomes that listing's required seller evidence, so independent and seller-reported proof stay distinguishable.",
-  },
-  {
-    name: "supersede_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
-    summary: "Replace published evidence with a new measurement: a NEW immutable row that records what it supersedes, with the original test date preserved. Nothing is edited in place.",
-  },
-  {
-    name: "withdraw_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
-    summary: "Withdraw a publication you authored, with a logged reason. Historical runs and financial records are untouched. If it was a listing's current evidence, the same transaction unpublishes the listing — a v2 listing is never left buyable without evidence.",
-  },
-  {
-    name: "listing_publication_state", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
-    summary: "Which version a listing sells, which evidence backs it, whether it is legacy or v2, and the revision number to send so you cannot clobber a concurrent change.",
-  },
-  {
-    name: "get_public_evidence", group: "Publish", scopes: ["mcp:read"],
-    summary: "Read evidence by listing, publication id or manifest hash, including standalone community reports. Purchased evidence remains readable after withdrawal for entitled buyers. Only disclosure manifests — never private workflow prompts or benchmark rows.",
-    example: "\"Show me the evidence behind listing 7 before I buy it.\"",
-  },
-  {
-    name: "preview_external_evidence", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
-    summary: "Preview a user-declared community report about a public v2 listing without writing anything: the exact disclosure, its consent hash, and any credential it would leak. Nothing is measured or run here, and no seller certification is created.",
-    example: "\"Preview my report: I ran listing 7 on these five inputs and got these outputs.\"",
-  },
-  {
-    name: "report_external_evidence", group: "Publish", scopes: ["mcp:write"], flag: "v2Publication",
-    summary: "Publish the exact previewed external report after the user consents to its hash. Stored as user-reported and not independently verified — it can never be shown as platform-recorded evidence or become a listing's required seller proof.",
-  },
-  {
-    name: "get_external_evidence", group: "Publish", scopes: ["mcp:read"],
-    summary: "Read one user-declared community report by id: declared inputs/outputs/model/date, the conspicuous not-verified notice, and when it was submitted (which is NOT when anything was tested).",
-  },
-  {
-    name: "list_external_evidence", group: "Publish", scopes: ["mcp:read"],
-    summary: "List a listing's community reports, newest first, separately labelled from seller evidence. Every entry is user-reported and not independently verified.",
-    example: "\"What have other users reported about listing 7?\"",
-  },
-  {
-    name: "withdraw_external_evidence", group: "Publish", scopes: ["mcp:write"],
-    summary: "Withdraw a community report you authored, with a logged reason. Author-only, idempotent and available even while publication is disabled — a user must always be able to retract their own disclosed data. The row and its consent proof are retained; withdrawal is not a quality verdict.",
-  },
   {
     name: "model_retest_suggestions", group: "Publish", scopes: ["mcp:read"], flag: "v2Publication",
     summary: "Your model-freshness suggestions from admin-reviewed release events. Nothing has been re-run and nothing has been spent; your published scores and test dates are untouched, and age alone never delists a listing.",
