@@ -62,6 +62,7 @@ const bundleSchema = z.object({
       systemPrompt: z.string(), stepType: z.enum(["agent", "if", "while", "approval"]),
       model: z.string().max(100).nullable(), temperature: z.string().max(10).nullable(),
       maxTokens: idSchema.nullable(),
+      parameters: z.record(z.string(), z.unknown()).nullable().optional(),
       ifConfig: z.object({ options: z.array(z.string()), mappings: z.record(z.string(), idSchema) }).strict().nullable(),
       whileConfig: z.object({ targetStep: idSchema, maxIterations: idSchema }).strict().nullable(),
     }).strict()).min(1),
@@ -107,6 +108,7 @@ export interface BundleStep {
   model: string | null;
   temperature: string | null;
   maxTokens: number | null;
+  parameters?: Record<string, unknown> | null;
   ifConfig: unknown;
   whileConfig: unknown;
 }

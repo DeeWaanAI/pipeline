@@ -515,6 +515,7 @@ export const pipelineSteps = sqliteTable("pipeline_steps", {
   systemPrompt: text("system_prompt").notNull(), // Can be customized per pipeline
   temperature: text("temperature").default("0.7"),
   maxTokens: integer("max_tokens").default(4096),
+  parameters: text("parameters", { mode: "json" }).$type<Record<string, unknown> | null>(),
   // For IF steps: { options: ["polish","rewrite"], mappings: { "polish": 4, "rewrite": 2 } }
   ifConfig: text("if_config", { mode: "json" }).$type<{ options: string[]; mappings: Record<string, number> } | null>(),
   // For WHILE steps: { targetStep: 2, maxIterations: 3 }

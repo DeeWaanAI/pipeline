@@ -238,6 +238,7 @@ export interface ResolvedStep {
   model: string | null;
   temperature: string;
   maxTokens: number;
+  parameters?: Record<string, unknown> | null;
   agentId: number | null;
   stepType: string;
   ifConfig: { options: string[]; mappings: Record<string, number> } | null;
@@ -384,6 +385,7 @@ export async function loadPipelineSteps(
         model: s.model ?? defs?.model ?? null,
         temperature: s.temperature ?? "0.7",
         maxTokens: s.maxTokens ?? 4096,
+        parameters: (s as { parameters?: Record<string, unknown> | null }).parameters ?? null,
         agentId: s.agentId,
         stepType: s.stepType ?? "agent",
         ifConfig: s.ifConfig,
@@ -415,6 +417,7 @@ async function executeAgentStep(opts: {
   model: string | null;
   temperature: string;
   maxTokens: number;
+  parameters?: Record<string, unknown> | null;
   userPromptText: string;
   contextData: string | null;
   attachments?: ChatAttachment[];
@@ -426,7 +429,7 @@ async function executeAgentStep(opts: {
   giteeSave?: { token: string; owner: string; repo: string; branch: string; basePath: string; promptNum: string; index: number };
 }) {
   const { db, ctx, swarmRunId, projectId, project, stepNum, agentName, agentRole } = opts;
-  const { agentId, systemPrompt, providerId, model, temperature, maxTokens, userPromptText, contextData, attachments, parentRespId, onTokens, onLatency, restricted, giteeSave } = opts;
+  const { agentId, systemPrompt, providerId, model, temperature, maxTokens, parameters, userPromptText, contextData, attachments, parentRespId, onTokens, onLatency, restricted, giteeSave } = opts;
 
   logger.debug(`[STEP-TRACE] Step ${stepNum} "${agentName}" START`);
   emitEvent(swarmRunId, { type: "step_start", step: stepNum, agentRole, agentName });
@@ -501,6 +504,7 @@ async function executeAgentStep(opts: {
         model: model ?? prov!.defaultModel,
         temperature: parseFloat(temperature ?? "0.7"),
         maxTokens: maxTokens ?? 4096,
+        ...(parameters ? { extraBody: parameters } : {}),
         ...(restricted ? { noRedirect: true } : {}),
       }),
       { maxRetries: 3, label: `Pipeline[${swarmRunId}] step ${stepNum}` },
@@ -839,6 +843,7 @@ Now process the actual content below and produce an improved version. Output the
       systemPrompt: step.systemPrompt,
       providerId: step.providerId, model: step.model ?? null,
       temperature: step.temperature, maxTokens: step.maxTokens,
+      parameters: step.parameters ?? null,
       userPromptText: stepPrompt, contextData: ctxData,
       attachments,
       parentRespId: execCtx.chain[execCtx.chain.length - 1]?.id,

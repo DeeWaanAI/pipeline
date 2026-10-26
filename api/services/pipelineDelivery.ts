@@ -159,6 +159,7 @@ async function writeCopyIntoAccount(args: {
         model: step.model ?? null,
         temperature: step.temperature ?? "0.7",
         maxTokens: step.maxTokens ?? 4096,
+        parameters: (step as { parameters?: Record<string, unknown> | null }).parameters ?? null,
         ifConfig: step.ifConfig ?? null,
         whileConfig: step.whileConfig ?? null,
         isEnabled: true,
@@ -182,6 +183,7 @@ async function writeCopyIntoAccount(args: {
         model: s.model ?? null,
         temperature: s.temperature ?? "0.7",
         maxTokens: s.maxTokens ?? 4096,
+        ...{ parameters: (s as { parameters?: Record<string, unknown> | null }).parameters ?? null },
       })),
     });
     const templateId = Number((insertedTemplate as { insertId: number }).insertId);
@@ -406,6 +408,7 @@ export async function exportListingBundle(
     model: st.model ?? null,
     temperature: st.temperature ?? null,
     maxTokens: st.maxTokens ?? null,
+    parameters: st.parameters ?? null,
     ifConfig: st.ifConfig ?? null,
     whileConfig: st.whileConfig ?? null,
   }));
@@ -567,6 +570,7 @@ export async function exportOwnPipelineBundle(
     model: st.model ?? null,
     temperature: st.temperature ?? null,
     maxTokens: st.maxTokens ?? null,
+    parameters: st.parameters ?? null,
     ifConfig: st.ifConfig ?? null,
     whileConfig: st.whileConfig ?? null,
   }));

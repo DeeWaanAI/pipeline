@@ -52,6 +52,7 @@ export const getPipeline: McpTool = {
         providerId: s.providerId,
         temperature: s.temperature,
         maxTokens: s.maxTokens,
+        parameters: s.parameters ?? null,
         ifConfig: s.ifConfig ?? null,
         whileConfig: s.whileConfig ?? null,
         isEnabled: s.isEnabled,

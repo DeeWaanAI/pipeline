@@ -49,6 +49,7 @@ export async function snapshotStepsFromProject(userId: number, projectId: number
       providerId: s.providerId ?? defs?.providerId ?? project.defaultProviderId ?? null,
       model: s.model ?? defs?.model ?? null,
       temperature: s.temperature ?? "0.7",
+      parameters: (s as { parameters?: Record<string, unknown> | null }).parameters ?? null, 
       maxTokens: s.maxTokens ?? 4096,
       ifConfig: (s.ifConfig as SnapshotStep["ifConfig"]) ?? null,
       whileConfig: (s.whileConfig as SnapshotStep["whileConfig"]) ?? null,
@@ -249,6 +250,7 @@ export function resolveSnapshotSteps(definition: VersionDefinition): ResolvedSte
     model: s.model,
     temperature: s.temperature,
     maxTokens: s.maxTokens,
+    parameters: s.parameters ?? null,
     agentId: null, // snapshot execution is side-effect-free; agent refs live in sourceAgentIds
     stepType: s.stepType,
     ifConfig: s.ifConfig,

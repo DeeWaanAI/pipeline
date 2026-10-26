@@ -94,6 +94,7 @@ export function createAnthropicAdapter(
         requestBody.system = systemPrompt;
       }
       if (options?.temperature !== undefined) requestBody.temperature = options.temperature;
+      if (options?.extraBody) Object.assign(requestBody, options.extraBody);
       if (options?.topP !== undefined) requestBody.top_p = options.topP;
 
       const response = await fetch(`${baseUrl}/messages`, {

@@ -117,6 +117,8 @@ export const pipelineRouter = createRouter({
         model: z.string().nullable().optional(),
         temperature: z.string().optional(),
         maxTokens: z.number().optional(),
+        /** Provider-specific request-body fields, passed through as given. */
+        parameters: z.record(z.string(), z.unknown()).nullable().optional(),
         isEnabled: z.boolean().optional(),
         stepType: z.string().optional(),
         ifConfig: z.object({
@@ -181,6 +183,7 @@ export const pipelineRouter = createRouter({
             model: step.model ?? null,
             temperature: step.temperature ?? "0.7",
             maxTokens: step.maxTokens ?? 4096,
+            parameters: step.parameters ?? null,
             ifConfig: step.ifConfig ?? null,
             whileConfig: step.whileConfig ?? null,
             isEnabled: step.isEnabled ?? true,

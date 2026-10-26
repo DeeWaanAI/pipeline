@@ -519,6 +519,11 @@ export const pipelineSteps = mysqlTable("pipeline_steps", {
   systemPrompt: text("system_prompt").notNull(), // Can be customized per pipeline
   temperature: varchar("temperature", { length: 10 }).default("0.7"),
   maxTokens: int("max_tokens").default(4096),
+  /** Free-form provider request-body extensions for this step (e.g.
+   *  { enable_thinking: false }, { reasoning_effort: "high" }). Passed to the
+   *  provider as-is: the user picks the model and the parameters it accepts; we
+   *  do not maintain an allowlist that would fall out of date. */
+  parameters: json("parameters").$type<Record<string, unknown> | null>(),
   // For IF steps: { options: ["polish","rewrite"], mappings: { "polish": 4, "rewrite": 2 } }
   ifConfig: json("if_config").$type<{ options: string[]; mappings: Record<string, number> } | null>(),
   // For WHILE steps: { targetStep: 2, maxIterations: 3 }

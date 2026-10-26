@@ -17,6 +17,8 @@ export interface SnapshotStep {
   model: string | null;
   temperature: string;
   maxTokens: number;
+  /** Provider-specific request-body fields, passed through untouched. */
+  parameters?: Record<string, unknown> | null;
   ifConfig: { options: string[]; mappings: Record<string, number> } | null;
   whileConfig: { targetStep: number; maxIterations: number } | null;
 }
