@@ -5,7 +5,7 @@
 #
 # Runs scripts/backup-db.sh IMMEDIATELY on start, then sleeps 24h and repeats
 # forever. Designed to be the entrypoint of the swarm-backup service in
-# docker-compose.backup.yml, but works anywhere bash + mysqldump are present.
+# any scheduler (cron, launchd), and works anywhere bash + mysqldump are present.
 #
 # Usage:
 #   DATABASE_URL="mysql://user:pass@host:3306/dbname" ./scripts/backup-cron.sh

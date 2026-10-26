@@ -73,7 +73,7 @@ A signature names a key; the fingerprint is what tells you the key is ours.
 Node 20+ and, for the development database, Docker.
 
 ```bash
-docker compose up -d        # MySQL 8 (+ Redis if configured)
+docker compose -f docker-compose.v2.yml up -d   # MySQL 8 :3307 (+ Redis :6380)
 cp .env.example .env        # then edit values
 npm ci
 npm run db:push             # push the Drizzle schema

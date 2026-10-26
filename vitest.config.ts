@@ -5,7 +5,7 @@ import net from "net";
 const templateRoot = path.resolve(import.meta.dirname);
 
 // The *.integration.test.ts suites drive a dedicated MySQL docker harness on
-// localhost:3307 (docker-compose.yml). When it isn't running they die at
+// localhost:3307 (docker-compose.v2.yml). When it isn't running they die at
 // setup with ECONNREFUSED — red that means nothing. Probe once here and
 // exclude them cleanly instead; with the harness up they run as usual.
 function harnessUp(): Promise<boolean> {
@@ -48,6 +48,7 @@ export default defineConfig(async () => ({
      * the run costs a couple more minutes and becomes trustworthy instead.
      */
     fileParallelism: false,
+    setupFiles: ["./vitest.setup.ts"],
     ...((await harnessUp())
       ? {}
       : { exclude: [...configDefaults.exclude, "api/**/*.integration.test.ts"] }),
